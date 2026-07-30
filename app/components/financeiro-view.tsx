@@ -53,7 +53,7 @@ export function FinanceiroView() {
 
     const { data } = await supabase
       .from("pagamentos")
-      .select("id, valor, data_vencimento, status, forma_pagamento, created_at, paciente_id, pacientes(nome_completo, cpf)")
+      .select("id, valor, data_vencimento, status, forma_pagamento, created_at, paciente_id, pacientes(nome, cpf)")
       .order("data_vencimento", { ascending: false });
 
     if (data) {
@@ -141,7 +141,7 @@ export function FinanceiroView() {
       // 3. Trigger Print
       const pacInfo = getPacienteInfo(pagamento);
       setPrintingReciboData({
-        pacienteNome: pacInfo.nome_completo || "Desconhecido",
+        pacienteNome: pacInfo.nome || "Desconhecido",
         pacienteCpf: pacInfo.cpf || "",
         valor: pagamento.valor,
         dataEmissao: dtEmissao,
@@ -235,7 +235,7 @@ export function FinanceiroView() {
                   return (
                     <tr key={p.id} className="hover:bg-background/20 transition-colors">
                       <td className="px-5 py-4 font-medium text-text">
-                        {pacInfo.nome_completo || "Desconhecido"}
+                        {pacInfo.nome || "Desconhecido"}
                       </td>
                       <td className="px-5 py-4 font-semibold text-text">
                         {formatMoney(p.valor)}

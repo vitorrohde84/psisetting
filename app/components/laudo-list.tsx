@@ -20,7 +20,7 @@ interface Laudo {
 
 interface PacienteOption {
   id: string;
-  nome_completo: string;
+  nome: string;
 }
 
 export function LaudoList() {
@@ -47,7 +47,7 @@ export function LaudoList() {
 
     let query = supabase
       .from("laudos")
-      .select("id, titulo, tipo, conteudo, created_at, paciente_id, pacientes(nome_completo, cpf, data_nascimento)")
+      .select("id, titulo, tipo, conteudo, created_at, paciente_id, pacientes(nome, cpf, data_nascimento)")
       .order("created_at", { ascending: false });
 
     if (pacienteFilter !== "all") {
@@ -66,8 +66,8 @@ export function LaudoList() {
     async function fetchOptions() {
       const { data } = await supabase
         .from("pacientes")
-        .select("id, nome_completo")
-        .order("nome_completo", { ascending: true });
+        .select("id, nome")
+        .order("nome", { ascending: true });
       setPacientesOptions(data || []);
     }
     fetchOptions();
@@ -156,7 +156,7 @@ export function LaudoList() {
             <option value="all">Todos os pacientes</option>
             {pacientesOptions.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nome_completo}
+                {p.nome}
               </option>
             ))}
           </select>
@@ -201,7 +201,7 @@ export function LaudoList() {
                     <div>
                       <h4 className="text-base font-medium text-text">{laudo.titulo}</h4>
                       <p className="text-sm text-text-muted mt-0.5">
-                        Paciente: <span className="font-medium text-text">{pacInfo.nome_completo || "Desconhecido"}</span>
+                        Paciente: <span className="font-medium text-text">{pacInfo.nome || "Desconhecido"}</span>
                       </p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-text-muted/80 font-medium">
                         <span className="capitalize">{dataCriacao}</span>
@@ -262,7 +262,7 @@ export function LaudoList() {
         <LaudoPrint
           titulo={printingLaudo.titulo}
           conteudo={printingLaudo.conteudo}
-          pacienteNome={getPacienteInfo(printingLaudo).nome_completo}
+          pacienteNome={getPacienteInfo(printingLaudo).nome}
           pacienteCpf={getPacienteInfo(printingLaudo).cpf}
           pacienteNascimento={getPacienteInfo(printingLaudo).data_nascimento}
           onPrinted={() => setPrintingLaudo(null)}

@@ -222,7 +222,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             {/* Avatar */}
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 shrink-0">
               <span className="text-lg font-serif font-bold text-primary">
-                {paciente.nome_completo
+                {paciente.nome
                   .split(" ")
                   .map((n) => n[0])
                   .join("")
@@ -233,7 +233,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-xl font-serif font-semibold text-text">
-                  {paciente.nome_completo}
+                  {paciente.nome}
                 </h2>
                 <span
                   className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${

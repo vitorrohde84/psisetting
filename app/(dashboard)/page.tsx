@@ -57,7 +57,7 @@ export default async function DashboardPage() {
 
   const { data: proximasSessoes } = await supabase
     .from("agendamentos")
-    .select("id, data, horario, modalidade, status, pacientes(nome_completo)")
+    .select("id, data, horario, modalidade, status, pacientes(nome)")
     .gte("data", todayStr)
     .lte("data", sevenDaysStr)
     .in("status", ["confirmado", "agendado"])
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
   // Query 2: Pagamentos pendentes do mês
   const { data: pagamentosPendentes } = await supabase
     .from("pagamentos")
-    .select("id, valor, data_vencimento, pacientes(nome_completo)")
+    .select("id, valor, data_vencimento, pacientes(nome)")
     .gte("data_vencimento", firstDayOfMonth)
     .lte("data_vencimento", lastDayOfMonth)
     .eq("status", "pendente")
@@ -171,8 +171,8 @@ export default async function DashboardPage() {
               <div className="divide-y divide-border/30">
                 {proximasSessoes.map((sessao) => {
                   const pacienteNome =
-                    (sessao.pacientes as { nome_completo?: string })
-                      ?.nome_completo || "Paciente";
+                    (sessao.pacientes as { nome?: string })
+                      ?.nome || "Paciente";
                   const isToday = sessao.data === todayStr;
 
                   return (
@@ -274,8 +274,8 @@ export default async function DashboardPage() {
                   <div className="space-y-2.5 mb-4">
                     {pagamentosPendentes?.slice(0, 5).map((pag) => {
                       const pacNome =
-                        (pag.pacientes as { nome_completo?: string })
-                          ?.nome_completo || "Paciente";
+                        (pag.pacientes as { nome?: string })
+                          ?.nome || "Paciente";
                       const vencido =
                         pag.data_vencimento && pag.data_vencimento < todayStr;
 

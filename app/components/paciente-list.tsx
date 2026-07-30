@@ -8,7 +8,7 @@ import { PacienteFormModal } from "./paciente-form-modal";
 
 export interface Paciente {
   id: string;
-  nome_completo: string;
+  nome: string;
   cpf: string | null;
   telefone: string | null;
   email: string | null;
@@ -56,7 +56,7 @@ export function PacienteList() {
     const { data, error } = await supabase
       .from("pacientes")
       .select("*")
-      .order("nome_completo", { ascending: true });
+      .order("nome", { ascending: true });
 
     if (!error && data) {
       setPacientes(data);
@@ -81,7 +81,7 @@ export function PacienteList() {
 
     setFilteredPacientes(
       pacientes.filter((p) => {
-        const nameMatch = p.nome_completo.toLowerCase().includes(queryText);
+        const nameMatch = p.nome.toLowerCase().includes(queryText);
         const cpfMatch = p.cpf
           ? p.cpf.replace(/\D/g, "").includes(query) || p.cpf.toLowerCase().includes(queryText)
           : false;
@@ -225,7 +225,7 @@ export function PacienteList() {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/8 shrink-0">
                       <span className="text-xs font-semibold text-primary">
-                        {paciente.nome_completo
+                        {paciente.nome
                           .split(" ")
                           .map((n) => n[0])
                           .join("")
@@ -237,7 +237,7 @@ export function PacienteList() {
                       href={`/pacientes/${paciente.id}`}
                       className="text-sm font-medium text-text hover:text-primary truncate transition-colors"
                     >
-                      {paciente.nome_completo}
+                      {paciente.nome}
                     </Link>
                   </div>
 

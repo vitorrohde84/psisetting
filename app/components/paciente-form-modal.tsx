@@ -12,7 +12,7 @@ interface PacienteFormModalProps {
 }
 
 interface FormData {
-  nome_completo: string;
+  nome: string;
   cpf: string;
   data_nascimento: string;
   telefone: string;
@@ -52,7 +52,7 @@ export function PacienteFormModal({
   const supabase = createClient();
 
   const [form, setForm] = useState<FormData>({
-    nome_completo: paciente?.nome_completo || "",
+    nome: paciente?.nome || "",
     cpf: paciente?.cpf || "",
     data_nascimento: paciente?.data_nascimento || "",
     telefone: paciente?.telefone || "",
@@ -93,7 +93,7 @@ export function PacienteFormModal({
     e.preventDefault();
     setError(null);
 
-    if (!form.nome_completo.trim()) {
+    if (!form.nome.trim()) {
       setError("O nome é obrigatório.");
       return;
     }
@@ -102,7 +102,7 @@ export function PacienteFormModal({
 
     // Clean CPF and phone for storage (digits only)
     const payload = {
-      nome_completo: form.nome_completo.trim(),
+      nome: form.nome.trim(),
       cpf: form.cpf.replace(/\D/g, "") || null,
       data_nascimento: form.data_nascimento || null,
       telefone: form.telefone.replace(/\D/g, "") || null,
@@ -184,16 +184,16 @@ export function PacienteFormModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Nome */}
           <div>
-            <label htmlFor="nome_completo" className={labelClass}>
+            <label htmlFor="nome" className={labelClass}>
               Nome completo <span className="text-danger">*</span>
             </label>
             <input
-              id="nome_completo"
-              name="nome_completo"
+              id="nome"
+              name="nome"
               type="text"
               required
               autoFocus
-              value={form.nome_completo}
+              value={form.nome}
               onChange={handleChange}
               placeholder="Nome completo do paciente"
               className={inputClass}

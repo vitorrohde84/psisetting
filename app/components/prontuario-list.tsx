@@ -20,7 +20,7 @@ interface Prontuario {
 
 interface PacienteOption {
   id: string;
-  nome_completo: string;
+  nome: string;
 }
 
 export function ProntuarioList() {
@@ -42,7 +42,7 @@ export function ProntuarioList() {
 
     let query = supabase
       .from("prontuarios")
-      .select("id, data_sessao, resumo, created_at, paciente_id, agendamento_id, pacientes(nome_completo), agendamentos(horario)")
+      .select("id, data_sessao, resumo, created_at, paciente_id, agendamento_id, pacientes(nome), agendamentos(horario)")
       .order("data_sessao", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -63,8 +63,8 @@ export function ProntuarioList() {
     async function fetchOptions() {
       const { data } = await supabase
         .from("pacientes")
-        .select("id, nome_completo")
-        .order("nome_completo", { ascending: true });
+        .select("id, nome")
+        .order("nome", { ascending: true });
       setPacientesOptions(data || []);
     }
     fetchOptions();
@@ -81,8 +81,8 @@ export function ProntuarioList() {
   function getPacienteName(p: Prontuario): string {
     const pac = p.pacientes;
     if (!pac) return "Paciente desconhecido";
-    if (Array.isArray(pac)) return pac[0]?.nome_completo || "Paciente";
-    return pac.nome_completo || "Paciente";
+    if (Array.isArray(pac)) return pac[0]?.nome || "Paciente";
+    return pac.nome || "Paciente";
   }
 
   function getAgendamentoHorario(p: Prontuario): string | null {
@@ -147,7 +147,7 @@ export function ProntuarioList() {
             <option value="all">Todos os pacientes</option>
             {pacientesOptions.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nome_completo}
+                {p.nome}
               </option>
             ))}
           </select>

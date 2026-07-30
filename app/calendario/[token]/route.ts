@@ -34,7 +34,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const { data: agendamentos, error } = await supabase
       .from("agendamentos")
-      .select("id, data, horario, duracao_minutos, modalidade, status, observacoes, pacientes(nome_completo)")
+      .select("id, data, horario, duracao_minutos, modalidade, status, observacoes, pacientes(nome)")
       .gte("data", cutoffDate)
       .in("status", ["agendado", "confirmado", "realizado"])
       .order("data", { ascending: true })
@@ -88,7 +88,7 @@ function generateICS(agendamentos: any[]): string {
 
   for (const ag of agendamentos) {
     const pacienteNome =
-      (ag.pacientes as { nome_completo?: string })?.nome_completo || "Paciente";
+      (ag.pacientes as { nome?: string })?.nome || "Paciente";
 
     // Parse date and time
     const dateStr = ag.data; // YYYY-MM-DD

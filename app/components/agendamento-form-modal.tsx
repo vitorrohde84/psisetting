@@ -14,7 +14,7 @@ interface AgendamentoFormModalProps {
 
 interface PacienteOption {
   id: string;
-  nome_completo: string;
+  nome: string;
 }
 
 interface FormData {
@@ -60,15 +60,15 @@ export function AgendamentoFormModal({
     async function fetchPacientes() {
       const { data } = await supabase
         .from("pacientes")
-        .select("id, nome_completo")
+        .select("id, nome")
         .eq("ativo", true)
-        .order("nome_completo", { ascending: true });
+        .order("nome", { ascending: true });
       setPacientes(data || []);
 
       // If editing, find patient name
       if (agendamento?.paciente_id && data) {
         const found = data.find((p) => p.id === agendamento.paciente_id);
-        if (found) setSelectedPacienteName(found.nome_completo);
+        if (found) setSelectedPacienteName(found.nome);
       }
     }
     fetchPacientes();
@@ -77,13 +77,13 @@ export function AgendamentoFormModal({
   // Filter patients by search
   const filteredPacientes = pacienteSearch
     ? pacientes.filter((p) =>
-        p.nome_completo.toLowerCase().includes(pacienteSearch.toLowerCase())
+        p.nome.toLowerCase().includes(pacienteSearch.toLowerCase())
       )
     : pacientes;
 
   function selectPaciente(p: PacienteOption) {
     setForm((prev) => ({ ...prev, paciente_id: p.id }));
-    setSelectedPacienteName(p.nome_completo);
+    setSelectedPacienteName(p.nome);
     setPacienteSearch("");
     setShowPacienteDropdown(false);
   }
@@ -237,7 +237,7 @@ export function AgendamentoFormModal({
                           onClick={() => selectPaciente(p)}
                           className="w-full text-left px-3.5 py-2.5 text-sm text-text hover:bg-background transition-colors cursor-pointer"
                         >
-                          {p.nome_completo}
+                          {p.nome}
                         </button>
                       ))
                     )}

@@ -38,8 +38,8 @@ export interface Agendamento {
 function getPacienteName(ag: Agendamento): string {
   const p = ag.pacientes;
   if (!p) return "Paciente";
-  if (Array.isArray(p)) return p[0]?.nome_completo || "Paciente";
-  return p.nome_completo || "Paciente";
+  if (Array.isArray(p)) return p[0]?.nome || "Paciente";
+  return p.nome || "Paciente";
 }
 
 const STATUS_MAP: Record<string, { label: string; class: string }> = {
@@ -85,7 +85,7 @@ export function AgendaView() {
     setLoading(true);
     const { data } = await supabase
       .from("agendamentos")
-      .select("id, paciente_id, data, horario, duracao_minutos, modalidade, status, observacoes, psicologo_id, pacientes(nome_completo)")
+      .select("id, paciente_id, data, horario, duracao_minutos, modalidade, status, observacoes, psicologo_id, pacientes(nome)")
       .gte("data", firstDay)
       .lte("data", lastDayStr)
       .order("data", { ascending: true })

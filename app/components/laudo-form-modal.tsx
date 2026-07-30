@@ -7,7 +7,7 @@ import { uploadLaudoPdf } from "@/utils/supabase/storage";
 
 interface PacienteOption {
   id: string;
-  nome_completo: string;
+  nome: string;
   cpf?: string;
   data_nascimento?: string;
 }
@@ -41,9 +41,9 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
     async function fetchPacientes() {
       const { data } = await supabase
         .from("pacientes")
-        .select("id, nome_completo, cpf, data_nascimento")
+        .select("id, nome, cpf, data_nascimento")
         .eq("ativo", true)
-        .order("nome_completo", { ascending: true });
+        .order("nome", { ascending: true });
       
       setPacientes(data || []);
     }
@@ -52,13 +52,13 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
 
   const filteredPacientes = pacienteSearch
     ? pacientes.filter((p) =>
-        p.nome_completo.toLowerCase().includes(pacienteSearch.toLowerCase())
+        p.nome.toLowerCase().includes(pacienteSearch.toLowerCase())
       )
     : pacientes;
 
   function selectPaciente(p: PacienteOption) {
     setPacienteId(p.id);
-    setSelectedPacienteName(p.nome_completo);
+    setSelectedPacienteName(p.nome);
     setPacienteSearch("");
     setShowPacienteDropdown(false);
   }
@@ -231,7 +231,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
                             onClick={() => selectPaciente(p)}
                             className="w-full text-left px-3.5 py-2.5 text-sm text-text hover:bg-background transition-colors cursor-pointer"
                           >
-                            {p.nome_completo}
+                            {p.nome}
                           </button>
                         ))
                       )}

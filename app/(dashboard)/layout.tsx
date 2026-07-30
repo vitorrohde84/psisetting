@@ -19,11 +19,11 @@ export default async function DashboardLayout({
   // Try to get profile name, fallback to email
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nome_completo")
+    .select("nome")
     .eq("id", user.id)
     .single();
 
-  const userName = profile?.nome_completo || user.email?.split("@")[0] || "Usuário";
+  const userName = profile?.nome || user.email?.split("@")[0] || "Usuário";
   const userEmail = user.email || "";
 
   return (

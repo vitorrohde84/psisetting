@@ -18,7 +18,7 @@ interface Diario {
 
 interface PacienteOption {
   id: string;
-  nome_completo: string;
+  nome: string;
 }
 
 export function DiarioList() {
@@ -40,7 +40,7 @@ export function DiarioList() {
 
     let query = supabase
       .from("diario_bordo")
-      .select("id, data_sessao, anotacoes, created_at, paciente_id, agendamento_id, pacientes(nome_completo)")
+      .select("id, data_sessao, anotacoes, created_at, paciente_id, agendamento_id, pacientes(nome)")
       .order("data_sessao", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -60,8 +60,8 @@ export function DiarioList() {
     async function fetchOptions() {
       const { data } = await supabase
         .from("pacientes")
-        .select("id, nome_completo")
-        .order("nome_completo", { ascending: true });
+        .select("id, nome")
+        .order("nome", { ascending: true });
       setPacientesOptions(data || []);
     }
     fetchOptions();
@@ -77,8 +77,8 @@ export function DiarioList() {
   function getPacienteName(d: Diario): string {
     const pac = d.pacientes;
     if (!pac) return "Paciente desconhecido";
-    if (Array.isArray(pac)) return pac[0]?.nome_completo || "Paciente";
-    return pac.nome_completo || "Paciente";
+    if (Array.isArray(pac)) return pac[0]?.nome || "Paciente";
+    return pac.nome || "Paciente";
   }
 
   function handleEdit(d: Diario) {
@@ -131,7 +131,7 @@ export function DiarioList() {
             <option value="all">Todos os pacientes</option>
             {pacientesOptions.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nome_completo}
+                {p.nome}
               </option>
             ))}
           </select>
