@@ -175,7 +175,7 @@ export function PacienteList() {
       </div>
 
       {/* List */}
-      <div className="bg-surface rounded-xl border border-border/60 overflow-hidden">
+      <div className="bg-surface rounded-xl border border-border/60">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="flex flex-col items-center gap-3">
@@ -206,7 +206,7 @@ export function PacienteList() {
         ) : (
           <>
             {/* Table header - desktop */}
-            <div className="hidden sm:grid grid-cols-[1fr_140px_100px_100px_48px] gap-4 px-5 py-3 bg-background/60 border-b border-border/40 text-xs font-medium text-text-muted uppercase tracking-wider">
+            <div className="hidden sm:grid grid-cols-[1fr_140px_100px_100px_48px] gap-4 px-5 py-3 bg-background/60 border-b border-border/40 text-xs font-medium text-text-muted uppercase tracking-wider rounded-t-xl">
               <span>Nome</span>
               <span>Telefone</span>
               <span>CPF</span>
@@ -216,12 +216,13 @@ export function PacienteList() {
 
             {/* Rows */}
             <div className="divide-y divide-border/30">
-              {filteredPacientes.map((paciente) => (
+              {filteredPacientes.map((paciente, idx) => (
                 <div
                   key={paciente.id}
-                  className="group relative sm:grid sm:grid-cols-[1fr_140px_100px_100px_48px] sm:gap-4
+                  className={`group relative sm:grid sm:grid-cols-[1fr_140px_100px_100px_48px] sm:gap-4
                              flex flex-col gap-1.5
-                             px-5 py-3.5 hover:bg-background/40 transition-colors"
+                             px-5 py-3.5 hover:bg-background/40 transition-colors
+                             ${idx === filteredPacientes.length - 1 ? 'rounded-b-[11px]' : ''}`}
                 >
                   {/* Nome */}
                   <div className="flex items-center gap-3 min-w-0">
