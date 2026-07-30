@@ -165,7 +165,7 @@ export function ProntuarioFormModal({
 
       result = await supabase
         .from("prontuarios")
-        .insert({ ...payload, psicologo_id: user.id });
+        .insert({ ...payload, });
     }
 
     if (result.error) {

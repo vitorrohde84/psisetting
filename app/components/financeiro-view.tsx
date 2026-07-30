@@ -130,7 +130,7 @@ export function FinanceiroView() {
           .insert({
             pagamento_id: pagamento.id,
             paciente_id: pagamento.paciente_id,
-            psicologo_id: user?.id,
+            
             numero_sequencial: numeroSeq,
             data_emissao: dtEmissao,
             valor: pagamento.valor,

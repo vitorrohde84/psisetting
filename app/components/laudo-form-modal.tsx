@@ -113,7 +113,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
         .from("laudos")
         .insert({
           paciente_id: pacienteId,
-          psicologo_id: user.id,
+          
           titulo: titulo.trim(),
           tipo: mode,
           conteudo: finalConteudo,

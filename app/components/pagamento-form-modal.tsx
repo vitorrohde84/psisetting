@@ -106,7 +106,7 @@ export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFor
       }
       result = await supabase
         .from("pagamentos")
-        .insert({ ...payload, psicologo_id: user.id });
+        .insert({ ...payload, });
     }
 
     if (result.error) {

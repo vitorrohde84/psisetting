@@ -163,7 +163,7 @@ export function DiarioFormModal({
 
       result = await supabase
         .from("diario_bordo")
-        .insert({ ...payload, psicologo_id: user.id });
+        .insert({ ...payload, });
     }
 
     if (result.error) {
