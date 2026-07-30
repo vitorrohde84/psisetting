@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Plus, Loader2, DollarSign, Wallet, ArrowUpRight, ArrowDownRight, FileText, CheckCircle2, Circle } from "lucide-react";
+import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle } from "lucide-react";
 import { PagamentoFormModal } from "./pagamento-form-modal";
-import { ReciboPrint } from "./recibo-print";
 
 interface Pagamento {
   id: string;
@@ -13,16 +12,9 @@ interface Pagamento {
   data_vencimento: string;
   status: "pendente" | "pago" | "cancelado";
   forma_pagamento: string;
+  receita_saude: boolean;
   created_at: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pacientes?: any;
-}
-
-interface NotaReceita {
-  id: string;
-  pagamento_id: string;
-  numero_sequencial: number;
-  data_emissao: string;
 }
 
 export function FinanceiroView() {
@@ -37,23 +29,14 @@ export function FinanceiroView() {
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
-
-  // Receipt Generation
-  const [generatingReciboId, setGeneratingReciboId] = useState<string | null>(null);
-  const [printingReciboData, setPrintingReciboData] = useState<{
-    pacienteNome: string;
-    pacienteCpf: string;
-    valor: number;
-    dataEmissao: string;
-    numeroSequencial: number;
-  } | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const fetchPagamentos = useCallback(async () => {
     setLoading(true);
 
     const { data } = await supabase
       .from("pagamentos")
-      .select("id, valor, data_vencimento, status, forma_pagamento, created_at, paciente_id, pacientes(nome, cpf)")
+      .select("id, valor, data_vencimento, status, forma_pagamento, receita_saude, created_at, paciente_id, pacientes(nome, cpf)")
       .order("data_vencimento", { ascending: false });
 
     if (data) {
@@ -96,64 +79,22 @@ export function FinanceiroView() {
     return pac || {};
   }
 
-  async function handleEmitirRecibo(pagamento: Pagamento) {
-    setGeneratingReciboId(pagamento.id);
-
-    try {
-      // 1. Check if a nota already exists for this pagamento
-      const { data: existingNota } = await supabase
-        .from("notas_receita_saude")
-        .select("numero_sequencial, data_emissao")
-        .eq("pagamento_id", pagamento.id)
-        .maybeSingle();
-
-      let numeroSeq = existingNota?.numero_sequencial;
-      let dtEmissao = existingNota?.data_emissao;
-
-      // 2. If it doesn't exist, create it
-      if (!existingNota) {
-        // Find highest sequence number to increment
-        const { data: maxSeqData } = await supabase
-          .from("notas_receita_saude")
-          .select("numero_sequencial")
-          .order("numero_sequencial", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        numeroSeq = (maxSeqData?.numero_sequencial || 0) + 1;
-        dtEmissao = new Date().toISOString().split("T")[0];
-
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        await supabase
-          .from("notas_receita_saude")
-          .insert({
-            pagamento_id: pagamento.id,
-            paciente_id: pagamento.paciente_id,
-            
-            numero_sequencial: numeroSeq,
-            data_emissao: dtEmissao,
-            valor: pagamento.valor,
-            codigo_servico: "Serviços Psicológicos",
-          });
-      }
-
-      // 3. Trigger Print
-      const pacInfo = getPacienteInfo(pagamento);
-      setPrintingReciboData({
-        pacienteNome: pacInfo.nome || "Desconhecido",
-        pacienteCpf: pacInfo.cpf || "",
-        valor: pagamento.valor,
-        dataEmissao: dtEmissao,
-        numeroSequencial: numeroSeq,
-      });
-
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao emitir recibo.");
-    } finally {
-      setGeneratingReciboId(null);
+  async function handleToggleReceitaSaude(id: string, currentValue: boolean) {
+    setTogglingId(id);
+    const newValue = !currentValue;
+    
+    const { error } = await supabase
+      .from("pagamentos")
+      .update({ receita_saude: newValue })
+      .eq("id", id);
+      
+    if (error) {
+      console.error(error);
+      alert("Erro ao atualizar status da Receita Saúde.");
+    } else {
+      setPagamentos(prev => prev.map(p => p.id === id ? { ...p, receita_saude: newValue } : p));
     }
+    setTogglingId(null);
   }
 
   return (
@@ -224,6 +165,7 @@ export function FinanceiroView() {
                   <th className="px-5 py-4 font-medium">Vencimento</th>
                   <th className="px-5 py-4 font-medium">Status</th>
                   <th className="px-5 py-4 font-medium">Forma</th>
+                  <th className="px-5 py-4 font-medium text-center">Receita Saúde</th>
                   <th className="px-5 py-4 font-medium text-right">Ações</th>
                 </tr>
               </thead>
@@ -263,6 +205,17 @@ export function FinanceiroView() {
                       <td className="px-5 py-4 text-text-muted capitalize">
                         {p.forma_pagamento}
                       </td>
+                      <td className="px-5 py-4 text-center">
+                        <label className="inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!p.receita_saude}
+                            disabled={togglingId === p.id}
+                            onChange={() => handleToggleReceitaSaude(p.id, !!p.receita_saude)}
+                            className="rounded border-border text-primary focus:ring-primary/20 w-4 h-4 disabled:opacity-50"
+                          />
+                        </label>
+                      </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -274,22 +227,6 @@ export function FinanceiroView() {
                           >
                             Editar
                           </button>
-                          
-                          {p.status === "pago" && (
-                            <button
-                              onClick={() => handleEmitirRecibo(p)}
-                              disabled={generatingReciboId === p.id}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
-                                         bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                            >
-                              {generatingReciboId === p.id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <FileText size={14} />
-                              )}
-                              Emitir Recibo
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -312,13 +249,6 @@ export function FinanceiroView() {
         />
       )}
 
-      {/* Hidden Print Container */}
-      {printingReciboData && (
-        <ReciboPrint
-          {...printingReciboData}
-          onPrinted={() => setPrintingReciboData(null)}
-        />
-      )}
     </>
   );
 }
