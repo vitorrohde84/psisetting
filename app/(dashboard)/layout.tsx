@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/app/components/sidebar";
+import { SessionMonitor } from "@/app/components/session-monitor";
 
 export default async function DashboardLayout({
   children,
@@ -39,6 +40,8 @@ export default async function DashboardLayout({
           <div className="max-w-6xl mx-auto">{children}</div>
         </main>
       </div>
+
+      <SessionMonitor />
     </div>
   );
 }
