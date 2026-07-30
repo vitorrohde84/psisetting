@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X } from "lucide-react";
+import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { PacienteFormModal } from "./paciente-form-modal";
 
@@ -48,6 +48,8 @@ export function PacienteList() {
   const [showModal, setShowModal] = useState(false);
   const [editingPaciente, setEditingPaciente] = useState<Paciente | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deletingPaciente, setDeletingPaciente] = useState<Paciente | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const supabase = createClient();
 
@@ -301,6 +303,16 @@ export function PacienteList() {
                             <Pencil size={15} />
                             Editar
                           </button>
+                          <button
+                            onClick={() => {
+                              setDeletingPaciente(paciente);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger hover:bg-danger/5 transition-colors w-full cursor-pointer"
+                          >
+                            <Trash2 size={15} />
+                            Excluir
+                          </button>
                         </div>
                       </>
                     )}
@@ -319,6 +331,46 @@ export function PacienteList() {
           onClose={handleModalClose}
           onSaved={handleSaved}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingPaciente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-text/20 backdrop-blur-sm" 
+            onClick={() => !isDeleting && setDeletingPaciente(null)} 
+          />
+          <div className="relative w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border/60 p-6">
+            <h3 className="text-lg font-serif font-medium text-text mb-2">
+              Excluir paciente
+            </h3>
+            <p className="text-sm text-text-muted mb-6">
+              Tem certeza que deseja excluir <strong className="text-text">{deletingPaciente.nome}</strong>? Esta ação apagará todos os prontuários, laudos e agendamentos vinculados e não pode ser desfeita.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeletingPaciente(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setIsDeleting(true);
+                  await supabase.from("pacientes").delete().eq("id", deletingPaciente.id);
+                  setDeletingPaciente(null);
+                  setIsDeleting(false);
+                  fetchPacientes();
+                }}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-danger text-white text-sm font-medium hover:bg-danger/90 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? "Excluindo..." : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

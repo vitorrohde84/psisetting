@@ -21,6 +21,7 @@ import {
   DollarSign,
   AlertCircle,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { PacienteFormModal } from "@/app/components/paciente-form-modal";
 import type { Paciente } from "@/app/components/paciente-list";
@@ -90,6 +91,8 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("agendamentos");
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Tab data
   const [agendamentos, setAgendamentos] = useState<any[]>([]);
@@ -259,16 +262,27 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             </div>
           </div>
 
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
-                       bg-background border border-border text-sm font-medium text-text
-                       hover:border-primary/30 hover:bg-primary/[0.03]
-                       active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0"
-          >
-            <Pencil size={15} />
-            Editar
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                         bg-danger/10 border border-transparent text-sm font-medium text-danger
+                         hover:bg-danger/20 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            >
+              <Trash2 size={15} />
+              <span className="hidden sm:inline">Excluir</span>
+            </button>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
+                         bg-background border border-border text-sm font-medium text-text
+                         hover:border-primary/30 hover:bg-primary/[0.03]
+                         active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            >
+              <Pencil size={15} />
+              Editar
+            </button>
+          </div>
         </div>
 
         {/* Contact info */}
@@ -386,6 +400,44 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             fetchPaciente();
           }}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-text/20 backdrop-blur-sm" 
+            onClick={() => !isDeleting && setShowDeleteModal(false)} 
+          />
+          <div className="relative w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border/60 p-6">
+            <h3 className="text-lg font-serif font-medium text-text mb-2">
+              Excluir paciente
+            </h3>
+            <p className="text-sm text-text-muted mb-6">
+              Tem certeza que deseja excluir <strong className="text-text">{paciente.nome}</strong>? Esta ação apagará todos os prontuários, laudos e agendamentos vinculados e não pode ser desfeita.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setIsDeleting(true);
+                  await supabase.from("pacientes").delete().eq("id", paciente.id);
+                  router.push("/pacientes");
+                }}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-danger text-white text-sm font-medium hover:bg-danger/90 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? "Excluindo..." : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
