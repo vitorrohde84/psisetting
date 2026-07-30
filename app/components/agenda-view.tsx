@@ -18,8 +18,13 @@ import {
   Check,
   X,
   Loader2,
+  FileText,
+  DollarSign,
+  CheckCircle2,
 } from "lucide-react";
 import { AgendamentoFormModal } from "./agendamento-form-modal";
+import { ProntuarioFormModal } from "./prontuario-form-modal";
+import { PagamentoFormModal } from "./pagamento-form-modal";
 
 export interface Agendamento {
   id: string;
@@ -31,8 +36,9 @@ export interface Agendamento {
   status: string;
   observacoes: string | null;
   psicologo_id: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pacientes?: any;
+  has_prontuario?: boolean;
+  has_pagamento?: boolean;
 }
 
 function getPacienteName(ag: Agendamento): string {
@@ -73,6 +79,11 @@ export function AgendaView() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  // Cross-module Modals
+  const [showProntuarioModal, setShowProntuarioModal] = useState(false);
+  const [showPagamentoModal, setShowPagamentoModal] = useState(false);
+  const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data_sessao?: string; data_vencimento?: string } | null>(null);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -83,15 +94,37 @@ export function AgendaView() {
 
   const fetchAgendamentos = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("agendamentos")
-      .select("id, paciente_id, data, horario, duracao_minutos, modalidade, status, observacoes, psicologo_id, pacientes(nome)")
-      .gte("data", firstDay)
-      .lte("data", lastDayStr)
-      .order("data", { ascending: true })
-      .order("horario", { ascending: true });
 
-    setAgendamentos(data || []);
+    const [agsRes, prontRes, pagRes] = await Promise.all([
+      supabase
+        .from("agendamentos")
+        .select("id, paciente_id, data, horario, duracao_minutos, modalidade, status, observacoes, psicologo_id, pacientes(nome)")
+        .gte("data", firstDay)
+        .lte("data", lastDayStr)
+        .order("data", { ascending: true })
+        .order("horario", { ascending: true }),
+      supabase
+        .from("prontuarios")
+        .select("paciente_id, data_sessao")
+        .gte("data_sessao", firstDay)
+        .lte("data_sessao", lastDayStr),
+      supabase
+        .from("pagamentos")
+        .select("paciente_id, data_vencimento")
+        .gte("data_vencimento", firstDay)
+        .lte("data_vencimento", lastDayStr),
+    ]);
+
+    const prontSet = new Set(prontRes.data?.map(p => `${p.paciente_id}_${p.data_sessao}`));
+    const pagSet = new Set(pagRes.data?.map(p => `${p.paciente_id}_${p.data_vencimento}`));
+
+    const enhancedAgs = (agsRes.data || []).map(ag => ({
+      ...ag,
+      has_prontuario: prontSet.has(`${ag.paciente_id}_${ag.data}`),
+      has_pagamento: pagSet.has(`${ag.paciente_id}_${ag.data}`),
+    }));
+
+    setAgendamentos(enhancedAgs);
     setLoading(false);
   }, [firstDay, lastDayStr]);
 
@@ -187,6 +220,16 @@ export function AgendaView() {
   async function handleSaved() {
     handleModalClose();
     await fetchAgendamentos();
+  }
+
+  function handleEvoluirProntuario(ag: Agendamento) {
+    setActionPrefillData({ paciente_id: ag.paciente_id, data_sessao: ag.data });
+    setShowProntuarioModal(true);
+  }
+
+  function handleAdicionarPagamento(ag: Agendamento) {
+    setActionPrefillData({ paciente_id: ag.paciente_id, data_vencimento: ag.data });
+    setShowPagamentoModal(true);
   }
 
   // iCal URL
@@ -481,6 +524,8 @@ export function AgendaView() {
                       onEdit={() => handleEdit(ag)}
                       onDelete={() => handleDelete(ag.id)}
                       isDeleting={deleting === ag.id}
+                      onEvoluir={() => handleEvoluirProntuario(ag)}
+                      onPagamento={() => handleAdicionarPagamento(ag)}
                     />
                   ))}
                 </div>
@@ -555,23 +600,53 @@ export function AgendaView() {
                           </div>
 
                           {/* Status + Actions */}
-                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${statusInfo.class}`}>
-                            {statusInfo.label}
-                          </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => handleEdit(ag)}
-                              className="p-1.5 rounded-lg text-text-muted/50 hover:text-text-muted hover:bg-background transition-colors cursor-pointer"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(ag.id)}
-                              disabled={deleting === ag.id}
-                              className="p-1.5 rounded-lg text-text-muted/50 hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              {deleting === ag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusInfo.class}`}>
+                              {statusInfo.label}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {/* Workflow Actions */}
+                              <button
+                                onClick={() => handleEvoluirProntuario(ag)}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                  ag.has_prontuario
+                                    ? "text-success bg-success/10"
+                                    : "text-text-muted hover:text-primary hover:bg-primary/10"
+                                }`}
+                                title={ag.has_prontuario ? "Prontuário preenchido" : "Evoluir prontuário"}
+                              >
+                                {ag.has_prontuario ? <CheckCircle2 size={14} /> : <FileText size={14} />}
+                              </button>
+                              <button
+                                onClick={() => handleAdicionarPagamento(ag)}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                  ag.has_pagamento
+                                    ? "text-success bg-success/10"
+                                    : "text-text-muted hover:text-primary hover:bg-primary/10"
+                                }`}
+                                title={ag.has_pagamento ? "Pagamento registrado" : "Adicionar pagamento"}
+                              >
+                                {ag.has_pagamento ? <CheckCircle2 size={14} /> : <DollarSign size={14} />}
+                              </button>
+                              
+                              <div className="w-[1px] h-4 bg-border mx-1" />
+
+                              <button
+                                onClick={() => handleEdit(ag)}
+                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-text-muted hover:bg-background transition-colors cursor-pointer"
+                                title="Editar agendamento"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(ag.id)}
+                                disabled={deleting === ag.id}
+                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer disabled:opacity-50"
+                                title="Cancelar agendamento"
+                              >
+                                {deleting === ag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -592,6 +667,24 @@ export function AgendaView() {
           onSaved={handleSaved}
         />
       )}
+
+      {showProntuarioModal && (
+        <ProntuarioFormModal
+          prontuario={null}
+          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data_sessao: actionPrefillData?.data_sessao || "" }}
+          onClose={() => setShowProntuarioModal(false)}
+          onSaved={() => { setShowProntuarioModal(false); fetchAgendamentos(); }}
+        />
+      )}
+
+      {showPagamentoModal && (
+        <PagamentoFormModal
+          pagamento={null}
+          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data_vencimento: actionPrefillData?.data_vencimento || "" }}
+          onClose={() => setShowPagamentoModal(false)}
+          onSaved={() => { setShowPagamentoModal(false); fetchAgendamentos(); }}
+        />
+      )}
     </>
   );
 }
@@ -602,11 +695,15 @@ function AgendamentoCard({
   onEdit,
   onDelete,
   isDeleting,
+  onEvoluir,
+  onPagamento,
 }: {
   ag: Agendamento;
   onEdit: () => void;
   onDelete: () => void;
   isDeleting: boolean;
+  onEvoluir: () => void;
+  onPagamento: () => void;
 }) {
   const pacNome = getPacienteName(ag);
   const statusInfo = STATUS_MAP[ag.status] || STATUS_MAP.agendado;
@@ -637,6 +734,34 @@ function AgendamentoCard({
       {ag.observacoes && (
         <p className="text-xs text-text-muted mt-1 line-clamp-2">{ag.observacoes}</p>
       )}
+
+      {/* Quick Actions (Workflow) */}
+      <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-border/40">
+        <button
+          onClick={onEvoluir}
+          className={`flex-1 inline-flex justify-center items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            ag.has_prontuario
+              ? "bg-success/10 text-success"
+              : "bg-surface hover:bg-primary/10 text-text-muted hover:text-primary"
+          }`}
+        >
+          {ag.has_prontuario ? <CheckCircle2 size={12} /> : <FileText size={12} />}
+          Prontuário
+        </button>
+        
+        <button
+          onClick={onPagamento}
+          className={`flex-1 inline-flex justify-center items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            ag.has_pagamento
+              ? "bg-success/10 text-success"
+              : "bg-surface hover:bg-primary/10 text-text-muted hover:text-primary"
+          }`}
+        >
+          {ag.has_pagamento ? <CheckCircle2 size={12} /> : <DollarSign size={12} />}
+          Pagamento
+        </button>
+      </div>
+
       <div className="flex items-center gap-1 mt-2">
         <button
           onClick={onEdit}

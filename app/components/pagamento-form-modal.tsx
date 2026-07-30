@@ -6,6 +6,10 @@ import { X, Save, Loader2, Search } from "lucide-react";
 
 interface PagamentoFormModalProps {
   pagamento: any | null; // using any to bypass complex joins if needed
+  prefillData?: {
+    paciente_id: string;
+    data_vencimento: string;
+  };
   onClose: () => void;
   onSaved: () => void;
 }
@@ -16,14 +20,14 @@ interface PacienteOption {
   cpf: string;
 }
 
-export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFormModalProps) {
+export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }: PagamentoFormModalProps) {
   const isEditing = !!pagamento;
   const supabase = createClient();
 
   const [form, setForm] = useState({
-    paciente_id: pagamento?.paciente_id || "",
+    paciente_id: pagamento?.paciente_id || prefillData?.paciente_id || "",
     valor: pagamento?.valor || "",
-    data_vencimento: pagamento?.data_vencimento || new Date().toISOString().split("T")[0],
+    data_vencimento: pagamento?.data_vencimento || prefillData?.data_vencimento || new Date().toISOString().split("T")[0],
     status: pagamento?.status || "pendente",
     forma_pagamento: pagamento?.forma_pagamento || "pix",
   });
@@ -65,8 +69,9 @@ export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFor
       
       setPacientes(data || []);
 
-      if (pagamento?.paciente_id && data) {
-        const found = data.find((p) => p.id === pagamento.paciente_id);
+      const pIdToFind = pagamento?.paciente_id || prefillData?.paciente_id;
+      if (pIdToFind && data) {
+        const found = data.find((p) => p.id === pIdToFind);
         if (found) setSelectedPacienteName(found.nome);
       }
     }

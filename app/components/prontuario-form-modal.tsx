@@ -25,12 +25,18 @@ interface AgendamentoOption {
 
 interface ProntuarioFormModalProps {
   prontuario: Prontuario | null;
+  prefillData?: {
+    paciente_id: string;
+    data_sessao: string;
+    agendamento_id?: string;
+  };
   onClose: () => void;
   onSaved: () => void;
 }
 
 export function ProntuarioFormModal({
   prontuario,
+  prefillData,
   onClose,
   onSaved,
 }: ProntuarioFormModalProps) {
@@ -38,9 +44,9 @@ export function ProntuarioFormModal({
   const supabase = createClient();
 
   const [form, setForm] = useState({
-    paciente_id: prontuario?.paciente_id || "",
-    agendamento_id: prontuario?.agendamento_id || "",
-    data_sessao: prontuario?.data_sessao || new Date().toISOString().split("T")[0],
+    paciente_id: prontuario?.paciente_id || prefillData?.paciente_id || "",
+    agendamento_id: prontuario?.agendamento_id || prefillData?.agendamento_id || "",
+    data_sessao: prontuario?.data_sessao || prefillData?.data_sessao || new Date().toISOString().split("T")[0],
     resumo: prontuario?.resumo || "",
   });
 
@@ -68,8 +74,9 @@ export function ProntuarioFormModal({
       
       setPacientes(data || []);
 
-      if (prontuario?.paciente_id && data) {
-        const found = data.find((p) => p.id === prontuario.paciente_id);
+      const pIdToFind = prontuario?.paciente_id || prefillData?.paciente_id;
+      if (pIdToFind && data) {
+        const found = data.find((p) => p.id === pIdToFind);
         if (found) setSelectedPacienteName(found.nome);
       }
     }
