@@ -49,7 +49,7 @@ export function LaudoPrint({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-white text-black min-h-screen w-full overflow-y-auto">
+    <div id="print-section" className="fixed inset-0 z-[100] bg-white text-black min-h-screen w-full overflow-y-auto">
       <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white">
         
         {/* Cabeçalho Profissional */}
@@ -106,13 +106,25 @@ export function LaudoPrint({
             margin: 0;
             size: A4 portrait;
           }
-          body > :not(.fixed.inset-0.z-\\[100\\]) {
-            display: none !important;
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
           }
-          .fixed.inset-0.z-\\[100\\] {
-            position: static !important;
-            padding: 0 !important;
+          body * {
+            visibility: hidden;
+          }
+          #print-section, #print-section * {
+            visibility: visible;
+          }
+          #print-section {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            background: white !important;
             margin: 0 !important;
+            padding: 0 !important;
           }
         }
       `}} />
