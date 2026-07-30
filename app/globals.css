@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* ===== Design Tokens (SPEC.md §3) ===== */
+@theme inline {
+  /* Palette */
+  --color-background: #FAF7F2;
+  --color-surface: #FFFFFF;
+  --color-primary: #A85C4A;
+  --color-primary-dark: #8A4536;
+  --color-secondary: #6B7A5E;
+  --color-text: #2E2A26;
+  --color-text-muted: #6E655C;
+  --color-border: #E5DED4;
+  --color-danger: #B3483F;
+  --color-success: #6B8A5E;
+
+  /* Typography */
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-lora);
+}
+
+/* ===== Base Styles ===== */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Focus Ring (accessibility) ===== */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ===== Smooth transitions for interactive elements ===== */
+input,
+button,
+a {
+  transition: all 0.2s ease;
+}

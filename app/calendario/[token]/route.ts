@@ -1,0 +1,156 @@
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+
+/**
+ * RFC 5545 iCalendar feed for subscribing in Apple Calendar / iPhone.
+ *
+ * URL: /calendario/[token]
+ * Protocol: webcal://hostname/calendario/[token]
+ *
+ * This route is public (no auth required) — secured by the secret token.
+ * Uses the admin client (service_role) to bypass RLS since there's no user session.
+ */
+
+interface RouteParams {
+  params: Promise<{ token: string }>;
+}
+
+export async function GET(_request: Request, { params }: RouteParams) {
+  const { token } = await params;
+
+  // Validate token
+  const validToken = process.env.CALENDAR_SECRET_TOKEN;
+  if (!validToken || token !== validToken) {
+    return new NextResponse("Não autorizado", { status: 403 });
+  }
+
+  try {
+    const supabase = createAdminClient();
+
+    // Fetch upcoming and recent agendamentos (last 30 days + future)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoffDate = thirtyDaysAgo.toISOString().split("T")[0];
+
+    const { data: agendamentos, error } = await supabase
+      .from("agendamentos")
+      .select("id, data, horario, duracao_minutos, modalidade, status, observacoes, pacientes(nome_completo)")
+      .gte("data", cutoffDate)
+      .in("status", ["agendado", "confirmado", "realizado"])
+      .order("data", { ascending: true })
+      .order("horario", { ascending: true });
+
+    if (error) {
+      console.error("iCal feed error:", error);
+      return new NextResponse("Erro interno", { status: 500 });
+    }
+
+    // Generate iCalendar content
+    const icsContent = generateICS(agendamentos || []);
+
+    return new NextResponse(icsContent, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/calendar; charset=utf-8",
+        "Content-Disposition": 'inline; filename="agenda-hellen.ics"',
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+    });
+  } catch (err) {
+    console.error("iCal feed error:", err);
+    return new NextResponse("Erro ao gerar calendário", { status: 500 });
+  }
+}
+
+function generateICS(agendamentos: any[]): string {
+  const now = formatICSDate(new Date());
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Sistema Hellen//Agenda//PT-BR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Agenda — Hellen Limberger",
+    "X-WR-TIMEZONE:America/Sao_Paulo",
+    "",
+    // Timezone definition
+    "BEGIN:VTIMEZONE",
+    "TZID:America/Sao_Paulo",
+    "BEGIN:STANDARD",
+    "DTSTART:19700101T000000",
+    "TZOFFSETFROM:-0300",
+    "TZOFFSETTO:-0300",
+    "TZNAME:BRT",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ];
+
+  for (const ag of agendamentos) {
+    const pacienteNome =
+      (ag.pacientes as { nome_completo?: string })?.nome_completo || "Paciente";
+
+    // Parse date and time
+    const dateStr = ag.data; // YYYY-MM-DD
+    const timeStr = ag.horario || "00:00:00"; // HH:MM:SS
+    const duration = ag.duracao_minutos || 50; // Default 50min session
+
+    // Build DTSTART: YYYYMMDDTHHMMSS
+    const dtStart = `${dateStr.replace(/-/g, "")}T${timeStr.replace(/:/g, "").slice(0, 6)}`;
+
+    // Calculate DTEND
+    const startDate = new Date(`${dateStr}T${timeStr}`);
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+    const dtEnd = formatICSDate(endDate);
+
+    // Build summary
+    const modalidade = ag.modalidade === "online" ? " (Online)" : ag.modalidade === "presencial" ? " (Presencial)" : "";
+    const summary = escapeICS(`Sessão — ${pacienteNome}${modalidade}`);
+
+    // Status mapping
+    let icsStatus = "CONFIRMED";
+    if (ag.status === "agendado") icsStatus = "TENTATIVE";
+    if (ag.status === "cancelado") icsStatus = "CANCELLED";
+
+    lines.push("");
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${ag.id}@sistema-hellen`);
+    lines.push(`DTSTAMP:${now}`);
+    lines.push(`DTSTART;TZID=America/Sao_Paulo:${dtStart}`);
+    lines.push(`DTEND;TZID=America/Sao_Paulo:${dtEnd}`);
+    lines.push(`SUMMARY:${summary}`);
+    lines.push(`STATUS:${icsStatus}`);
+
+    if (ag.observacoes) {
+      lines.push(`DESCRIPTION:${escapeICS(ag.observacoes)}`);
+    }
+
+    lines.push("END:VEVENT");
+  }
+
+  lines.push("");
+  lines.push("END:VCALENDAR");
+
+  return lines.join("\r\n");
+}
+
+function formatICSDate(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return (
+    date.getFullYear().toString() +
+    pad(date.getMonth() + 1) +
+    pad(date.getDate()) +
+    "T" +
+    pad(date.getHours()) +
+    pad(date.getMinutes()) +
+    pad(date.getSeconds())
+  );
+}
+
+function escapeICS(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}

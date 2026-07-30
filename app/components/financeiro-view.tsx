@@ -1,0 +1,324 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { Plus, Loader2, DollarSign, Wallet, ArrowUpRight, ArrowDownRight, FileText, CheckCircle2, Circle } from "lucide-react";
+import { PagamentoFormModal } from "./pagamento-form-modal";
+import { ReciboPrint } from "./recibo-print";
+
+interface Pagamento {
+  id: string;
+  paciente_id: string;
+  valor: number;
+  data_vencimento: string;
+  status: "pendente" | "pago" | "cancelado";
+  forma_pagamento: string;
+  created_at: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pacientes?: any;
+}
+
+interface NotaReceita {
+  id: string;
+  pagamento_id: string;
+  numero_sequencial: number;
+  data_emissao: string;
+}
+
+export function FinanceiroView() {
+  const supabase = createClient();
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Dashboard Stats
+  const [totalRecebido, setTotalRecebido] = useState(0);
+  const [totalPendente, setTotalPendente] = useState(0);
+
+  // Modal
+  const [showModal, setShowModal] = useState(false);
+  const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
+
+  // Receipt Generation
+  const [generatingReciboId, setGeneratingReciboId] = useState<string | null>(null);
+  const [printingReciboData, setPrintingReciboData] = useState<{
+    pacienteNome: string;
+    pacienteCpf: string;
+    valor: number;
+    dataEmissao: string;
+    numeroSequencial: number;
+  } | null>(null);
+
+  const fetchPagamentos = useCallback(async () => {
+    setLoading(true);
+
+    const { data } = await supabase
+      .from("pagamentos")
+      .select("id, valor, data_vencimento, status, forma_pagamento, created_at, paciente_id, pacientes(nome_completo, cpf)")
+      .order("data_vencimento", { ascending: false });
+
+    if (data) {
+      setPagamentos(data);
+      
+      // Calculate dashboard metrics for the current month
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      let recebido = 0;
+      let pendente = 0;
+
+      data.forEach(p => {
+        const pDate = new Date(p.data_vencimento + "T12:00:00");
+        if (pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear) {
+          if (p.status === "pago") recebido += p.valor;
+          if (p.status === "pendente") pendente += p.valor;
+        }
+      });
+
+      setTotalRecebido(recebido);
+      setTotalPendente(pendente);
+    }
+    
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchPagamentos();
+  }, [fetchPagamentos]);
+
+  function formatMoney(value: number) {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+  }
+
+  function getPacienteInfo(p: Pagamento) {
+    const pac = p.pacientes;
+    if (!pac) return { nome: "Desconhecido", cpf: "" };
+    if (Array.isArray(pac)) return pac[0] || {};
+    return pac || {};
+  }
+
+  async function handleEmitirRecibo(pagamento: Pagamento) {
+    setGeneratingReciboId(pagamento.id);
+
+    try {
+      // 1. Check if a nota already exists for this pagamento
+      const { data: existingNota } = await supabase
+        .from("notas_receita_saude")
+        .select("numero_sequencial, data_emissao")
+        .eq("pagamento_id", pagamento.id)
+        .maybeSingle();
+
+      let numeroSeq = existingNota?.numero_sequencial;
+      let dtEmissao = existingNota?.data_emissao;
+
+      // 2. If it doesn't exist, create it
+      if (!existingNota) {
+        // Find highest sequence number to increment
+        const { data: maxSeqData } = await supabase
+          .from("notas_receita_saude")
+          .select("numero_sequencial")
+          .order("numero_sequencial", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        numeroSeq = (maxSeqData?.numero_sequencial || 0) + 1;
+        dtEmissao = new Date().toISOString().split("T")[0];
+
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        await supabase
+          .from("notas_receita_saude")
+          .insert({
+            pagamento_id: pagamento.id,
+            paciente_id: pagamento.paciente_id,
+            psicologo_id: user?.id,
+            numero_sequencial: numeroSeq,
+            data_emissao: dtEmissao,
+            valor: pagamento.valor,
+            codigo_servico: "Serviços Psicológicos",
+          });
+      }
+
+      // 3. Trigger Print
+      const pacInfo = getPacienteInfo(pagamento);
+      setPrintingReciboData({
+        pacienteNome: pacInfo.nome_completo || "Desconhecido",
+        pacienteCpf: pacInfo.cpf || "",
+        valor: pagamento.valor,
+        dataEmissao: dtEmissao,
+        numeroSequencial: numeroSeq,
+      });
+
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao emitir recibo.");
+    } finally {
+      setGeneratingReciboId(null);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-serif font-semibold text-text">Gestão Financeira</h2>
+          <p className="mt-0.5 text-sm text-text-muted">
+            Acompanhamento de pagamentos e emissão de recibos para Imposto de Renda
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingPagamento(null);
+            setShowModal(true);
+          }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                     bg-primary text-white text-sm font-medium
+                     hover:bg-primary-dark active:scale-[0.98]
+                     transition-all duration-200 cursor-pointer shrink-0"
+        >
+          <Plus size={18} />
+          Novo Pagamento
+        </button>
+      </div>
+
+      {/* Dashboard Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+        <div className="bg-surface rounded-2xl border border-border/60 p-5 shadow-sm">
+          <div className="flex items-center gap-3 text-text-muted mb-2">
+            <div className="p-2 rounded-lg bg-success/10 text-success">
+              <ArrowUpRight size={20} />
+            </div>
+            <span className="text-sm font-medium">Recebido no Mês</span>
+          </div>
+          <p className="text-2xl font-serif font-semibold text-text">{formatMoney(totalRecebido)}</p>
+        </div>
+        <div className="bg-surface rounded-2xl border border-border/60 p-5 shadow-sm">
+          <div className="flex items-center gap-3 text-text-muted mb-2">
+            <div className="p-2 rounded-lg bg-warning/10 text-warning">
+              <ArrowDownRight size={20} />
+            </div>
+            <span className="text-sm font-medium">Pendente no Mês</span>
+          </div>
+          <p className="text-2xl font-serif font-semibold text-text">{formatMoney(totalPendente)}</p>
+        </div>
+      </div>
+
+      {/* Lista de Pagamentos */}
+      <div className="bg-surface rounded-xl border border-border/60 overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-64">
+            <Loader2 size={28} className="animate-spin text-primary mb-3" />
+          </div>
+        ) : pagamentos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+            <Wallet size={36} className="text-border mb-3" />
+            <h3 className="text-base font-medium text-text mb-1">Nenhum pagamento registrado</h3>
+            <p className="text-sm text-text-muted">Comece cadastrando os pagamentos das suas sessões.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-background/50 border-b border-border/40 text-text-muted">
+                <tr>
+                  <th className="px-5 py-4 font-medium">Paciente</th>
+                  <th className="px-5 py-4 font-medium">Valor</th>
+                  <th className="px-5 py-4 font-medium">Vencimento</th>
+                  <th className="px-5 py-4 font-medium">Status</th>
+                  <th className="px-5 py-4 font-medium">Forma</th>
+                  <th className="px-5 py-4 font-medium text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {pagamentos.map((p) => {
+                  const pacInfo = getPacienteInfo(p);
+                  const vencimento = new Date(p.data_vencimento + "T12:00:00").toLocaleDateString("pt-BR");
+                  
+                  return (
+                    <tr key={p.id} className="hover:bg-background/20 transition-colors">
+                      <td className="px-5 py-4 font-medium text-text">
+                        {pacInfo.nome_completo || "Desconhecido"}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-text">
+                        {formatMoney(p.valor)}
+                      </td>
+                      <td className="px-5 py-4 text-text-muted">
+                        {vencimento}
+                      </td>
+                      <td className="px-5 py-4">
+                        {p.status === "pago" && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded bg-success/10 text-success">
+                            <CheckCircle2 size={12} /> Pago
+                          </span>
+                        )}
+                        {p.status === "pendente" && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded bg-warning/10 text-warning-dark">
+                            <Circle size={12} /> Pendente
+                          </span>
+                        )}
+                        {p.status === "cancelado" && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded bg-danger/10 text-danger">
+                            <Circle size={12} /> Cancelado
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-text-muted capitalize">
+                        {p.forma_pagamento}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingPagamento(p);
+                              setShowModal(true);
+                            }}
+                            className="text-text-muted hover:text-primary transition-colors text-xs font-medium px-3 py-1.5 rounded-lg border border-border bg-background"
+                          >
+                            Editar
+                          </button>
+                          
+                          {p.status === "pago" && (
+                            <button
+                              onClick={() => handleEmitirRecibo(p)}
+                              disabled={generatingReciboId === p.id}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
+                                         bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                            >
+                              {generatingReciboId === p.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <FileText size={14} />
+                              )}
+                              Emitir Recibo
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <PagamentoFormModal
+          pagamento={editingPagamento}
+          onClose={() => setShowModal(false)}
+          onSaved={() => {
+            setShowModal(false);
+            fetchPagamentos();
+          }}
+        />
+      )}
+
+      {/* Hidden Print Container */}
+      {printingReciboData && (
+        <ReciboPrint
+          {...printingReciboData}
+          onPrinted={() => setPrintingReciboData(null)}
+        />
+      )}
+    </>
+  );
+}
