@@ -31,6 +31,23 @@ export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFor
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<"weekly" | "biweekly" | "monthly">("weekly");
+  const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
+
+  function addRecurrence(dateStr: string, frequency: string, count: number): string {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    if (frequency === "weekly") date.setDate(date.getDate() + 7 * count);
+    else if (frequency === "biweekly") date.setDate(date.getDate() + 14 * count);
+    else if (frequency === "monthly") date.setMonth(date.getMonth() + 1 * count);
+    
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  }
+
   // Patients
   const [pacientes, setPacientes] = useState<PacienteOption[]>([]);
   const [pacienteSearch, setPacienteSearch] = useState("");
@@ -104,9 +121,23 @@ export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFor
         setSaving(false);
         return;
       }
+
+      let payloads = [];
+      if (isRecurring && recurrenceCount > 0) {
+        for (let i = 0; i <= recurrenceCount; i++) {
+          payloads.push({
+            ...payload,
+            data_vencimento: addRecurrence(payload.data_vencimento, recurrenceFrequency, i),
+            status: i === 0 ? payload.status : "pendente"
+          });
+        }
+      } else {
+        payloads.push({ ...payload });
+      }
+
       result = await supabase
         .from("pagamentos")
-        .insert({ ...payload, });
+        .insert(payloads);
     }
 
     if (result.error) {
@@ -270,6 +301,57 @@ export function PagamentoFormModal({ pagamento, onClose, onSaved }: PagamentoFor
           {error && (
             <div className="p-3 rounded-xl bg-danger/5 border border-danger/15 text-sm text-danger">
               {error}
+            </div>
+          )}
+
+          {/* Recorrência */}
+          {!isEditing && (
+            <div className="pt-3 space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary/20 w-4 h-4"
+                />
+                <span className="text-sm font-medium text-text">Repetir este lançamento</span>
+              </label>
+
+              {isRecurring && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-background/50 rounded-xl border border-border/50">
+                  <div>
+                    <label className={labelClass}>Frequência</label>
+                    <select
+                      value={recurrenceFrequency}
+                      onChange={(e) => setRecurrenceFrequency(e.target.value as any)}
+                      className={inputClass}
+                    >
+                      <option value="weekly">Semanal</option>
+                      <option value="biweekly">Quinzenal</option>
+                      <option value="monthly">Mensal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Quantas vezes?</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={recurrenceCount}
+                      onChange={(e) => setRecurrenceCount(parseInt(e.target.value) || 1)}
+                      className={inputClass}
+                    />
+                  </div>
+                  {form.data_vencimento && (
+                    <div className="col-span-2 text-xs text-text-muted mt-1 bg-surface px-3 py-2.5 rounded-lg border border-border/40 text-center">
+                      Serão criados <strong>{recurrenceCount + 1}</strong> pagamentos no total, terminando em{" "}
+                      <strong>
+                        {addRecurrence(form.data_vencimento, recurrenceFrequency, recurrenceCount).split("-").reverse().join("/")}
+                      </strong>.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
