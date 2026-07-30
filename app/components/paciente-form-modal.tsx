@@ -137,10 +137,11 @@ export function PacienteFormModal({
     }
 
     if (result.error) {
+      console.error("Supabase Save Error:", result.error);
       if (result.error.message.includes("unique") || result.error.message.includes("duplicate")) {
         setError("Já existe um paciente com este CPF.");
       } else {
-        setError("Não foi possível salvar. Tente novamente.");
+        setError(`Erro: ${result.error.message}`);
       }
       setSaving(false);
       return;
