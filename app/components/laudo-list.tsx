@@ -11,7 +11,7 @@ interface Laudo {
   id: string;
   paciente_id: string;
   titulo: string;
-  tipo: "upload" | "text";
+  tipo_documento: "upload" | "text";
   conteudo: string; // File path or Text content
   created_at: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,7 +47,7 @@ export function LaudoList() {
 
     let query = supabase
       .from("laudos")
-      .select("id, titulo, tipo, conteudo, created_at, paciente_id, pacientes(nome, cpf, data_nascimento)")
+      .select("id, titulo, tipo_documento, conteudo, created_at, paciente_id, pacientes(nome, cpf, data_nascimento)")
       .order("created_at", { ascending: false });
 
     if (pacienteFilter !== "all") {
@@ -88,7 +88,7 @@ export function LaudoList() {
   }
 
   async function handleOpenPdf(laudo: Laudo) {
-    if (laudo.tipo !== "upload") return;
+    if (laudo.tipo_documento !== "upload") return;
     
     setOpeningUrls((prev) => ({ ...prev, [laudo.id]: true }));
     
@@ -107,7 +107,7 @@ export function LaudoList() {
   }
 
   function handlePrint(laudo: Laudo) {
-    if (laudo.tipo !== "text") return;
+    if (laudo.tipo_documento !== "text") return;
     setPrintingLaudo(laudo);
   }
 
@@ -207,7 +207,7 @@ export function LaudoList() {
                         <span className="capitalize">{dataCriacao}</span>
                         <span>&bull;</span>
                         <span className="px-1.5 py-0.5 rounded bg-background border border-border">
-                          {laudo.tipo === "upload" ? "Arquivo PDF" : "Texto Gerado"}
+                          {laudo.tipo_documento === "upload" ? "Arquivo PDF" : "Texto Gerado"}
                         </span>
                       </div>
                     </div>
@@ -215,7 +215,7 @@ export function LaudoList() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 sm:ml-auto">
-                    {laudo.tipo === "upload" ? (
+                    {laudo.tipo_documento === "upload" ? (
                       <button
                         onClick={() => handleOpenPdf(laudo)}
                         disabled={openingUrls[laudo.id]}

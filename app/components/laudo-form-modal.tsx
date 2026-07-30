@@ -115,7 +115,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
           paciente_id: pacienteId,
           
           titulo: titulo.trim(),
-          tipo: mode,
+          tipo_documento: mode,
           conteudo: finalConteudo,
         });
 

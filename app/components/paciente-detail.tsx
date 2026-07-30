@@ -162,7 +162,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         case "laudos": {
           const { data } = await supabase
             .from("laudos")
-            .select("id, titulo, tipo, data_emissao, created_at")
+            .select("id, titulo, tipo_documento, data_emissao, created_at")
             .eq("paciente_id", pacienteId)
             .order("data_emissao", { ascending: false })
             .limit(50);
@@ -579,8 +579,8 @@ function TabLaudos({ items }: { items: any[] }) {
               {formatDate(laudo.data_emissao)}
             </span>
           </div>
-          {laudo.tipo && (
-            <span className="text-xs text-text-muted">{laudo.tipo}</span>
+          {laudo.tipo_documento && (
+            <span className="text-xs text-text-muted">{laudo.tipo_documento}</span>
           )}
         </div>
       ))}
