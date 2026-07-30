@@ -51,7 +51,7 @@ export function LaudoPrint({
   return (
     <div id="print-section" className="fixed inset-0 z-[100] bg-white text-black min-h-screen w-full overflow-y-auto">
       <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white">
-        
+
         {/* Cabeçalho Profissional */}
         <header className="flex flex-col items-center justify-center text-center border-b-2 border-black/80 pb-6 mb-8">
           <h1 className="text-2xl font-bold uppercase tracking-wider mb-1">
@@ -79,7 +79,7 @@ export function LaudoPrint({
         </div>
 
         {/* Corpo do Laudo */}
-        <div 
+        <div
           className="text-justify leading-relaxed whitespace-pre-wrap mb-16 text-[11pt]"
         >
           {conteudo}
@@ -88,9 +88,9 @@ export function LaudoPrint({
         {/* Encerramento e Assinatura */}
         <div className="mt-20 flex flex-col items-center justify-center pt-8">
           <p className="text-center mb-16">
-            Porto Alegre, {dateStr}.
+            Santa Maria, {dateStr}.
           </p>
-          
+
           <div className="w-[8cm] border-t border-black text-center pt-2">
             <p className="font-bold text-base mb-0.5">Hellen Limberger</p>
             <p className="text-sm">Psicóloga - CRP 07/45016</p>
@@ -100,7 +100,8 @@ export function LaudoPrint({
       </div>
 
       {/* Estilos Globais para Ocultar Interface Padrão Durante Impressão */}
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           @page {
             margin: 0;
