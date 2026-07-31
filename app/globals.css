@@ -3,16 +3,16 @@
 /* ===== Design Tokens (SPEC.md §3) ===== */
 @theme inline {
   /* Palette */
-  --color-background: #FAF7F2;
+  --color-background: #F9F8F5; /* Creme claro da imagem de fundo */
   --color-surface: #FFFFFF;
-  --color-primary: #A85C4A;
-  --color-primary-dark: #8A4536;
-  --color-secondary: #6B7A5E;
-  --color-text: #2E2A26;
-  --color-text-muted: #6E655C;
-  --color-border: #E5DED4;
-  --color-danger: #B3483F;
-  --color-success: #6B8A5E;
+  --color-primary: #6E7360; /* Verde Oliva do ícone */
+  --color-primary-dark: #5A5E4F; /* Verde Oliva escuro */
+  --color-secondary: #DEBEA7; /* Pêssego / Rose gold do ícone */
+  --color-text: #3D3935;
+  --color-text-muted: #807B75;
+  --color-border: #E8E3DB;
+  --color-danger: #C06159;
+  --color-success: #759B70;
 
   /* Typography */
   --font-sans: var(--font-inter);
