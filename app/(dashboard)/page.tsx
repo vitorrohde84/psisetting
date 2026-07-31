@@ -137,7 +137,7 @@ export default async function DashboardPage() {
             <DollarSign size={14} className="text-primary" />
             <span className="text-xs text-text-muted">Total pendente</span>
           </div>
-          <p className="text-2xl font-semibold text-text">
+          <p className="text-2xl font-semibold text-text sensitive-data">
             {formatCurrency(totalPendente)}
           </p>
           <p className="text-xs text-text-muted">no mês</p>
@@ -204,7 +204,7 @@ export default async function DashboardPage() {
 
                       {/* Session info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text truncate">
+                        <p className="text-sm font-medium text-text truncate sensitive-data">
                           {pacienteNome}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -285,7 +285,7 @@ export default async function DashboardPage() {
                           className="flex items-center justify-between gap-2"
                         >
                           <div className="min-w-0">
-                            <p className="text-sm text-text truncate">
+                            <p className="text-sm text-text truncate sensitive-data">
                               {pacNome}
                             </p>
                             <div className="flex items-center gap-1.5">
@@ -307,7 +307,7 @@ export default async function DashboardPage() {
                             </div>
                           </div>
                           <span
-                            className={`text-sm font-medium shrink-0 ${
+                            className={`text-sm font-medium shrink-0 sensitive-data ${
                               vencido ? "text-danger" : "text-text"
                             }`}
                           >
@@ -324,7 +324,7 @@ export default async function DashboardPage() {
                       Total ({qtdPendentes}{" "}
                       {qtdPendentes === 1 ? "pendência" : "pendências"})
                     </span>
-                    <span className="text-sm font-semibold text-primary">
+                    <span className="text-sm font-semibold text-primary sensitive-data">
                       {formatCurrency(totalPendente)}
                     </span>
                   </div>
