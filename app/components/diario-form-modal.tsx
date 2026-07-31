@@ -45,6 +45,7 @@ export function DiarioFormModal({
   });
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Patients
@@ -170,6 +171,28 @@ export function DiarioFormModal({
       setError("Não foi possível salvar o diário. Tente novamente.");
       console.error(result.error);
       setSaving(false);
+      return;
+    }
+
+    onSaved();
+  }
+
+  async function handleDelete() {
+    if (!diario) return;
+    if (!confirm("Tem certeza que deseja excluir esta anotação do diário de bordo?")) return;
+    
+    setDeleting(true);
+    setError(null);
+
+    const { error } = await supabase
+      .from("diario_bordo")
+      .delete()
+      .eq("id", diario.id);
+
+    if (error) {
+      console.error("Erro ao excluir diário:", error);
+      setError("Não foi possível excluir a anotação.");
+      setDeleting(false);
       return;
     }
 
@@ -322,36 +345,50 @@ export function DiarioFormModal({
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-muted
-                         hover:bg-background transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
-                         bg-primary text-white text-sm font-medium
-                         hover:bg-primary-dark active:scale-[0.98]
-                         disabled:opacity-60 disabled:cursor-not-allowed
-                         transition-all duration-200 cursor-pointer"
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Criptografando…
-                </>
-              ) : (
-                <>
-                  <Save size={16} />
-                  {isEditing ? "Salvar alterações secretas" : "Salvar anotação secreta"}
-                </>
-              )}
-            </button>
+          <div className="flex items-center justify-between pt-3">
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+              >
+                {deleting ? "Excluindo..." : "Excluir"}
+              </button>
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-muted
+                           hover:bg-background transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving || deleting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+                           bg-primary text-white text-sm font-medium
+                           hover:bg-primary-dark active:scale-[0.98]
+                           disabled:opacity-60 disabled:cursor-not-allowed
+                           transition-all duration-200 cursor-pointer"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Criptografando…
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    {isEditing ? "Salvar alterações secretas" : "Salvar anotação secreta"}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
