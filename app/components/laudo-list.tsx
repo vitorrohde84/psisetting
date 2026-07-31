@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen } from "lucide-react";
+import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2 } from "lucide-react";
 import { LaudoFormModal } from "./laudo-form-modal";
 import { LaudoPrint } from "./laudo-print";
 import { getLaudoSignedUrl } from "@/utils/supabase/storage";
@@ -41,6 +41,10 @@ export function LaudoList() {
   
   // Loading URLs state
   const [openingUrls, setOpeningUrls] = useState<Record<string, boolean>>({});
+
+  // Deleting state
+  const [deletingLaudo, setDeletingLaudo] = useState<Laudo | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchLaudos = useCallback(async () => {
     setLoading(true);
@@ -239,6 +243,15 @@ export function LaudoList() {
                         Imprimir Laudo
                       </button>
                     )}
+                    
+                    <button
+                      onClick={() => setDeletingLaudo(laudo)}
+                      className="inline-flex items-center gap-2 p-2.5 rounded-xl text-sm font-medium
+                                 bg-background border border-border text-danger hover:bg-danger/10 hover:border-danger/30 transition-colors cursor-pointer"
+                      title="Excluir documento"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               );
@@ -267,6 +280,46 @@ export function LaudoList() {
           pacienteNascimento={getPacienteInfo(printingLaudo).data_nascimento}
           onPrinted={() => setPrintingLaudo(null)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingLaudo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-text/20 backdrop-blur-sm" 
+            onClick={() => !isDeleting && setDeletingLaudo(null)} 
+          />
+          <div className="relative w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border/60 p-6">
+            <h3 className="text-lg font-serif font-medium text-text mb-2">
+              Excluir laudo
+            </h3>
+            <p className="text-sm text-text-muted mb-6">
+              Tem certeza que deseja excluir o documento <strong className="text-text">{deletingLaudo.titulo}</strong>? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeletingLaudo(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setIsDeleting(true);
+                  await supabase.from("laudos").delete().eq("id", deletingLaudo.id);
+                  setDeletingLaudo(null);
+                  setIsDeleting(false);
+                  fetchLaudos();
+                }}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-danger text-white text-sm font-medium hover:bg-danger/90 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? "Excluindo..." : "Sim, excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
