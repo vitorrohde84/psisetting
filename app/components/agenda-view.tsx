@@ -498,7 +498,7 @@ export function AgendaView() {
                               className={`text-[10px] font-medium truncate px-1 py-0.5 rounded ${statusInfo.class}`}
                             >
                               {formatTime(ag.horario)}{" "}
-                              {getPacienteName(ag).split(" ")[0]}
+                              <span className="sensitive-data">{getPacienteName(ag).split(" ")[0]}</span>
                             </div>
                           );
                         })}
@@ -625,7 +625,7 @@ export function AgendaView() {
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-text truncate">{pacNome}</p>
+                            <p className="text-sm font-medium text-text truncate sensitive-data">{pacNome}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               {ag.modalidade && (
                                 <span className="inline-flex items-center gap-1 text-xs text-text-muted">
@@ -764,7 +764,7 @@ function AgendamentoCard({
     <div className="p-3 rounded-xl bg-background/60 border border-border/30">
       <div className="flex items-start justify-between mb-1.5">
         <div>
-          <p className="text-sm font-medium text-text">{pacNome}</p>
+          <p className="text-sm font-medium text-text sensitive-data">{pacNome}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="inline-flex items-center gap-1 text-xs text-text-muted">
               <Clock size={11} />

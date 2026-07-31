@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/app/components/sidebar";
 import { SessionMonitor } from "@/app/components/session-monitor";
+import { PrivacyToggle } from "@/app/components/privacy-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -41,6 +42,7 @@ export default async function DashboardLayout({
         </main>
       </div>
 
+      <PrivacyToggle />
       <SessionMonitor />
     </div>
   );

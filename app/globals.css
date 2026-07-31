@@ -66,3 +66,14 @@ a {
     color: black !important;
   }
 }
+
+/* ===== Privacy Mode ===== */
+body.privacy-mode .sensitive-data {
+  filter: blur(6px);
+  opacity: 0.6;
+  user-select: none;
+  pointer-events: none;
+}
+.sensitive-data {
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}

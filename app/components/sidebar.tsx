@@ -45,8 +45,8 @@ export function Sidebar({ userName, userEmail }: SidebarProps) {
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-surface border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-            <span className="text-xs font-serif font-semibold text-primary">HL</span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent overflow-hidden shrink-0">
+            <img src="/logo1.png" alt="Hellen Limberger Logo" className="w-full h-full object-cover" />
           </div>
           <span className="text-sm font-serif font-semibold text-text">Hellen Limberger</span>
         </div>
@@ -80,8 +80,8 @@ export function Sidebar({ userName, userEmail }: SidebarProps) {
         {/* Logo / Brand */}
         <div className="p-5 pb-4 border-b border-border/60">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-              <span className="text-sm font-serif font-bold text-primary">HL</span>
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-transparent overflow-hidden shrink-0">
+              <img src="/logo1.png" alt="Hellen Limberger Logo" className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-serif font-semibold text-text leading-tight truncate">

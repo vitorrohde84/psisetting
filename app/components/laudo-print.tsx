@@ -53,53 +53,67 @@ export function LaudoPrint({
       <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white relative">
 
         {/* Cabeçalho Profissional */}
-        <header className="flex flex-col items-center justify-center text-center pb-8 mb-10 border-b-2 border-stone-300">
-          <img src="/logo1.png" alt="Logo Hellen Limberger" className="h-28 mb-5 object-contain" />
-          <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-800 mb-1.5">
+        <header className="relative flex flex-col items-center justify-center text-center pb-10 mb-12 border-b border-stone-200">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-stone-800/10 rounded-full mb-8" />
+          
+          <img src="/logo1.png" alt="Logo Hellen Limberger" className="h-32 w-auto mb-6 object-contain" />
+          
+          <h1 className="text-3xl font-extrabold uppercase tracking-[0.2em] text-stone-800 mb-2 font-serif">
             Hellen Limberger
           </h1>
-          <p className="text-lg text-stone-600 italic mb-1.5">Psicóloga Clínica</p>
-          <p className="text-sm font-semibold text-stone-500 tracking-wide">
-            CRP 07/45016
-          </p>
+          <p className="text-xl text-stone-500 italic mb-4 font-serif">Psicóloga Clínica</p>
+          <div className="inline-flex items-center justify-center px-5 py-1.5 border border-stone-200 rounded-full bg-stone-50 shadow-sm">
+            <p className="text-sm font-bold text-stone-600 tracking-widest">
+              CRP 07/45016
+            </p>
+          </div>
         </header>
 
         {/* Título do Documento */}
-        <h2 className="text-xl font-bold text-center uppercase tracking-widest text-stone-800 mb-10">
-          {titulo || "Laudo Psicológico"}
-        </h2>
+        <div className="text-center mb-12">
+          <h2 className="inline-block text-xl font-bold uppercase tracking-[0.25em] text-stone-800 border-b border-stone-300 pb-3 px-12">
+            {titulo || "Laudo Psicológico"}
+          </h2>
+        </div>
 
         {/* Identificação do Paciente */}
-        <div className="mb-10 p-6 rounded-xl border border-stone-200 bg-stone-50/50">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-4 border-b border-stone-200 pb-2">Identificação do Paciente</h3>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-6 text-[11pt]">
-            <p className="text-stone-800">
-              <span className="font-bold text-stone-600 mr-2">NOME:</span> 
-              {pacienteNome} {idadeInfo}
-            </p>
-            <p className="text-stone-800">
-              <span className="font-bold text-stone-600 mr-2">CPF:</span> 
-              {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
-            </p>
+        <div className="mb-12 relative bg-stone-50/50 p-8 rounded-2xl border border-stone-100">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-3">
+            <span className="w-8 h-px bg-stone-300" />
+            Identificação do Paciente
+            <span className="flex-1 h-px bg-stone-200" />
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-12 text-[11.5pt]">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Nome Completo</span> 
+              <span className="text-stone-800 font-medium text-lg border-b border-stone-200 pb-2">{pacienteNome} {idadeInfo}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Documento (CPF)</span> 
+              <span className="text-stone-800 font-medium text-lg border-b border-stone-200 pb-2">{pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}</span>
+            </div>
           </div>
         </div>
 
         {/* Corpo do Laudo */}
         <div
-          className="text-justify leading-loose whitespace-pre-wrap mb-20 text-[11.5pt] text-stone-800"
+          className="text-justify leading-[2.2] whitespace-pre-wrap mb-24 text-[12pt] text-stone-800 font-serif"
         >
           {conteudo}
         </div>
 
         {/* Encerramento e Assinatura */}
-        <div className="mt-auto flex flex-col items-center justify-center pt-10">
-          <p className="text-center text-stone-600 text-[11pt] mb-16">
+        <div className="mt-auto flex flex-col items-center justify-center pt-16 border-t border-stone-100">
+          <p className="text-center text-stone-500 text-[11pt] mb-20 italic">
             Santa Maria, RS. {dateStr}.
           </p>
 
-          <div className="w-[8.5cm] border-t border-stone-400 text-center pt-3">
-            <p className="font-bold text-[12pt] text-stone-800 mb-0.5 tracking-wide">Hellen Limberger</p>
-            <p className="text-sm text-stone-500 italic">Psicóloga Clínica - CRP 07/45016</p>
+          <div className="w-[10cm] border-t border-stone-400 text-center pt-4 relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2 text-stone-300 text-xl font-serif">
+              ❦
+            </div>
+            <p className="font-bold text-[13pt] text-stone-800 mb-1 tracking-wide uppercase font-serif">Hellen Limberger</p>
+            <p className="text-sm text-stone-500 italic font-serif">Psicóloga Clínica - CRP 07/45016</p>
           </div>
         </div>
 

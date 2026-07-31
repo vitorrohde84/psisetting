@@ -201,7 +201,7 @@ export function LaudoList() {
                     <div>
                       <h4 className="text-base font-medium text-text">{laudo.titulo}</h4>
                       <p className="text-sm text-text-muted mt-0.5">
-                        Paciente: <span className="font-medium text-text">{pacInfo.nome || "Desconhecido"}</span>
+                        Paciente: <span className="font-medium text-text sensitive-data">{pacInfo.nome || "Desconhecido"}</span>
                       </p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-text-muted/80 font-medium">
                         <span className="capitalize">{dataCriacao}</span>

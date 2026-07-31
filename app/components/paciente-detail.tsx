@@ -235,7 +235,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h2 className="text-xl font-serif font-semibold text-text">
+                <h2 className="text-xl font-serif font-semibold text-text sensitive-data">
                   {paciente.nome}
                 </h2>
                 <span
@@ -250,7 +250,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-text-muted">
                 {paciente.cpf && (
-                  <span>CPF: {formatCPF(paciente.cpf)}</span>
+                  <span className="sensitive-data">CPF: {formatCPF(paciente.cpf)}</span>
                 )}
                 {paciente.data_nascimento && (
                   <span>
@@ -290,25 +290,25 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
           {paciente.telefone && (
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Phone size={14} className="shrink-0 text-text-muted/60" />
-              {formatPhone(paciente.telefone)}
+              <span className="sensitive-data">{formatPhone(paciente.telefone)}</span>
             </div>
           )}
           {paciente.email && (
             <div className="flex items-center gap-2 text-sm text-text-muted min-w-0">
               <Mail size={14} className="shrink-0 text-text-muted/60" />
-              <span className="truncate">{paciente.email}</span>
+              <span className="truncate sensitive-data">{paciente.email}</span>
             </div>
           )}
           {paciente.endereco && (
             <div className="flex items-center gap-2 text-sm text-text-muted min-w-0 sm:col-span-2">
               <MapPin size={14} className="shrink-0 text-text-muted/60" />
-              <span className="truncate">{paciente.endereco}</span>
+              <span className="truncate sensitive-data">{paciente.endereco}</span>
             </div>
           )}
           {paciente.contato_emergencia && (
             <div className="flex items-center gap-2 text-sm text-text-muted min-w-0 sm:col-span-2">
               <AlertCircle size={14} className="shrink-0 text-text-muted/60" />
-              <span className="truncate">Emergência: {paciente.contato_emergencia}</span>
+              <span className="truncate sensitive-data">Emergência: {paciente.contato_emergencia}</span>
             </div>
           )}
         </div>
@@ -607,15 +607,15 @@ function TabFinanceiro({ items }: { items: any[] }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-background rounded-lg p-3 text-center">
           <p className="text-xs text-text-muted mb-0.5">Total</p>
-          <p className="text-sm font-semibold text-text">{formatCurrency(total)}</p>
+          <p className="text-sm font-semibold text-text sensitive-data">{formatCurrency(total)}</p>
         </div>
         <div className="bg-background rounded-lg p-3 text-center">
           <p className="text-xs text-text-muted mb-0.5">Recebido</p>
-          <p className="text-sm font-semibold text-success">{formatCurrency(totalPago)}</p>
+          <p className="text-sm font-semibold text-success sensitive-data">{formatCurrency(totalPago)}</p>
         </div>
         <div className="bg-background rounded-lg p-3 text-center">
           <p className="text-xs text-text-muted mb-0.5">Pendente</p>
-          <p className="text-sm font-semibold text-danger">{formatCurrency(totalPendente)}</p>
+          <p className="text-sm font-semibold text-danger sensitive-data">{formatCurrency(totalPendente)}</p>
         </div>
       </div>
 
@@ -638,7 +638,7 @@ function TabFinanceiro({ items }: { items: any[] }) {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-text">
+                <span className="text-sm font-medium text-text sensitive-data">
                   {formatCurrency(pag.valor || 0)}
                 </span>
                 <span

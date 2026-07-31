@@ -208,7 +208,7 @@ export function FinanceiroView() {
             </div>
             <span className="text-sm font-medium">Total Recebido</span>
           </div>
-          <p className="text-3xl font-serif font-semibold text-text relative z-10">{formatMoney(metricas.recebido)}</p>
+          <p className="text-3xl font-serif font-semibold text-text relative z-10"><span className="sensitive-data">{formatMoney(metricas.recebido)}</span></p>
         </div>
 
         <div className="bg-surface rounded-2xl border border-border/60 p-5 shadow-sm relative overflow-hidden">
@@ -219,7 +219,7 @@ export function FinanceiroView() {
             </div>
             <span className="text-sm font-medium">A Receber (Pendente)</span>
           </div>
-          <p className="text-3xl font-serif font-semibold text-text relative z-10">{formatMoney(metricas.pendente)}</p>
+          <p className="text-3xl font-serif font-semibold text-text relative z-10"><span className="sensitive-data">{formatMoney(metricas.pendente)}</span></p>
         </div>
 
         <div className="bg-surface rounded-2xl border border-border/60 p-5 shadow-sm relative overflow-hidden sm:col-span-2 lg:col-span-1">
@@ -230,7 +230,7 @@ export function FinanceiroView() {
             </div>
             <span className="text-sm font-medium">Previsão do Mês</span>
           </div>
-          <p className="text-3xl font-serif font-semibold text-text relative z-10">{formatMoney(metricas.previsao)}</p>
+          <p className="text-3xl font-serif font-semibold text-text relative z-10"><span className="sensitive-data">{formatMoney(metricas.previsao)}</span></p>
         </div>
       </div>
 
@@ -243,7 +243,7 @@ export function FinanceiroView() {
             return (
               <div key={i} className="flex-1 flex flex-col items-center justify-end group">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity mb-2 text-xs font-medium text-text bg-background px-2 py-1 rounded shadow-sm border border-border">
-                  {formatMoney(d.valor)}
+                  <span className="sensitive-data">{formatMoney(d.valor)}</span>
                 </div>
                 <div 
                   className="w-full max-w-[40px] bg-primary/20 group-hover:bg-primary transition-colors rounded-t-md relative"
@@ -297,7 +297,7 @@ export function FinanceiroView() {
                     <tr key={p.id} className="hover:bg-background/20 transition-colors">
                       <td className="px-5 py-4 font-medium text-text">
                         <div className="flex flex-col">
-                          <span>{pacInfo.nome || "Desconhecido"}</span>
+                          <span className="sensitive-data">{pacInfo.nome || "Desconhecido"}</span>
                           {p.agendamento_id && (
                             <span className="text-[10px] text-primary bg-primary/10 w-fit px-1.5 py-0.5 rounded mt-1">
                               Vinculado à Sessão
@@ -305,7 +305,7 @@ export function FinanceiroView() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-4 font-semibold text-text">
+                      <td className="px-5 py-4 font-semibold text-text sensitive-data">
                         {formatMoney(p.valor)}
                       </td>
                       <td className="px-5 py-4 text-text-muted">

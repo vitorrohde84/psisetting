@@ -238,20 +238,20 @@ export function PacienteList() {
                     </div>
                     <Link
                       href={`/pacientes/${paciente.id}`}
-                      className="text-sm font-medium text-text hover:text-primary truncate transition-colors"
+                      className="text-sm font-medium text-text hover:text-primary truncate transition-colors sensitive-data"
                     >
                       {paciente.nome}
                     </Link>
                   </div>
 
                   {/* Telefone */}
-                  <div className="flex items-center gap-1.5 sm:gap-0 text-sm text-text-muted pl-11 sm:pl-0">
+                  <div className="flex items-center gap-1.5 sm:gap-0 text-sm text-text-muted pl-11 sm:pl-0 sensitive-data">
                     <Phone size={13} className="sm:hidden text-text-muted/50" />
                     {formatPhone(paciente.telefone)}
                   </div>
 
                   {/* CPF - desktop only */}
-                  <div className="hidden sm:flex items-center text-sm text-text-muted font-mono text-xs">
+                  <div className="hidden sm:flex items-center text-sm text-text-muted font-mono text-xs sensitive-data">
                     {formatCPF(paciente.cpf)}
                   </div>
 
@@ -346,7 +346,7 @@ export function PacienteList() {
               Excluir paciente
             </h3>
             <p className="text-sm text-text-muted mb-6">
-              Tem certeza que deseja excluir <strong className="text-text">{deletingPaciente.nome}</strong>? Esta ação apagará todos os prontuários, laudos e agendamentos vinculados e não pode ser desfeita.
+              Tem certeza que deseja excluir <strong className="text-text sensitive-data">{deletingPaciente.nome}</strong>? Esta ação apagará todos os prontuários, laudos e agendamentos vinculados e não pode ser desfeita.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button

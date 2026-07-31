@@ -183,7 +183,7 @@ export function ProntuarioList() {
                   className="flex flex-col items-start p-5 rounded-xl border border-border/40 bg-background/30
                              hover:bg-primary/5 hover:border-primary/30 transition-all text-left cursor-pointer group"
                 >
-                  <h4 className="text-base font-medium text-text group-hover:text-primary transition-colors">
+                  <h4 className="text-base font-medium text-text group-hover:text-primary transition-colors sensitive-data">
                     {p.nome}
                   </h4>
                   <div className="flex items-center gap-4 mt-3 text-xs text-text-muted">
@@ -258,7 +258,7 @@ export function ProntuarioList() {
         {/* Cabeçalho do Documento */}
         <div className="text-center border-b-2 border-primary/20 pb-8 mb-8">
           <h1 className="text-2xl md:text-3xl font-serif text-text font-bold tracking-tight">Prontuário Psicológico</h1>
-          <h2 className="text-lg md:text-xl font-medium text-primary-dark mt-2 uppercase tracking-wide">
+          <h2 className="text-lg md:text-xl font-medium text-primary-dark mt-2 uppercase tracking-wide sensitive-data">
             {pacienteSelecionado?.nome || "Paciente"}
           </h2>
           <p className="text-xs text-text-muted mt-3 uppercase tracking-widest font-semibold">

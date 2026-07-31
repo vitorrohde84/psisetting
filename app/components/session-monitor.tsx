@@ -140,7 +140,7 @@ export function SessionMonitor() {
             {pendingSessions.map(ag => (
               <div key={ag.id} className="p-3 bg-background/50 rounded-xl border border-border/40">
                 <p className="text-sm font-medium text-text mb-1 truncate">
-                  {ag.horario.slice(0, 5)} - {getPacienteName(ag)}
+                  {ag.horario.slice(0, 5)} - <span className="sensitive-data">{getPacienteName(ag)}</span>
                 </p>
                 <div className="flex gap-2 mt-2">
                   {!ag.has_prontuario && (

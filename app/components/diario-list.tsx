@@ -169,7 +169,7 @@ export function DiarioList() {
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     {/* Metadata */}
                     <div className="md:w-1/3 xl:w-1/4 shrink-0">
-                      <h4 className="text-sm font-medium text-text mb-1 flex items-center gap-2">
+                      <h4 className="text-sm font-medium text-text mb-1 flex items-center gap-2 sensitive-data">
                         {getPacienteName(d)}
                       </h4>
                       <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 w-fit px-2 py-1 rounded-md mb-2">
