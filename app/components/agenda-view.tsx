@@ -75,6 +75,7 @@ export function AgendaView() {
   const [showModal, setShowModal] = useState(false);
   const [editingAg, setEditingAg] = useState<Agendamento | null>(null);
   const [prefillDate, setPrefillDate] = useState<string | null>(null);
+  const [prefillAgData, setPrefillAgData] = useState<any>(null);
   const [showIcsInfo, setShowIcsInfo] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -187,12 +188,14 @@ export function AgendaView() {
 
   function handleNewOnDate(dateStr: string) {
     setPrefillDate(dateStr);
+    setPrefillAgData(null);
     setEditingAg(null);
     setShowModal(true);
   }
 
   function handleNew() {
     setPrefillDate(null);
+    setPrefillAgData(null);
     setEditingAg(null);
     setShowModal(true);
   }
@@ -200,6 +203,28 @@ export function AgendaView() {
   function handleEdit(ag: Agendamento) {
     setEditingAg(ag);
     setPrefillDate(null);
+    setPrefillAgData(null);
+    setShowModal(true);
+  }
+
+  function handleReplicate(ag: Agendamento) {
+    setEditingAg(null);
+    setPrefillDate(null);
+    
+    // Calcula automaticamente a data para a próxima semana
+    const dataAtual = new Date(ag.data + "T12:00:00");
+    dataAtual.setDate(dataAtual.getDate() + 7);
+    const proximaSemana = dataAtual.toISOString().split("T")[0];
+
+    setPrefillAgData({
+      paciente_id: ag.paciente_id,
+      data: proximaSemana,
+      horario: ag.horario,
+      duracao_minutos: ag.duracao_minutos,
+      modalidade: ag.modalidade,
+      status: "agendado",
+      observacoes: ag.observacoes,
+    });
     setShowModal(true);
   }
 
@@ -215,6 +240,7 @@ export function AgendaView() {
     setShowModal(false);
     setEditingAg(null);
     setPrefillDate(null);
+    setPrefillAgData(null);
   }
 
   async function handleSaved() {
@@ -522,6 +548,7 @@ export function AgendaView() {
                       key={ag.id}
                       ag={ag}
                       onEdit={() => handleEdit(ag)}
+                      onReplicate={() => handleReplicate(ag)}
                       onDelete={() => handleDelete(ag.id)}
                       isDeleting={deleting === ag.id}
                       onEvoluir={() => handleEvoluirProntuario(ag)}
@@ -639,6 +666,13 @@ export function AgendaView() {
                                 <Pencil size={14} />
                               </button>
                               <button
+                                onClick={() => handleReplicate(ag)}
+                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                                title="Replicar para próxima semana"
+                              >
+                                <Copy size={14} />
+                              </button>
+                              <button
                                 onClick={() => handleDelete(ag.id)}
                                 disabled={deleting === ag.id}
                                 className="p-1.5 rounded-lg text-text-muted/50 hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer disabled:opacity-50"
@@ -663,6 +697,7 @@ export function AgendaView() {
         <AgendamentoFormModal
           agendamento={editingAg}
           prefillDate={prefillDate}
+          prefillData={prefillAgData}
           onClose={handleModalClose}
           onSaved={handleSaved}
         />
@@ -693,6 +728,7 @@ export function AgendaView() {
 function AgendamentoCard({
   ag,
   onEdit,
+  onReplicate,
   onDelete,
   isDeleting,
   onEvoluir,
@@ -700,6 +736,7 @@ function AgendamentoCard({
 }: {
   ag: Agendamento;
   onEdit: () => void;
+  onReplicate: () => void;
   onDelete: () => void;
   isDeleting: boolean;
   onEvoluir: () => void;
@@ -769,6 +806,13 @@ function AgendamentoCard({
                      hover:bg-surface hover:text-text transition-colors cursor-pointer"
         >
           <Pencil size={12} /> Editar
+        </button>
+        <button
+          onClick={onReplicate}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-muted
+                     hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+        >
+          <Copy size={12} /> Replicar
         </button>
         <button
           onClick={onDelete}

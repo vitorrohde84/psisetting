@@ -8,6 +8,7 @@ import type { Agendamento } from "./agenda-view";
 interface AgendamentoFormModalProps {
   agendamento: Agendamento | null;
   prefillDate: string | null;
+  prefillData?: Partial<FormData>;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -28,8 +29,8 @@ interface FormData {
 }
 
 export function AgendamentoFormModal({
-  agendamento,
   prefillDate,
+  prefillData,
   onClose,
   onSaved,
 }: AgendamentoFormModalProps) {
@@ -37,13 +38,13 @@ export function AgendamentoFormModal({
   const supabase = createClient();
 
   const [form, setForm] = useState<FormData>({
-    paciente_id: agendamento?.paciente_id || "",
-    data: agendamento?.data || prefillDate || "",
-    horario: agendamento?.horario?.slice(0, 5) || "",
-    duracao_minutos: agendamento?.duracao_minutos || 50,
-    modalidade: agendamento?.modalidade || "presencial",
-    status: agendamento?.status || "agendado",
-    observacoes: agendamento?.observacoes || "",
+    paciente_id: agendamento?.paciente_id || prefillData?.paciente_id || "",
+    data: agendamento?.data || prefillDate || prefillData?.data || "",
+    horario: agendamento?.horario?.slice(0, 5) || prefillData?.horario?.slice(0, 5) || "",
+    duracao_minutos: agendamento?.duracao_minutos || prefillData?.duracao_minutos || 50,
+    modalidade: agendamento?.modalidade || prefillData?.modalidade || "presencial",
+    status: agendamento?.status || prefillData?.status || "agendado",
+    observacoes: agendamento?.observacoes || prefillData?.observacoes || "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -83,9 +84,10 @@ export function AgendamentoFormModal({
         .order("nome", { ascending: true });
       setPacientes(data || []);
 
-      // If editing, find patient name
-      if (agendamento?.paciente_id && data) {
-        const found = data.find((p) => p.id === agendamento.paciente_id);
+      // If editing or duplicating, find patient name
+      const targetId = agendamento?.paciente_id || prefillData?.paciente_id;
+      if (targetId && data) {
+        const found = data.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
       }
     }
