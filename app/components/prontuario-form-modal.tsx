@@ -27,7 +27,7 @@ interface ProntuarioFormModalProps {
   prontuario: Prontuario | null;
   prefillData?: {
     paciente_id: string;
-    data: string;
+    data?: string;
     agendamento_id?: string;
   };
   onClose: () => void;

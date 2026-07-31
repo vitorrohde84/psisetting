@@ -44,3 +44,25 @@ button,
 a {
   transition: all 0.2s ease;
 }
+
+/* ===== Print Styles (PDF Export) ===== */
+@media print {
+  /* Esconder sidebar e elementos de navegação */
+  nav, aside, header, .no-print {
+    display: none !important;
+  }
+  
+  /* Remover margens do main para usar a página toda */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: white !important;
+  }
+  
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+}

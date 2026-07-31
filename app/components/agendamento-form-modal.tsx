@@ -175,7 +175,8 @@ export function AgendamentoFormModal({
       result = await supabase
         .from("agendamentos")
         .update(payload)
-        .eq("id", agendamento.id);
+        .eq("id", agendamento.id)
+        .select();
     } else {
       const {
         data: { user },
@@ -202,7 +203,8 @@ export function AgendamentoFormModal({
 
       result = await supabase
         .from("agendamentos")
-        .insert(payloads);
+        .insert(payloads)
+        .select();
     }
 
     if (result.error) {
@@ -211,6 +213,31 @@ export function AgendamentoFormModal({
       setSaving(false);
       return;
     }
+
+    // --- AUTO-PRONTUÁRIO INTEGRATION ---
+    if (form.observacoes.trim() && result.data) {
+      for (const ag of result.data) {
+        const { data: existing } = await supabase
+          .from("prontuarios")
+          .select("id")
+          .eq("agendamento_id", ag.id)
+          .single();
+
+        const pPayload = {
+          paciente_id: ag.paciente_id,
+          agendamento_id: ag.id,
+          data: ag.data,
+          conteudo: form.observacoes.trim(),
+        };
+
+        if (existing) {
+          await supabase.from("prontuarios").update(pPayload).eq("id", existing.id);
+        } else {
+          await supabase.from("prontuarios").insert(pPayload);
+        }
+      }
+    }
+    // ------------------------------------
 
     onSaved();
   }
@@ -389,19 +416,19 @@ export function AgendamentoFormModal({
             </select>
           </div>
 
-          {/* Observações */}
+          {/* Observações / Prontuário */}
           <div>
             <label htmlFor="ag-obs" className={labelClass}>
-              Observações
+              Evolução do Prontuário (Observações)
             </label>
             <textarea
               id="ag-obs"
               name="observacoes"
-              rows={3}
+              rows={4}
               value={form.observacoes}
               onChange={handleChange}
-              placeholder="Notas sobre este agendamento..."
-              className={inputClass + " resize-none"}
+              placeholder="Descreva o andamento da sessão, evolução do paciente, intervenções. O texto será salvo automaticamente no prontuário do paciente."
+              className={inputClass + " resize-none font-serif text-sm leading-relaxed"}
             />
           </div>
 
