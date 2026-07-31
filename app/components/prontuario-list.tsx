@@ -174,12 +174,14 @@ export function ProntuarioList() {
         ) : (
           <div className="divide-y divide-border/40">
             {prontuarios.map((p) => {
-              const dataSessao = new Date(p.data + "T12:00:00").toLocaleDateString("pt-BR", {
-                weekday: "long",
-                day: "2-digit",
-                month: "long",
-                year: "numeric"
-              });
+              const dataSessao = p.data
+                ? new Date(p.data + "T12:00:00").toLocaleDateString("pt-BR", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric"
+                  })
+                : "Data não informada";
               const dataCriacao = new Date(p.created_at).toLocaleDateString("pt-BR", {
                 day: "2-digit",
                 month: "2-digit",

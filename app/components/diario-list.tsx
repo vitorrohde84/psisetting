@@ -155,12 +155,14 @@ export function DiarioList() {
         ) : (
           <div className="divide-y divide-border/40">
             {diarios.map((d) => {
-              const dataSessao = new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
-                weekday: "long",
-                day: "2-digit",
-                month: "long",
-                year: "numeric"
-              });
+              const dataSessao = d.data
+                ? new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric"
+                  })
+                : "Data não informada";
 
               return (
                 <div key={d.id} className="p-5 md:p-6 hover:bg-background/30 transition-colors">
