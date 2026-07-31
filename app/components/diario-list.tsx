@@ -8,7 +8,7 @@ import { DiarioFormModal } from "./diario-form-modal";
 interface Diario {
   id: string;
   data: string;
-  anotacoes: string;
+  conteudo: string;
   created_at: string;
   paciente_id: string;
   agendamento_id: string | null;
@@ -40,7 +40,7 @@ export function DiarioList() {
 
     let query = supabase
       .from("diario_bordo")
-      .select("id, data, anotacoes, created_at, paciente_id, agendamento_id, pacientes(nome)")
+      .select("id, data, conteudo, created_at, paciente_id, agendamento_id, pacientes(nome)")
       .order("data", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -48,7 +48,7 @@ export function DiarioList() {
       query = query.eq("paciente_id", pacienteFilter);
     }
     if (search) {
-      query = query.ilike("anotacoes", `%${search}%`);
+      query = query.ilike("conteudo", `%${search}%`);
     }
 
     const { data } = await query;
@@ -192,7 +192,7 @@ export function DiarioList() {
                         </span>
                       </div>
                       <p className="text-sm md:text-base text-text font-serif leading-relaxed whitespace-pre-wrap select-none">
-                        {d.anotacoes}
+                        {d.conteudo}
                       </p>
                     </div>
                   </div>

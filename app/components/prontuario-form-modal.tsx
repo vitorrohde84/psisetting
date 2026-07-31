@@ -9,7 +9,7 @@ interface Prontuario {
   paciente_id: string;
   agendamento_id: string | null;
   data: string;
-  resumo: string;
+  conteudo: string;
 }
 
 interface PacienteOption {
@@ -47,7 +47,7 @@ export function ProntuarioFormModal({
     paciente_id: prontuario?.paciente_id || prefillData?.paciente_id || "",
     agendamento_id: prontuario?.agendamento_id || prefillData?.agendamento_id || "",
     data: prontuario?.data || prefillData?.data || new Date().toISOString().split("T")[0],
-    resumo: prontuario?.resumo || "",
+    conteudo: prontuario?.conteudo || "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -139,7 +139,7 @@ export function ProntuarioFormModal({
       setError("Informe a data da sessão.");
       return;
     }
-    if (!form.resumo.trim()) {
+    if (!form.conteudo.trim()) {
       setError("O conteúdo do prontuário não pode estar vazio.");
       return;
     }
@@ -150,7 +150,7 @@ export function ProntuarioFormModal({
       paciente_id: form.paciente_id,
       agendamento_id: form.agendamento_id || null,
       data: form.data,
-      resumo: form.resumo.trim(),
+      conteudo: form.conteudo.trim(),
     };
 
     let result;
@@ -312,8 +312,8 @@ export function ProntuarioFormModal({
             <textarea
               required
               rows={12}
-              value={form.resumo}
-              onChange={(e) => setForm((prev) => ({ ...prev, resumo: e.target.value }))}
+              value={form.conteudo}
+              onChange={(e) => setForm((prev) => ({ ...prev, conteudo: e.target.value }))}
               placeholder="Descreva o andamento da sessão, evolução do paciente, intervenções..."
               className={inputClass + " font-serif text-base leading-relaxed resize-none"}
             />

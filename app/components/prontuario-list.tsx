@@ -8,7 +8,7 @@ import { ProntuarioFormModal } from "./prontuario-form-modal";
 interface Prontuario {
   id: string;
   data: string;
-  resumo: string;
+  conteudo: string;
   created_at: string;
   paciente_id: string;
   agendamento_id: string | null;
@@ -42,7 +42,7 @@ export function ProntuarioList() {
 
     let query = supabase
       .from("prontuarios")
-      .select("id, data, resumo, created_at, paciente_id, agendamento_id, pacientes(nome), agendamentos(horario)")
+      .select("id, data, conteudo, created_at, paciente_id, agendamento_id, pacientes(nome), agendamentos(horario)")
       .order("data", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -50,7 +50,7 @@ export function ProntuarioList() {
       query = query.eq("paciente_id", pacienteFilter);
     }
     if (search) {
-      query = query.ilike("resumo", `%${search}%`);
+      query = query.ilike("conteudo", `%${search}%`);
     }
 
     const { data } = await query;
@@ -129,7 +129,7 @@ export function ProntuarioList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50" size={16} />
           <input
             type="text"
-            placeholder="Buscar palavra-chave no resumo..."
+            placeholder="Buscar palavra-chave no conteudo..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-background border border-border text-text text-sm
@@ -230,7 +230,7 @@ export function ProntuarioList() {
                         </span>
                       </div>
                       <p className="text-sm md:text-base text-text font-serif leading-relaxed whitespace-pre-wrap">
-                        {p.resumo}
+                        {p.conteudo}
                       </p>
                     </div>
                   </div>

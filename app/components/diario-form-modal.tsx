@@ -7,7 +7,7 @@ import { X, Save, Loader2, Search, ShieldAlert } from "lucide-react";
 interface Diario {
   id: string;
   data: string;
-  anotacoes: string;
+  conteudo: string;
   paciente_id: string;
   agendamento_id: string | null;
 }
@@ -41,7 +41,7 @@ export function DiarioFormModal({
     paciente_id: diario?.paciente_id || "",
     agendamento_id: diario?.agendamento_id || "",
     data: diario?.data || new Date().toISOString().split("T")[0],
-    anotacoes: diario?.anotacoes || "",
+    conteudo: diario?.conteudo || "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -130,7 +130,7 @@ export function DiarioFormModal({
       setError("Informe a data da sessão.");
       return;
     }
-    if (!form.anotacoes.trim()) {
+    if (!form.conteudo.trim()) {
       setError("As anotações não podem estar vazias.");
       return;
     }
@@ -141,7 +141,7 @@ export function DiarioFormModal({
       paciente_id: form.paciente_id,
       agendamento_id: form.agendamento_id || null,
       data: form.data,
-      anotacoes: form.anotacoes.trim(),
+      conteudo: form.conteudo.trim(),
     };
 
     let result;
@@ -308,8 +308,8 @@ export function DiarioFormModal({
             <textarea
               required
               rows={12}
-              value={form.anotacoes}
-              onChange={(e) => setForm((prev) => ({ ...prev, anotacoes: e.target.value }))}
+              value={form.conteudo}
+              onChange={(e) => setForm((prev) => ({ ...prev, conteudo: e.target.value }))}
               placeholder="Digite aqui o que você não escreveria no prontuário oficial..."
               className={inputClass + " font-serif text-base leading-relaxed resize-none"}
             />

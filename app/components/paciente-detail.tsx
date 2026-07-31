@@ -141,7 +141,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         case "prontuarios": {
           const { data } = await supabase
             .from("prontuarios")
-            .select("id, data, resumo, created_at")
+            .select("id, data, conteudo, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
             .limit(50);
@@ -524,8 +524,8 @@ function TabProntuarios({ items }: { items: any[] }) {
               {formatDate(pron.created_at?.split("T")[0])}
             </span>
           </div>
-          {pron.resumo && (
-            <p className="text-sm text-text-muted mt-1 line-clamp-2">{pron.resumo}</p>
+          {pron.conteudo && (
+            <p className="text-sm text-text-muted mt-1 line-clamp-2">{pron.conteudo}</p>
           )}
         </div>
       ))}
