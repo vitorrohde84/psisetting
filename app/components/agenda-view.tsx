@@ -82,7 +82,7 @@ export function AgendaView() {
   // Cross-module Modals
   const [showProntuarioModal, setShowProntuarioModal] = useState(false);
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
-  const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data_sessao?: string; data_vencimento?: string } | null>(null);
+  const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data?: string; data_vencimento?: string } | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -105,9 +105,9 @@ export function AgendaView() {
         .order("horario", { ascending: true }),
       supabase
         .from("prontuarios")
-        .select("paciente_id, data_sessao")
-        .gte("data_sessao", firstDay)
-        .lte("data_sessao", lastDayStr),
+        .select("paciente_id, data")
+        .gte("data", firstDay)
+        .lte("data", lastDayStr),
       supabase
         .from("pagamentos")
         .select("paciente_id, data_vencimento")
@@ -115,7 +115,7 @@ export function AgendaView() {
         .lte("data_vencimento", lastDayStr),
     ]);
 
-    const prontSet = new Set(prontRes.data?.map(p => `${p.paciente_id}_${p.data_sessao}`));
+    const prontSet = new Set(prontRes.data?.map(p => `${p.paciente_id}_${p.data}`));
     const pagSet = new Set(pagRes.data?.map(p => `${p.paciente_id}_${p.data_vencimento}`));
 
     const enhancedAgs = (agsRes.data || []).map(ag => ({
@@ -223,7 +223,7 @@ export function AgendaView() {
   }
 
   function handleEvoluirProntuario(ag: Agendamento) {
-    setActionPrefillData({ paciente_id: ag.paciente_id, data_sessao: ag.data });
+    setActionPrefillData({ paciente_id: ag.paciente_id, data: ag.data });
     setShowProntuarioModal(true);
   }
 
@@ -671,7 +671,7 @@ export function AgendaView() {
       {showProntuarioModal && (
         <ProntuarioFormModal
           prontuario={null}
-          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data_sessao: actionPrefillData?.data_sessao || "" }}
+          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data: actionPrefillData?.data || "" }}
           onClose={() => setShowProntuarioModal(false)}
           onSaved={() => { setShowProntuarioModal(false); fetchAgendamentos(); }}
         />

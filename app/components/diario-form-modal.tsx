@@ -6,7 +6,7 @@ import { X, Save, Loader2, Search, ShieldAlert } from "lucide-react";
 
 interface Diario {
   id: string;
-  data_sessao: string;
+  data: string;
   anotacoes: string;
   paciente_id: string;
   agendamento_id: string | null;
@@ -40,7 +40,7 @@ export function DiarioFormModal({
   const [form, setForm] = useState({
     paciente_id: diario?.paciente_id || "",
     agendamento_id: diario?.agendamento_id || "",
-    data_sessao: diario?.data_sessao || new Date().toISOString().split("T")[0],
+    data: diario?.data || new Date().toISOString().split("T")[0],
     anotacoes: diario?.anotacoes || "",
   });
 
@@ -114,7 +114,7 @@ export function DiarioFormModal({
     setForm((prev) => ({
       ...prev,
       agendamento_id: val,
-      data_sessao: ag ? ag.data : prev.data_sessao,
+      data: ag ? ag.data : prev.data,
     }));
   }
 
@@ -126,7 +126,7 @@ export function DiarioFormModal({
       setError("Selecione um paciente.");
       return;
     }
-    if (!form.data_sessao) {
+    if (!form.data) {
       setError("Informe a data da sessão.");
       return;
     }
@@ -140,7 +140,7 @@ export function DiarioFormModal({
     const payload = {
       paciente_id: form.paciente_id,
       agendamento_id: form.agendamento_id || null,
-      data_sessao: form.data_sessao,
+      data: form.data,
       anotacoes: form.anotacoes.trim(),
     };
 
@@ -295,8 +295,8 @@ export function DiarioFormModal({
             <input
               type="date"
               required
-              value={form.data_sessao}
-              onChange={(e) => setForm((prev) => ({ ...prev, data_sessao: e.target.value }))}
+              value={form.data}
+              onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))}
               className={inputClass + " md:max-w-[200px]"}
             />
           </div>

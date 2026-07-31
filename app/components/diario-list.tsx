@@ -7,7 +7,7 @@ import { DiarioFormModal } from "./diario-form-modal";
 
 interface Diario {
   id: string;
-  data_sessao: string;
+  data: string;
   anotacoes: string;
   created_at: string;
   paciente_id: string;
@@ -40,8 +40,8 @@ export function DiarioList() {
 
     let query = supabase
       .from("diario_bordo")
-      .select("id, data_sessao, anotacoes, created_at, paciente_id, agendamento_id, pacientes(nome)")
-      .order("data_sessao", { ascending: false })
+      .select("id, data, anotacoes, created_at, paciente_id, agendamento_id, pacientes(nome)")
+      .order("data", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (pacienteFilter !== "all") {
@@ -155,7 +155,7 @@ export function DiarioList() {
         ) : (
           <div className="divide-y divide-border/40">
             {diarios.map((d) => {
-              const dataSessao = new Date(d.data_sessao + "T12:00:00").toLocaleDateString("pt-BR", {
+              const dataSessao = new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
                 month: "long",

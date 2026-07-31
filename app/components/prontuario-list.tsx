@@ -7,7 +7,7 @@ import { ProntuarioFormModal } from "./prontuario-form-modal";
 
 interface Prontuario {
   id: string;
-  data_sessao: string;
+  data: string;
   resumo: string;
   created_at: string;
   paciente_id: string;
@@ -42,8 +42,8 @@ export function ProntuarioList() {
 
     let query = supabase
       .from("prontuarios")
-      .select("id, data_sessao, resumo, created_at, paciente_id, agendamento_id, pacientes(nome), agendamentos(horario)")
-      .order("data_sessao", { ascending: false })
+      .select("id, data, resumo, created_at, paciente_id, agendamento_id, pacientes(nome), agendamentos(horario)")
+      .order("data", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (pacienteFilter !== "all") {
@@ -174,7 +174,7 @@ export function ProntuarioList() {
         ) : (
           <div className="divide-y divide-border/40">
             {prontuarios.map((p) => {
-              const dataSessao = new Date(p.data_sessao + "T12:00:00").toLocaleDateString("pt-BR", {
+              const dataSessao = new Date(p.data + "T12:00:00").toLocaleDateString("pt-BR", {
                 weekday: "long",
                 day: "2-digit",
                 month: "long",

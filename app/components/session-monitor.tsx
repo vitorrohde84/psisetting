@@ -28,7 +28,7 @@ export function SessionMonitor() {
   // Modals
   const [showProntuarioModal, setShowProntuarioModal] = useState(false);
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
-  const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data_sessao?: string; data_vencimento?: string } | null>(null);
+  const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data?: string; data_vencimento?: string } | null>(null);
 
   const fetchTodayData = useCallback(async () => {
     const now = new Date();
@@ -43,7 +43,7 @@ export function SessionMonitor() {
       supabase
         .from("prontuarios")
         .select("paciente_id")
-        .eq("data_sessao", todayStr),
+        .eq("data", todayStr),
       supabase
         .from("pagamentos")
         .select("paciente_id")
@@ -113,7 +113,7 @@ export function SessionMonitor() {
   }
 
   function handleEvoluirProntuario(ag: Agendamento) {
-    setActionPrefillData({ paciente_id: ag.paciente_id, data_sessao: ag.data });
+    setActionPrefillData({ paciente_id: ag.paciente_id, data: ag.data });
     setShowProntuarioModal(true);
   }
 
@@ -186,7 +186,7 @@ export function SessionMonitor() {
       {showProntuarioModal && (
         <ProntuarioFormModal
           prontuario={null}
-          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data_sessao: actionPrefillData?.data_sessao || "" }}
+          prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data: actionPrefillData?.data || "" }}
           onClose={() => setShowProntuarioModal(false)}
           onSaved={() => { setShowProntuarioModal(false); fetchTodayData(); }}
         />

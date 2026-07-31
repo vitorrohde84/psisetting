@@ -141,9 +141,9 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         case "prontuarios": {
           const { data } = await supabase
             .from("prontuarios")
-            .select("id, data_sessao, resumo, created_at")
+            .select("id, data, resumo, created_at")
             .eq("paciente_id", pacienteId)
-            .order("data_sessao", { ascending: false })
+            .order("data", { ascending: false })
             .limit(50);
           setProntuarios(data || []);
           break;
@@ -152,9 +152,9 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
           // Only fetch metadata, not the sensitive content (per SPEC.md)
           const { data } = await supabase
             .from("diario_bordo")
-            .select("id, data_sessao, created_at")
+            .select("id, data, created_at")
             .eq("paciente_id", pacienteId)
-            .order("data_sessao", { ascending: false })
+            .order("data", { ascending: false })
             .limit(50);
           setDiario(data || []);
           break;
@@ -518,7 +518,7 @@ function TabProntuarios({ items }: { items: any[] }) {
         <div key={pron.id} className="py-3 px-1">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-text">
-              Sessão de {formatDate(pron.data_sessao)}
+              Sessão de {formatDate(pron.data)}
             </span>
             <span className="text-xs text-text-muted">
               {formatDate(pron.created_at?.split("T")[0])}
@@ -551,7 +551,7 @@ function TabDiario({ items }: { items: any[] }) {
         {items.map((entry) => (
           <div key={entry.id} className="flex items-center justify-between py-3 px-1">
             <span className="text-sm text-text">
-              Sessão de {formatDate(entry.data_sessao)}
+              Sessão de {formatDate(entry.data)}
             </span>
             <span className="text-xs text-text-muted">
               {formatDate(entry.created_at?.split("T")[0])}

@@ -8,7 +8,7 @@ interface Prontuario {
   id: string;
   paciente_id: string;
   agendamento_id: string | null;
-  data_sessao: string;
+  data: string;
   resumo: string;
 }
 
@@ -27,7 +27,7 @@ interface ProntuarioFormModalProps {
   prontuario: Prontuario | null;
   prefillData?: {
     paciente_id: string;
-    data_sessao: string;
+    data: string;
     agendamento_id?: string;
   };
   onClose: () => void;
@@ -46,7 +46,7 @@ export function ProntuarioFormModal({
   const [form, setForm] = useState({
     paciente_id: prontuario?.paciente_id || prefillData?.paciente_id || "",
     agendamento_id: prontuario?.agendamento_id || prefillData?.agendamento_id || "",
-    data_sessao: prontuario?.data_sessao || prefillData?.data_sessao || new Date().toISOString().split("T")[0],
+    data: prontuario?.data || prefillData?.data || new Date().toISOString().split("T")[0],
     resumo: prontuario?.resumo || "",
   });
 
@@ -123,7 +123,7 @@ export function ProntuarioFormModal({
     setForm((prev) => ({
       ...prev,
       agendamento_id: val,
-      data_sessao: ag ? ag.data : prev.data_sessao,
+      data: ag ? ag.data : prev.data,
     }));
   }
 
@@ -135,7 +135,7 @@ export function ProntuarioFormModal({
       setError("Selecione um paciente.");
       return;
     }
-    if (!form.data_sessao) {
+    if (!form.data) {
       setError("Informe a data da sessão.");
       return;
     }
@@ -149,7 +149,7 @@ export function ProntuarioFormModal({
     const payload = {
       paciente_id: form.paciente_id,
       agendamento_id: form.agendamento_id || null,
-      data_sessao: form.data_sessao,
+      data: form.data,
       resumo: form.resumo.trim(),
     };
 
@@ -299,8 +299,8 @@ export function ProntuarioFormModal({
             <input
               type="date"
               required
-              value={form.data_sessao}
-              onChange={(e) => setForm((prev) => ({ ...prev, data_sessao: e.target.value }))}
+              value={form.data}
+              onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))}
               className={inputClass + " md:max-w-[200px]"}
             />
           </div>
