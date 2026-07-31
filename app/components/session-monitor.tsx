@@ -61,7 +61,7 @@ export function SessionMonitor() {
     }));
 
     setAgendamentos(enhancedAgs);
-  }, [supabase]);
+  }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -81,6 +81,8 @@ export function SessionMonitor() {
       const pending = agendamentos.filter(ag => {
         // Se já tem ambos, não é pendente
         if (ag.has_prontuario && ag.has_pagamento) return false;
+
+        if (!ag.horario) return false;
 
         // Calcular hora de término
         const [h, m] = ag.horario.split(":").map(Number);

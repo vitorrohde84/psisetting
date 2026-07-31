@@ -23,7 +23,7 @@ export function DiarioBordoView() {
       setLoadingAuth(false);
     }
     getUser();
-  }, [supabase]);
+  }, []);
 
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
