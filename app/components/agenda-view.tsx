@@ -39,6 +39,7 @@ export interface Agendamento {
   pacientes?: any;
   has_prontuario?: boolean;
   has_pagamento?: boolean;
+  pagamento_status?: string;
 }
 
 function getPacienteName(ag: Agendamento): string {
@@ -111,19 +112,31 @@ export function AgendaView() {
         .lte("data", lastDayStr),
       supabase
         .from("pagamentos")
-        .select("paciente_id, data_vencimento")
+        .select("paciente_id, data_vencimento, agendamento_id, status")
         .gte("data_vencimento", firstDay)
         .lte("data_vencimento", lastDayStr),
     ]);
 
     const prontSet = new Set(prontRes.data?.map(p => `${p.paciente_id}_${p.data}`));
-    const pagSet = new Set(pagRes.data?.map(p => `${p.paciente_id}_${p.data_vencimento}`));
+    const pagMap = new Map();
+    pagRes.data?.forEach(p => {
+      // Prioriza pelo agendamento_id, ou pelo paciente+data
+      if (p.agendamento_id) {
+        pagMap.set(p.agendamento_id, p.status);
+      } else {
+        pagMap.set(`${p.paciente_id}_${p.data_vencimento}`, p.status);
+      }
+    });
 
-    const enhancedAgs = (agsRes.data || []).map(ag => ({
-      ...ag,
-      has_prontuario: prontSet.has(`${ag.paciente_id}_${ag.data}`),
-      has_pagamento: pagSet.has(`${ag.paciente_id}_${ag.data}`),
-    }));
+    const enhancedAgs = (agsRes.data || []).map(ag => {
+      const pStatus = pagMap.get(ag.id) || pagMap.get(`${ag.paciente_id}_${ag.data}`);
+      return {
+        ...ag,
+        has_prontuario: prontSet.has(`${ag.paciente_id}_${ag.data}`),
+        has_pagamento: !!pStatus,
+        pagamento_status: pStatus,
+      };
+    });
 
     setAgendamentos(enhancedAgs);
     setLoading(false);
@@ -647,13 +660,15 @@ export function AgendaView() {
                               <button
                                 onClick={() => handleAdicionarPagamento(ag)}
                                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                  ag.has_pagamento
+                                  ag.pagamento_status === "pago"
                                     ? "text-success bg-success/10"
+                                    : ag.has_pagamento
+                                    ? "text-warning-dark bg-warning/10"
                                     : "text-text-muted hover:text-primary hover:bg-primary/10"
                                 }`}
-                                title={ag.has_pagamento ? "Pagamento registrado" : "Adicionar pagamento"}
+                                title={ag.pagamento_status === "pago" ? "Pago" : ag.has_pagamento ? "Pagamento pendente" : "Adicionar pagamento"}
                               >
-                                {ag.has_pagamento ? <CheckCircle2 size={14} /> : <DollarSign size={14} />}
+                                {ag.pagamento_status === "pago" ? <CheckCircle2 size={14} /> : ag.has_pagamento ? <Clock size={14} /> : <DollarSign size={14} />}
                               </button>
                               
                               <div className="w-[1px] h-4 bg-border mx-1" />
@@ -789,13 +804,15 @@ function AgendamentoCard({
         <button
           onClick={onPagamento}
           className={`flex-1 inline-flex justify-center items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            ag.has_pagamento
+            ag.pagamento_status === "pago"
               ? "bg-success/10 text-success"
+              : ag.has_pagamento
+              ? "bg-warning/10 text-warning-dark"
               : "bg-surface hover:bg-primary/10 text-text-muted hover:text-primary"
           }`}
         >
-          {ag.has_pagamento ? <CheckCircle2 size={12} /> : <DollarSign size={12} />}
-          Pagamento
+          {ag.pagamento_status === "pago" ? <CheckCircle2 size={12} /> : ag.has_pagamento ? <Clock size={12} /> : <DollarSign size={12} />}
+          {ag.pagamento_status === "pago" ? "Pago" : ag.has_pagamento ? "Pendente" : "Pagamento"}
         </button>
       </div>
 

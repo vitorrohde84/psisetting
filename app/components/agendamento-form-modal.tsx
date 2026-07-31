@@ -239,6 +239,22 @@ export function AgendamentoFormModal({
     }
     // ------------------------------------
 
+    // --- AUTO-PAGAMENTO INTEGRATION ---
+    if (!isEditing && result.data) {
+      for (const ag of result.data) {
+        const pagPayload = {
+          paciente_id: ag.paciente_id,
+          agendamento_id: ag.id,
+          valor: 150, // Valor padrão a ser ajustado no financeiro
+          data_vencimento: ag.data,
+          status: "pendente",
+          forma_pagamento: "pix",
+        };
+        await supabase.from("pagamentos").insert(pagPayload);
+      }
+    }
+    // ------------------------------------
+
     onSaved();
   }
 
