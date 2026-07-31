@@ -308,7 +308,7 @@ export function ProntuarioFormModal({
                 <option value="">-- Sem vínculo específico --</option>
                 {agendamentos.map((ag) => (
                   <option key={ag.id} value={ag.id}>
-                    {new Date(ag.data + "T12:00:00").toLocaleDateString("pt-BR")} às {ag.horario.slice(0, 5)}
+                    {ag.data ? new Date(ag.data + "T12:00:00").toLocaleDateString("pt-BR") : "Data desconhecida"} às {ag.horario ? ag.horario.slice(0, 5) : "--:--"}
                   </option>
                 ))}
               </select>

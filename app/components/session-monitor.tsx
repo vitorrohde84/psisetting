@@ -77,7 +77,7 @@ export function SessionMonitor() {
       }
 
       const now = new Date();
-      
+
       const pending = agendamentos.filter(ag => {
         // Se já tem ambos, não é pendente
         if (ag.has_prontuario && ag.has_pagamento) return false;
@@ -168,9 +168,8 @@ export function SessionMonitor() {
         {/* Floating Button */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${
-            expanded ? "bg-surface text-text border border-border" : "bg-primary text-white animate-bounce"
-          }`}
+          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${expanded ? "bg-surface text-text border border-border" : "bg-primary text-white animate-bounce"
+            }`}
         >
           <Bell size={20} className={!expanded ? "animate-pulse" : ""} />
           {!expanded && (
