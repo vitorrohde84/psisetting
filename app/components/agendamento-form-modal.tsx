@@ -29,6 +29,7 @@ interface FormData {
 }
 
 export function AgendamentoFormModal({
+  agendamento,
   prefillDate,
   prefillData,
   onClose,
