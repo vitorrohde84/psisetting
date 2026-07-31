@@ -50,50 +50,56 @@ export function LaudoPrint({
 
   return (
     <div id="print-section" className="fixed inset-0 z-[100] bg-white text-black min-h-screen w-full overflow-y-auto">
-      <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white">
+      <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white relative">
 
         {/* Cabeçalho Profissional */}
-        <header className="flex flex-col items-center justify-center text-center border-b-2 border-black/80 pb-6 mb-8">
-          <h1 className="text-2xl font-bold uppercase tracking-wider mb-1">
+        <header className="flex flex-col items-center justify-center text-center pb-8 mb-10 border-b-2 border-stone-300">
+          <img src="/logo1.png" alt="Logo Hellen Limberger" className="h-28 mb-5 object-contain" />
+          <h1 className="text-2xl font-bold uppercase tracking-widest text-stone-800 mb-1.5">
             Hellen Limberger
           </h1>
-          <p className="text-lg font-medium text-black/80 mb-2">Psicóloga Clínica</p>
-          <div className="flex items-center justify-center gap-4 text-sm font-semibold text-black/70">
-            <span>CRP 07/45016</span>
-          </div>
+          <p className="text-lg text-stone-600 italic mb-1.5">Psicóloga Clínica</p>
+          <p className="text-sm font-semibold text-stone-500 tracking-wide">
+            CRP 07/45016
+          </p>
         </header>
 
         {/* Título do Documento */}
-        <h2 className="text-xl font-bold text-center uppercase tracking-wide mb-10">
+        <h2 className="text-xl font-bold text-center uppercase tracking-widest text-stone-800 mb-10">
           {titulo || "Laudo Psicológico"}
         </h2>
 
         {/* Identificação do Paciente */}
-        <div className="mb-8 p-4 bg-gray-50 border border-gray-200">
-          <p className="mb-1">
-            <span className="font-bold">Paciente:</span> {pacienteNome} {idadeInfo}
-          </p>
-          <p>
-            <span className="font-bold">CPF:</span> {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
-          </p>
+        <div className="mb-10 p-6 rounded-xl border border-stone-200 bg-stone-50/50">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-4 border-b border-stone-200 pb-2">Identificação do Paciente</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-6 text-[11pt]">
+            <p className="text-stone-800">
+              <span className="font-bold text-stone-600 mr-2">NOME:</span> 
+              {pacienteNome} {idadeInfo}
+            </p>
+            <p className="text-stone-800">
+              <span className="font-bold text-stone-600 mr-2">CPF:</span> 
+              {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
+            </p>
+          </div>
         </div>
 
         {/* Corpo do Laudo */}
         <div
-          className="text-justify leading-relaxed whitespace-pre-wrap mb-16 text-[11pt]"
+          className="text-justify leading-loose whitespace-pre-wrap mb-20 text-[11.5pt] text-stone-800"
         >
           {conteudo}
         </div>
 
         {/* Encerramento e Assinatura */}
-        <div className="mt-20 flex flex-col items-center justify-center pt-8">
-          <p className="text-center mb-16">
-            Santa Maria, {dateStr}.
+        <div className="mt-auto flex flex-col items-center justify-center pt-10">
+          <p className="text-center text-stone-600 text-[11pt] mb-16">
+            Santa Maria, RS. {dateStr}.
           </p>
 
-          <div className="w-[8cm] border-t border-black text-center pt-2">
-            <p className="font-bold text-base mb-0.5">Hellen Limberger</p>
-            <p className="text-sm">Psicóloga - CRP 07/45016</p>
+          <div className="w-[8.5cm] border-t border-stone-400 text-center pt-3">
+            <p className="font-bold text-[12pt] text-stone-800 mb-0.5 tracking-wide">Hellen Limberger</p>
+            <p className="text-sm text-stone-500 italic">Psicóloga Clínica - CRP 07/45016</p>
           </div>
         </div>
 
