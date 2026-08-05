@@ -18,19 +18,24 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Try to get profile name, fallback to email
+  // Fetch profile with logo_url
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nome")
+    .select("nome, logo_url")
     .eq("id", user.id)
     .single();
 
   const userName = profile?.nome || user.email?.split("@")[0] || "Usuário";
   const userEmail = user.email || "";
 
+  // Construct public logo URL if available
+  const logoUrl = profile?.logo_url
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${profile.logo_url}`
+    : null;
+
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar userName={userName} userEmail={userEmail} />
+      <Sidebar userName={userName} userEmail={userEmail} logoUrl={logoUrl} />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">

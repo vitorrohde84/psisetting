@@ -7,6 +7,10 @@ import { createAdminClient } from "@/utils/supabase/admin";
  * URL: /calendario/[token]
  * Protocol: webcal://hostname/calendario/[token]
  *
+ * MULTI-USER: Each psychologist has their own unique calendar_token
+ * stored in the profiles table. The token is looked up to identify
+ * which psychologist's appointments to include in the feed.
+ *
  * This route is public (no auth required) — secured by the secret token.
  * Uses the admin client (service_role) to bypass RLS since there's no user session.
  */
@@ -18,16 +22,28 @@ interface RouteParams {
 export async function GET(_request: Request, { params }: RouteParams) {
   const { token } = await params;
 
-  // Validate token
-  const validToken = process.env.CALENDAR_SECRET_TOKEN;
-  if (!validToken || token !== validToken) {
+  if (!token) {
     return new NextResponse("Não autorizado", { status: 403 });
   }
 
   try {
     const supabase = createAdminClient();
 
-    // Fetch upcoming and recent agendamentos (last 30 days + future)
+    // Look up the psychologist by their calendar_token
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, nome")
+      .eq("calendar_token", token)
+      .single();
+
+    if (profileError || !profile) {
+      return new NextResponse("Não autorizado", { status: 403 });
+    }
+
+    const psicologoId = profile.id;
+    const psicologoNome = profile.nome || "Psicólogo";
+
+    // Fetch upcoming and recent agendamentos for THIS psychologist
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const cutoffDate = thirtyDaysAgo.toISOString().split("T")[0];
@@ -35,6 +51,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     const { data: agendamentos, error } = await supabase
       .from("agendamentos")
       .select("id, data, horario, duracao_minutos, modalidade, status, observacoes, pacientes(nome)")
+      .eq("psicologo_id", psicologoId)
       .gte("data", cutoffDate)
       .in("status", ["agendado", "confirmado", "realizado"])
       .order("data", { ascending: true })
@@ -46,13 +63,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
     }
 
     // Generate iCalendar content
-    const icsContent = generateICS(agendamentos || []);
+    const icsContent = generateICS(agendamentos || [], psicologoNome);
 
     return new NextResponse(icsContent, {
       status: 200,
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
-        "Content-Disposition": 'inline; filename="agenda-hellen.ics"',
+        "Content-Disposition": `inline; filename="agenda-${psicologoNome.toLowerCase().replace(/\s+/g, "-")}.ics"`,
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
@@ -62,7 +79,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 }
 
-function generateICS(agendamentos: any[]): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function generateICS(agendamentos: any[], psicologoNome: string): string {
   const now = formatICSDate(new Date());
 
   const lines: string[] = [
@@ -71,7 +89,7 @@ function generateICS(agendamentos: any[]): string {
     "PRODID:-//Sistema Hellen//Agenda//PT-BR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:Agenda — Hellen Limberger",
+    `X-WR-CALNAME:Agenda — ${escapeICS(psicologoNome)}`,
     "X-WR-TIMEZONE:America/Sao_Paulo",
     "",
     // Timezone definition

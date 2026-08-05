@@ -12,6 +12,7 @@ import {
   BookOpen,
   FileCheck,
   DollarSign,
+  Settings,
   Menu,
   X,
 } from "lucide-react";
@@ -24,14 +25,16 @@ const navItems = [
   { label: "Diário de Bordo", href: "/diario-bordo", icon: BookOpen },
   { label: "Laudos", href: "/laudos", icon: FileCheck },
   { label: "Financeiro", href: "/financeiro", icon: DollarSign },
+  { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 interface SidebarProps {
   userName: string;
   userEmail: string;
+  logoUrl: string | null;
 }
 
-export function Sidebar({ userName, userEmail }: SidebarProps) {
+export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -40,15 +43,29 @@ export function Sidebar({ userName, userEmail }: SidebarProps) {
     return pathname.startsWith(href);
   }
 
+  // Generate initials for fallback avatar
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <>
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-surface border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent overflow-hidden shrink-0">
-            <img src="/logo1.png" alt="Hellen Limberger Logo" className="w-full h-full object-cover" />
-          </div>
-          <span className="text-sm font-serif font-semibold text-text">Hellen Limberger</span>
+          {logoUrl ? (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent overflow-hidden shrink-0">
+              <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 shrink-0">
+              <span className="text-xs font-semibold text-primary">{initials}</span>
+            </div>
+          )}
+          <span className="text-sm font-serif font-semibold text-text">{userName}</span>
         </div>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -80,12 +97,18 @@ export function Sidebar({ userName, userEmail }: SidebarProps) {
         {/* Logo / Brand */}
         <div className="p-5 pb-4 border-b border-border/60">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-transparent overflow-hidden shrink-0">
-              <img src="/logo1.png" alt="Hellen Limberger Logo" className="w-full h-full object-cover" />
-            </div>
+            {logoUrl ? (
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-transparent overflow-hidden shrink-0">
+                <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 shrink-0">
+                <span className="text-lg font-serif font-semibold text-primary">{initials}</span>
+              </div>
+            )}
             <div className="min-w-0">
               <h1 className="text-sm font-serif font-semibold text-text leading-tight truncate">
-                Hellen Limberger
+                {userName}
               </h1>
               <p className="text-[11px] text-text-muted truncate">Sistema de Gestão</p>
             </div>
@@ -124,12 +147,7 @@ export function Sidebar({ userName, userEmail }: SidebarProps) {
           <div className="flex items-center gap-3 px-3 py-2 mb-1">
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary/10 shrink-0">
               <span className="text-xs font-semibold text-secondary">
-                {userName
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()}
+                {initials}
               </span>
             </div>
             <div className="min-w-0">

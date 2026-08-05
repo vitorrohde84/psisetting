@@ -9,17 +9,23 @@
 
 ## 1. Visão geral
 
-Sistema web privado de gestão de consultório para uma psicóloga clínica (abordagem
-psicanalítica), uso individual (1 profissional). Não é um produto multiusuário/SaaS —
-é uma ferramenta interna, protegida por login, hospedada como Space privado no
+Sistema web privado de gestão de consultório para psicólogos clínicos,
+com suporte a múltiplos profissionais (multi-user). Cada psicólogo tem
+sua própria conta com dados completamente isolados via RLS (Row Level Security).
+Protegido por login com cadastro por convite, hospedado como Space privado no
 Hugging Face, com dados em Supabase (Postgres + Auth + Storage).
 
-**Usuária final:** Hellen Limberger, psicóloga (CRP 07/45016), atendimento presencial
-(Santa Maria e Rosário do Sul) e online.
+**Modelo de acesso:** Cadastro por convite — somente psicólogos convidados por
+usuários existentes podem criar conta.
+
+**Funcionalidades por psicólogo:**
+- Dados isolados (pacientes, agendamentos, prontuários, etc.)
+- Logo personalizado do consultório
+- Feed iCal individual (token por profissional)
+- Geração de convites para novos profissionais
 
 **Não-objetivos (não construir isso):**
-- Não é um sistema multiusuário / multi-clínica
-- Não precisa de cadastro público de novos usuários
+- Não precisa de cadastro público de novos usuários (somente convite)
 - Não precisa de app mobile nativo — é web responsivo
 - Não integra diretamente (CalDAV) com o app Calendário da Apple — usa feed `.ics` assinado (ver seção 6)
 
@@ -120,11 +126,13 @@ mesmo prompt — mais fácil de testar e revisar isoladamente.
 Não existe integração de escrita direta no app Calendário da Apple sem CalDAV
 completo ou app nativo assinado. A solução adotada é:
 
-- Gerar feed `.ics` (RFC 5545) dinâmico, servido a partir de uma URL com token
-  secreto não-adivinhável: `/calendario/{token}.ics`
-- Hellen assina esse calendário uma única vez no iPhone:
-  `Ajustes > Calendário > Contas > Adicionar Conta > Outra > Adicionar Calendário
-  Assinado` — colar a URL no formato `webcal://...`
+- Cada psicólogo possui um `calendar_token` único gerado automaticamente
+  na criação da conta (armazenado em `profiles.calendar_token`)
+- Gerar feed `.ics` (RFC 5545) dinâmico, filtrado por `psicologo_id`,
+  servido a partir de: `/calendario/{calendar_token}`
+- O psicólogo copia a URL do feed na página de Configurações e assina
+  no iPhone: `Ajustes > Calendário > Contas > Adicionar Conta > Outra >
+  Adicionar Calendário Assinado` — colar a URL no formato `webcal://...`
 - O calendário do iPhone atualiza sozinho periodicamente (a Apple controla o
   intervalo, não é instantâneo — pode levar algumas horas para refletir mudanças)
 
@@ -149,5 +157,9 @@ Use esta seção para registrar decisões tomadas durante o desenvolvimento, par
 prompts futuros não contradizerem decisões já tomadas.
 
 - 2026-07-30 — Stack de frontend definida: Next.js 16 (App Router) + TypeScript + Tailwind CSS v4
+- 2026-08-05 — Sistema convertido para multi-user com cadastro por convite
+- 2026-08-05 — Cada psicólogo tem calendar_token individual (em profiles)
+- 2026-08-05 — Logo personalizado por psicólogo (bucket 'logos' no Storage)
+- 2026-08-05 — Página de Configurações adicionada (/configuracoes)
 - [DATA] — Space configurado como privado: sim/não
 - [DATA] — Paleta de cores ajustada com base em print real do site: sim/não
