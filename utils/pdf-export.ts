@@ -11,15 +11,31 @@ export async function generatePdfBlob(
   element: HTMLElement,
   options: GeneratePdfOptions = {}
 ): Promise<{ blob: Blob; pdf: jsPDF }> {
-  // Ensure background is solid white for crystal clear capture
+  // Ensure all images are fully loaded before rendering
+  const images = Array.from(element.querySelectorAll("img"));
+  await Promise.all(
+    images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    })
+  );
+
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
     allowTaint: true,
     logging: false,
     backgroundColor: "#ffffff",
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
+    scrollX: 0,
+    scrollY: 0,
+    onclone: (_document, clonedElement) => {
+      clonedElement.style.margin = "0";
+      clonedElement.style.boxShadow = "none";
+      clonedElement.style.backgroundColor = "#ffffff";
+    },
   });
 
   const imgData = canvas.toDataURL("image/jpeg", options.quality ?? 0.98);
@@ -43,8 +59,8 @@ export async function generatePdfBlob(
   pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
   heightLeft -= pdfHeight;
 
-  // Additional pages if needed
-  while (heightLeft > 0) {
+  // Additional pages if needed (only if height left is significant)
+  while (heightLeft > 8) {
     position = heightLeft - imgHeight;
     pdf.addPage();
     pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
@@ -61,11 +77,8 @@ export async function downloadPdf(
 ): Promise<void> {
   const { pdf, blob } = await generatePdfBlob(element, { filename });
   
-  // Try standard jsPDF save first
+  // Try programmatic anchor download via object URL first (most reliable on mobile & desktop)
   try {
-    pdf.save(filename);
-  } catch {
-    // Fallback: programmatic anchor download via object URL (works reliably on some mobile browsers)
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -75,7 +88,10 @@ export async function downloadPdf(
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }, 1000);
+    }, 1500);
+  } catch {
+    // Fallback: standard jsPDF save
+    pdf.save(filename);
   }
 }
 
