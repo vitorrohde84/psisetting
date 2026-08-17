@@ -11,7 +11,8 @@ import {
   Loader2, 
   FileText, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  PenTool
 } from "lucide-react";
 import { downloadPdf, sharePdf } from "@/utils/pdf-export";
 
@@ -27,7 +28,6 @@ interface LaudoPrintProps {
 export function LaudoPrint({
   pacienteNome,
   pacienteCpf,
-  pacienteNascimento,
   titulo,
   conteudo,
   onPrinted,
@@ -36,6 +36,7 @@ export function LaudoPrint({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [incluirAssinatura, setIncluirAssinatura] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -46,14 +47,6 @@ export function LaudoPrint({
   }, []);
 
   const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-
-  // Calculate age if birthdate is provided
-  let idadeInfo = "";
-  if (pacienteNascimento) {
-    const birth = new Date(pacienteNascimento + "T00:00:00");
-    const age = new Date().getFullYear() - birth.getFullYear();
-    idadeInfo = `, ${age} anos`;
-  }
 
   function formatCPF(cpf: string) {
     const d = cpf.replace(/\D/g, "");
@@ -143,7 +136,7 @@ export function LaudoPrint({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <FileText size={16} className="text-primary shrink-0 hidden xs:block" />
-                <h3 className="text-sm font-semibold text-stone-800 truncate max-w-[200px] sm:max-w-[320px] md:max-w-[450px]">
+                <h3 className="text-sm font-semibold text-stone-800 truncate max-w-[180px] sm:max-w-[280px] md:max-w-[400px]">
                   {titulo || "Laudo Psicológico"}
                 </h3>
               </div>
@@ -153,8 +146,23 @@ export function LaudoPrint({
             </div>
           </div>
 
-          {/* Lado Direito: Botões de Ação */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Lado Direito: Opção de Assinatura & Botões de Ação */}
+          <div className="flex items-center flex-wrap gap-2 shrink-0">
+            {/* Toggle: Incluir Assinatura */}
+            <label 
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-stone-100 hover:bg-stone-200/80 text-stone-700 cursor-pointer select-none transition-colors border border-stone-200"
+              title="Ativar ou desativar a assinatura da profissional no documento"
+            >
+              <input
+                type="checkbox"
+                checked={incluirAssinatura}
+                onChange={(e) => setIncluirAssinatura(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
+              />
+              <PenTool size={14} className="text-stone-500 hidden xs:block" />
+              <span>Assinatura</span>
+            </label>
+
             {/* Feedback message */}
             {feedback && (
               <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
@@ -226,7 +234,7 @@ export function LaudoPrint({
         <div
           ref={documentRef}
           id="print-section"
-          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-10 md:p-[16mm] font-serif relative flex flex-col justify-between"
+          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-10 md:p-[18mm] font-serif relative flex flex-col justify-between"
           style={{ boxSizing: "border-box" }}
         >
           {/* Topo / Cabeçalho da Psicóloga */}
@@ -258,7 +266,7 @@ export function LaudoPrint({
               </h2>
             </div>
 
-            {/* Identificação do Paciente */}
+            {/* Identificação do Paciente (SEM IDADE) */}
             <div className="mb-8 bg-stone-50/70 p-5 sm:p-6 rounded-xl border border-stone-200">
               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-4 flex items-center gap-2">
                 <span className="w-6 h-px bg-stone-300" />
@@ -271,7 +279,7 @@ export function LaudoPrint({
                     Nome Completo
                   </span>
                   <span className="text-stone-800 font-medium text-base sm:text-lg border-b border-stone-200 pb-1">
-                    {pacienteNome} {idadeInfo}
+                    {pacienteNome}
                   </span>
                 </div>
                 <div className="flex flex-col">
@@ -291,20 +299,22 @@ export function LaudoPrint({
             </div>
           </div>
 
-          {/* Encerramento e Assinatura (SEM ornamento) */}
+          {/* Encerramento e Assinatura */}
           <div className="mt-8 flex flex-col items-center justify-center pt-6">
-            <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-12 italic font-serif">
+            <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-10 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
-            <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3">
-              <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
-                Hellen Limberger
-              </p>
-              <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
-                Psicóloga Clínica - CRP 07/45016
-              </p>
-            </div>
+            {incluirAssinatura && (
+              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3">
+                <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+                  Hellen Limberger
+                </p>
+                <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
+                  Psicóloga Clínica - CRP 07/45016
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -314,7 +324,7 @@ export function LaudoPrint({
         __html: `
         @media print {
           @page {
-            margin: 15mm 15mm 15mm 15mm;
+            margin: 0 !important;
             size: A4 portrait;
           }
           html, body {
@@ -342,13 +352,16 @@ export function LaudoPrint({
           }
           #print-section {
             position: static !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             width: 100% !important;
             max-width: 100% !important;
-            min-height: auto !important;
+            min-height: 297mm !important;
             background: white !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 20mm 18mm 18mm 18mm !important;
+            box-sizing: border-box !important;
             box-shadow: none !important;
             border: none !important;
           }

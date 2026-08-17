@@ -54,7 +54,7 @@ a {
 
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 0;
   }
   
   /* Garantir que as cores e fundos sejam impressos */
