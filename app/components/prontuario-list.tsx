@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users } from "lucide-react";
+import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
+import { downloadPdf } from "@/utils/pdf-export";
 
 interface Prontuario {
   id: string;
@@ -37,6 +38,8 @@ export function ProntuarioList() {
   const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
   const [prontuariosPaciente, setProntuariosPaciente] = useState<Prontuario[]>([]);
   const [loadingProntuarios, setLoadingProntuarios] = useState(false);
+  const prontuarioRef = useRef<HTMLDivElement>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -61,14 +64,15 @@ export function ProntuarioList() {
           map.set(p.paciente_id, {
             id: p.paciente_id,
             nome: pacNome || "Desconhecido",
-            total: 0,
+            total: 1,
             ultimaData: p.data,
           });
+        } else {
+          const item = map.get(p.paciente_id)!;
+          item.total += 1;
         }
-        const item = map.get(p.paciente_id)!;
-        item.total += 1;
       });
-      setPacientes(Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome)));
+      setPacientes(Array.from(map.values()));
     } else {
       setPacientes([]);
     }
@@ -76,14 +80,13 @@ export function ProntuarioList() {
     setLoadingPacientes(false);
   }, []);
 
-  const fetchProntuariosDoPaciente = useCallback(async (pacienteId: string) => {
+  const fetchProntuariosDoPaciente = useCallback(async (pacId: string) => {
     setLoadingProntuarios(true);
     const { data } = await supabase
       .from("prontuarios")
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, agendamentos(horario)")
-      .eq("paciente_id", pacienteId)
-      .order("data", { ascending: true }) // Cronológico: mais antigo primeiro (ideal para prontuário único)
-      .order("created_at", { ascending: true });
+      .eq("paciente_id", pacId)
+      .order("data", { ascending: false });
     
     setProntuariosPaciente(data || []);
     setLoadingProntuarios(false);
@@ -111,6 +114,21 @@ export function ProntuarioList() {
 
   function handlePrint() {
     window.print();
+  }
+
+  async function handleDownloadPdf() {
+    if (!prontuarioRef.current || generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      const nome = pacienteSelecionado?.nome?.replace(/[^a-zA-Z0-9_-]/g, "_") || "Paciente";
+      const filename = `Prontuario_${nome}.pdf`;
+      await downloadPdf(prontuarioRef.current, filename);
+    } catch (e) {
+      console.error("Erro ao gerar PDF do prontuário:", e);
+      window.print();
+    } finally {
+      setGeneratingPdf(false);
+    }
   }
 
   function getAgendamentoHorario(p: Prontuario): string | null {
@@ -230,7 +248,28 @@ export function ProntuarioList() {
           Voltar para lista
         </button>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleDownloadPdf}
+            disabled={generatingPdf}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
+                       bg-primary text-white text-sm font-medium
+                       hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+            title="Salvar prontuário como PDF"
+          >
+            {generatingPdf ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Gerando PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                <span>Salvar PDF</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={handlePrint}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
@@ -238,13 +277,14 @@ export function ProntuarioList() {
                        hover:text-text hover:border-primary/40 transition-colors cursor-pointer"
           >
             <Printer size={16} />
-            Exportar PDF
+            Imprimir
           </button>
+          
           <button
             onClick={handleNovaEvolucao}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
-                       bg-primary text-white text-sm font-medium
-                       hover:bg-primary-dark transition-colors cursor-pointer"
+                       bg-surface border border-border text-text text-sm font-medium
+                       hover:border-primary/40 transition-colors cursor-pointer"
           >
             <Plus size={16} />
             Adicionar Evolução
@@ -253,7 +293,10 @@ export function ProntuarioList() {
       </div>
 
       {/* Documento do Prontuário */}
-      <div className="bg-surface rounded-2xl border border-border shadow-sm p-6 md:p-12 print:border-none print:shadow-none print:p-0">
+      <div 
+        ref={prontuarioRef}
+        className="bg-surface rounded-2xl border border-border shadow-sm p-6 md:p-12 print:border-none print:shadow-none print:p-0 bg-white"
+      >
         
         {/* Cabeçalho do Documento */}
         <div className="text-center border-b-2 border-primary/20 pb-8 mb-8">

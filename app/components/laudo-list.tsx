@@ -238,9 +238,10 @@ export function LaudoList() {
                         onClick={() => handlePrint(laudo)}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
                                    bg-background border border-border text-text hover:bg-surface hover:text-primary transition-colors cursor-pointer"
+                        title="Visualizar, baixar em PDF ou imprimir laudo"
                       >
-                        <Printer size={16} />
-                        Imprimir Laudo
+                        <FileText size={16} />
+                        Visualizar / Salvar PDF
                       </button>
                     )}
                     

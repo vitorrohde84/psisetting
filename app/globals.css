@@ -47,11 +47,22 @@ a {
 
 /* ===== Print Styles (PDF Export) ===== */
 @media print {
-  /* Esconder sidebar e elementos de navegação */
-  nav, aside, header, .no-print {
+  /* Esconder sidebar, modais de controle e elementos com .no-print */
+  nav, aside, .no-print {
     display: none !important;
   }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
   
+  /* Garantir que as cores e fundos sejam impressos */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Remover margens do main para usar a página toda */
   main {
     margin: 0 !important;

@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { 
+  ArrowLeft, 
+  Download, 
+  Printer, 
+  Share2, 
+  Loader2, 
+  FileText, 
+  CheckCircle2,
+  AlertCircle
+} from "lucide-react";
+import { downloadPdf, sharePdf } from "@/utils/pdf-export";
 
 interface LaudoPrintProps {
   pacienteNome: string;
@@ -10,7 +21,7 @@ interface LaudoPrintProps {
   pacienteNascimento?: string;
   titulo: string;
   conteudo: string;
-  onPrinted: () => void;
+  onPrinted: () => void; // Used when closing the modal
 }
 
 export function LaudoPrint({
@@ -21,16 +32,18 @@ export function LaudoPrint({
   conteudo,
   onPrinted,
 }: LaudoPrintProps) {
-  useEffect(() => {
-    // Automatically trigger print dialog when component mounts
-    // Small timeout to ensure rendering is complete
-    const timer = setTimeout(() => {
-      window.print();
-      onPrinted(); // Callback to restore original view
-    }, 500);
+  const documentRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-    return () => clearTimeout(timer);
-  }, [onPrinted]);
+  useEffect(() => {
+    // Check if Web Share API with files is available (mobile iOS/Android)
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      setCanShare(true);
+    }
+  }, []);
 
   const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
@@ -48,83 +61,259 @@ export function LaudoPrint({
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
   }
 
+  function getPdfFilename() {
+    const sanitize = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "");
+
+    const safeTitulo = sanitize(titulo || "Laudo");
+    const safeNome = sanitize(pacienteNome || "Paciente");
+    const dataHoje = format(new Date(), "dd-MM-yyyy");
+    return `${safeTitulo}_${safeNome}_${dataHoje}.pdf`;
+  }
+
+  async function handleDownloadPdf() {
+    if (!documentRef.current || isGenerating) return;
+    setIsGenerating(true);
+    setFeedback(null);
+
+    try {
+      const filename = getPdfFilename();
+      await downloadPdf(documentRef.current, filename);
+      setFeedback({ type: "success", message: "PDF gerado com sucesso!" });
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      setFeedback({ type: "error", message: "Erro ao gerar PDF. Tente usar a opção Imprimir." });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleSharePdf() {
+    if (!documentRef.current || isSharing) return;
+    setIsSharing(true);
+    setFeedback(null);
+
+    try {
+      const filename = getPdfFilename();
+      await sharePdf(documentRef.current, filename, titulo || "Laudo Psicológico");
+    } catch (err) {
+      console.error("Erro ao compartilhar PDF:", err);
+      setFeedback({ type: "error", message: "Não foi possível abrir o compartilhamento." });
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
   return (
-    <div id="print-section" className="fixed inset-0 z-[100] bg-white text-black min-h-screen w-full overflow-y-auto">
-      <div className="max-w-[21cm] mx-auto min-h-[29.7cm] p-[2cm] font-serif bg-white relative">
+    <div className="fixed inset-0 z-[100] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center">
+      {/* ===== BARRA SUPERIOR DE AÇÕES (Oculta na impressão) ===== */}
+      <nav 
+        aria-label="Ações do documento"
+        className="no-print sticky top-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 z-50 px-4 py-3 shadow-md"
+      >
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          {/* Lado Esquerdo: Voltar & Título */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={onPrinted}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
+              title="Voltar para a lista de laudos"
+            >
+              <ArrowLeft size={18} />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
 
-        {/* Cabeçalho Profissional */}
-        <header className="relative flex flex-col items-center justify-center text-center pb-10 mb-12 border-b border-stone-200">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-stone-800/10 rounded-full mb-8" />
-          
-          <img src="/logo1.png" alt="Logo Hellen Limberger" className="h-32 w-auto mb-6 object-contain" />
-          
-          <h1 className="text-3xl font-extrabold uppercase tracking-[0.2em] text-stone-800 mb-2 font-serif">
-            Hellen Limberger
-          </h1>
-          <p className="text-xl text-stone-500 italic mb-4 font-serif">Psicóloga Clínica</p>
-          <div className="inline-flex items-center justify-center px-5 py-1.5 border border-stone-200 rounded-full bg-stone-50 shadow-sm">
-            <p className="text-sm font-bold text-stone-600 tracking-widest">
-              CRP 07/45016
-            </p>
-          </div>
-        </header>
+            <div className="h-5 w-px bg-stone-200 hidden sm:block" />
 
-        {/* Título do Documento */}
-        <div className="text-center mb-12">
-          <h2 className="inline-block text-xl font-bold uppercase tracking-[0.25em] text-stone-800 border-b border-stone-300 pb-3 px-12">
-            {titulo || "Laudo Psicológico"}
-          </h2>
-        </div>
-
-        {/* Identificação do Paciente */}
-        <div className="mb-12 relative bg-stone-50/50 p-8 rounded-2xl border border-stone-100">
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-3">
-            <span className="w-8 h-px bg-stone-300" />
-            Identificação do Paciente
-            <span className="flex-1 h-px bg-stone-200" />
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-12 text-[11.5pt]">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Nome Completo</span> 
-              <span className="text-stone-800 font-medium text-lg border-b border-stone-200 pb-2">{pacienteNome} {idadeInfo}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Documento (CPF)</span> 
-              <span className="text-stone-800 font-medium text-lg border-b border-stone-200 pb-2">{pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <FileText size={16} className="text-primary shrink-0 hidden xs:block" />
+                <h3 className="text-sm font-semibold text-stone-800 truncate max-w-[200px] sm:max-w-[320px] md:max-w-[450px]">
+                  {titulo || "Laudo Psicológico"}
+                </h3>
+              </div>
+              <p className="text-xs text-stone-500 truncate hidden sm:block">
+                Paciente: {pacienteNome || "Desconhecido"}
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Corpo do Laudo */}
+          {/* Lado Direito: Botões de Ação */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Feedback message */}
+            {feedback && (
+              <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
+                feedback.type === "success" 
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
+                {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                <span>{feedback.message}</span>
+              </div>
+            )}
+
+            {/* Compartilhar (visível no celular / navegadores compatíveis) */}
+            {canShare && (
+              <button
+                onClick={handleSharePdf}
+                disabled={isSharing || isGenerating}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium
+                           bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                title="Compartilhar PDF (WhatsApp, etc.)"
+              >
+                {isSharing ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <Share2 size={16} />
+                )}
+                <span className="hidden sm:inline">Compartilhar</span>
+              </button>
+            )}
+
+            {/* Baixar PDF */}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isGenerating || isSharing}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
+                         bg-primary text-white hover:bg-primary-dark active:scale-95 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              title="Baixar arquivo PDF no dispositivo"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Gerando PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  <span>Salvar PDF</span>
+                </>
+              )}
+            </button>
+
+            {/* Imprimir */}
+            <button
+              onClick={handlePrint}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium
+                         border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 active:scale-95 transition-all cursor-pointer"
+              title="Abrir diálogo de impressão do navegador"
+            >
+              <Printer size={16} />
+              <span className="hidden sm:inline">Imprimir</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* ===== ÁREA DO DOCUMENTO A4 ===== */}
+      <div className="w-full flex-1 p-3 sm:p-6 md:p-10 flex justify-center items-start">
         <div
-          className="text-justify leading-[2.2] whitespace-pre-wrap mb-24 text-[12pt] text-stone-800 font-serif"
+          ref={documentRef}
+          id="print-section"
+          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-12 md:p-[20mm] font-serif relative flex flex-col justify-between"
+          style={{ boxSizing: "border-box" }}
         >
-          {conteudo}
-        </div>
-
-        {/* Encerramento e Assinatura */}
-        <div className="mt-auto flex flex-col items-center justify-center pt-16 border-t border-stone-100">
-          <p className="text-center text-stone-500 text-[11pt] mb-20 italic">
-            Santa Maria, RS. {dateStr}.
-          </p>
-
-          <div className="w-[10cm] border-t border-stone-400 text-center pt-4 relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2 text-stone-300 text-xl font-serif">
-              ❦
+          {/* Topo / Cabeçalho da Psicóloga */}
+          <div>
+            <div className="relative flex flex-col items-center justify-center text-center pb-8 mb-10 border-b border-stone-200">
+              <img
+                src="/logo1.png"
+                alt="Logo Hellen Limberger"
+                crossOrigin="anonymous"
+                className="h-24 sm:h-28 w-auto mb-4 object-contain"
+              />
+              
+              <h1 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1.5 font-serif">
+                Hellen Limberger
+              </h1>
+              <p className="text-lg sm:text-xl text-stone-500 italic mb-3.5 font-serif">
+                Psicóloga Clínica
+              </p>
+              <div className="inline-flex items-center justify-center px-4 py-1 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
+                <p className="text-xs sm:text-sm font-bold text-stone-600 tracking-wider">
+                  CRP 07/45016
+                </p>
+              </div>
             </div>
-            <p className="font-bold text-[13pt] text-stone-800 mb-1 tracking-wide uppercase font-serif">Hellen Limberger</p>
-            <p className="text-sm text-stone-500 italic font-serif">Psicóloga Clínica - CRP 07/45016</p>
+
+            {/* Título do Documento */}
+            <div className="text-center mb-10">
+              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-2 px-6 sm:px-12 font-serif">
+                {titulo || "Laudo Psicológico"}
+              </h2>
+            </div>
+
+            {/* Identificação do Paciente */}
+            <div className="mb-10 bg-stone-50/70 p-5 sm:p-6 rounded-xl border border-stone-200">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-4 flex items-center gap-2">
+                <span className="w-6 h-px bg-stone-300" />
+                Identificação do Paciente
+                <span className="flex-1 h-px bg-stone-200" />
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-[11pt]">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                    Nome Completo
+                  </span>
+                  <span className="text-stone-800 font-medium text-base sm:text-lg border-b border-stone-200 pb-1">
+                    {pacienteNome} {idadeInfo}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                    Documento (CPF)
+                  </span>
+                  <span className="text-stone-800 font-medium text-base sm:text-lg border-b border-stone-200 pb-1">
+                    {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Corpo do Laudo */}
+            <div className="text-justify leading-[2] sm:leading-[2.2] whitespace-pre-wrap mb-16 text-[11.5pt] sm:text-[12pt] text-stone-800 font-serif">
+              {conteudo}
+            </div>
+          </div>
+
+          {/* Encerramento e Assinatura */}
+          <div className="mt-12 flex flex-col items-center justify-center pt-8 border-t border-stone-100">
+            <p className="text-center text-stone-500 text-[10.5pt] sm:text-[11pt] mb-14 italic font-serif">
+              Santa Maria, RS. {dateStr}.
+            </p>
+
+            <div className="w-full max-w-[340px] border-t border-stone-400 text-center pt-3 relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2 text-stone-300 text-lg font-serif">
+                ❦
+              </div>
+              <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+                Hellen Limberger
+              </p>
+              <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
+                Psicóloga Clínica - CRP 07/45016
+              </p>
+            </div>
           </div>
         </div>
-
       </div>
 
-      {/* Estilos Globais para Ocultar Interface Padrão Durante Impressão */}
+      {/* Estilos Específicos para Impressão */}
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
           @page {
-            margin: 0;
+            margin: 10mm;
             size: A4 portrait;
           }
           html, body {
@@ -143,9 +332,13 @@ export function LaudoPrint({
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
+            max-width: 100% !important;
+            min-height: 100% !important;
             background: white !important;
             margin: 0 !important;
             padding: 0 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
           }
         }
       `}} />
