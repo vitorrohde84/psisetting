@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/app/components/logout-button";
+import { PrivacyToggle } from "@/app/components/privacy-toggle";
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +16,7 @@ import {
   Settings,
   Menu,
   X,
+  ChevronRight,
 } from "lucide-react";
 
 const navItems = [
@@ -38,6 +40,23 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Prevent background scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
@@ -53,9 +72,10 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-surface border-b border-border flex items-center justify-between px-4">
-        <div className="flex items-center gap-2.5">
+      {/* ===== BARRA SUPERIOR MOBILE (h-14) ===== */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-surface/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4">
+        {/* Lado Esquerdo: Logo & Nome */}
+        <Link href="/" className="flex items-center gap-2.5 min-w-0">
           {logoUrl ? (
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent overflow-hidden shrink-0">
               <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
@@ -65,45 +85,56 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
               <span className="text-xs font-semibold text-primary">{initials}</span>
             </div>
           )}
-          <span className="text-sm font-serif font-semibold text-text">{userName}</span>
+          <span className="text-sm font-serif font-semibold text-text truncate max-w-[170px]">
+            {userName}
+          </span>
+        </Link>
+
+        {/* Lado Direito: Botão Privacidade + Botão Hambúrguer */}
+        <div className="flex items-center gap-2 shrink-0">
+          <PrivacyToggle 
+            className="p-2 rounded-xl bg-background border border-border text-text-muted hover:text-text active:scale-95 transition-all cursor-pointer"
+            size={18}
+          />
+          
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-2 rounded-xl bg-background border border-border text-text-muted hover:text-text active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+            aria-label="Abrir menu de navegação"
+          >
+            <Menu size={20} />
+          </button>
         </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg text-text-muted hover:bg-background transition-colors cursor-pointer"
-          aria-label="Abrir menu"
-        >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
       </div>
 
-      {/* Mobile overlay */}
+      {/* ===== OVERLAY MOBILE ===== */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-text/20 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-[65] bg-stone-900/40 backdrop-blur-xs transition-opacity animate-fadeIn"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* ===== SIDEBAR / GAVETA MOBILE ===== */}
       <aside
         className={`
-          fixed top-0 left-0 z-40 h-full w-64 bg-surface border-r border-border
-          flex flex-col
-          transition-transform duration-300 ease-in-out
-          lg:translate-x-0 lg:static lg:z-auto
+          fixed top-0 left-0 z-[70] h-full w-72 max-w-[85vw] bg-surface border-r border-border
+          flex flex-col shadow-2xl
+          transition-transform duration-300 ease-out
+          lg:translate-x-0 lg:static lg:z-auto lg:w-64 lg:shadow-none
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Logo / Brand */}
-        <div className="p-5 pb-4 border-b border-border/60">
-          <div className="flex items-center gap-3">
+        {/* Cabeçalho da Gaveta */}
+        <div className="p-5 pb-4 border-b border-border/60 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             {logoUrl ? (
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-transparent overflow-hidden shrink-0">
+              <div className="flex items-center justify-center w-11 h-11 rounded-full bg-transparent overflow-hidden shrink-0">
                 <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 shrink-0">
-                <span className="text-lg font-serif font-semibold text-primary">{initials}</span>
+              <div className="flex items-center justify-center w-11 h-11 rounded-full bg-primary/10 shrink-0">
+                <span className="text-base font-serif font-semibold text-primary">{initials}</span>
               </div>
             )}
             <div className="min-w-0">
@@ -113,10 +144,19 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
               <p className="text-[11px] text-text-muted truncate">Sistema de Gestão</p>
             </div>
           </div>
+
+          {/* Botão Fechar no celular */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden p-2 rounded-xl text-text-muted hover:bg-background active:scale-95 transition-all cursor-pointer"
+            aria-label="Fechar menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {/* Links de Navegação */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -126,38 +166,97 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                  flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium
                   transition-all duration-200
                   ${
                     active
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-primary/10 text-primary font-semibold shadow-xs"
                       : "text-text-muted hover:bg-background hover:text-text"
                   }
                 `}
               >
-                <Icon size={18} strokeWidth={active ? 2 : 1.5} />
-                {item.label}
+                <div className="flex items-center gap-3">
+                  <Icon size={19} strokeWidth={active ? 2.2 : 1.6} />
+                  <span>{item.label}</span>
+                </div>
+                {active && <ChevronRight size={14} className="text-primary" />}
               </Link>
             );
           })}
         </nav>
 
-        {/* User info + Logout */}
-        <div className="p-3 border-t border-border/60">
-          <div className="flex items-center gap-3 px-3 py-2 mb-1">
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary/10 shrink-0">
+        {/* Rodapé da Sidebar: Usuário + Logout */}
+        <div className="p-3 border-t border-border/60 bg-background/30">
+          <div className="flex items-center gap-3 px-3 py-2 mb-2">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary/15 shrink-0">
               <span className="text-xs font-semibold text-secondary">
                 {initials}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text truncate">{userName}</p>
+              <p className="text-xs font-semibold text-text truncate">{userName}</p>
               <p className="text-[11px] text-text-muted truncate">{userEmail}</p>
             </div>
           </div>
           <LogoutButton />
         </div>
       </aside>
+
+      {/* ===== BARRA INFERIOR MOBILE (Tab Bar) ===== */}
+      <nav 
+        aria-label="Navegação rápida mobile"
+        className="no-print lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-border flex items-center justify-around py-1.5 px-2 shadow-lg"
+      >
+        <Link
+          href="/"
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
+            isActive("/") ? "text-primary font-bold" : "text-text-muted hover:text-text"
+          }`}
+        >
+          <LayoutDashboard size={19} strokeWidth={isActive("/") ? 2.3 : 1.6} />
+          <span>Início</span>
+        </Link>
+
+        <Link
+          href="/pacientes"
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
+            isActive("/pacientes") ? "text-primary font-bold" : "text-text-muted hover:text-text"
+          }`}
+        >
+          <Users size={19} strokeWidth={isActive("/pacientes") ? 2.3 : 1.6} />
+          <span>Pacientes</span>
+        </Link>
+
+        <Link
+          href="/agenda"
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
+            isActive("/agenda") ? "text-primary font-bold" : "text-text-muted hover:text-text"
+          }`}
+        >
+          <Calendar size={19} strokeWidth={isActive("/agenda") ? 2.3 : 1.6} />
+          <span>Agenda</span>
+        </Link>
+
+        <Link
+          href="/laudos"
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
+            isActive("/laudos") ? "text-primary font-bold" : "text-text-muted hover:text-text"
+          }`}
+        >
+          <FileCheck size={19} strokeWidth={isActive("/laudos") ? 2.3 : 1.6} />
+          <span>Laudos</span>
+        </Link>
+
+        <button
+          onClick={() => setMobileOpen(true)}
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors cursor-pointer ${
+            mobileOpen ? "text-primary font-bold" : "text-text-muted hover:text-text"
+          }`}
+        >
+          <Menu size={19} strokeWidth={1.6} />
+          <span>Menu</span>
+        </button>
+      </nav>
     </>
   );
 }
