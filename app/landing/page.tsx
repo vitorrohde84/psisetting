@@ -601,7 +601,7 @@ export default function LandingPage() {
                     href="/login"
                     className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark shadow-sm hover:shadow-md transition-all text-base group"
                   >
-                    <span>Começar Gratuitamente</span>
+                    <span>Começar Agora</span>
                     <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                   <a
@@ -614,7 +614,7 @@ export default function LandingPage() {
                 </div>
                 <p className="text-xs text-text-muted pt-2 flex items-center gap-1.5">
                   <Lock size={12} className="text-emerald-600" />
-                  <span>Sem cartão de crédito. Cancele quando quiser por R$ 49,90/mês.</span>
+                  <span>Plano único de R$ 49,90/mês · Sem fidelidade, cancele quando quiser.</span>
                 </p>
               </Reveal>
             </div>
@@ -753,7 +753,7 @@ export default function LandingPage() {
                     </div>
                     <div className="flex items-center gap-1.5 text-text">
                       <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                      <span>Assinatura Digital & CRP</span>
+                      <span>Exportação em PDF A4 Oficial</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-text">
                       <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
