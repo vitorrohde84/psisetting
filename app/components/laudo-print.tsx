@@ -4,13 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { 
-  ArrowLeft, 
-  Download, 
-  Printer, 
-  Share2, 
-  Loader2, 
-  FileText, 
+import {
+  ArrowLeft,
+  Download,
+  Printer,
+  Share2,
+  Loader2,
+  FileText,
   CheckCircle2,
   AlertCircle,
   PenTool
@@ -172,11 +172,10 @@ export function LaudoPrint({
             {/* Feedback message */}
             {feedback && (
               <div
-                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
-                  feedback.type === "success"
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
-                }`}
+                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${feedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+                  }`}
               >
                 {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                 <span>{feedback.message}</span>
@@ -302,7 +301,7 @@ export function LaudoPrint({
             </div>
 
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[1.9] sm:leading-[2.1] whitespace-pre-wrap mb-10 text-[11.5pt] sm:text-[12pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.9] whitespace-pre-wrap mb-10 text-[11pt] text-stone-800 font-serif">
               {conteudo}
             </div>
           </div>
