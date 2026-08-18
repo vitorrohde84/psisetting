@@ -299,14 +299,14 @@ export function LaudoPrint({
             </div>
           </div>
 
-          {/* Encerramento e Assinatura */}
-          <div className="mt-8 flex flex-col items-center justify-center pt-6">
+          {/* Encerramento, Assinatura e Rodapé */}
+          <div className="mt-8 flex flex-col items-center justify-center pt-6 w-full">
             <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-10 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3">
+              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3 mb-8">
                 <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
                   Hellen Ketlyn Limberger Silva
                 </p>
@@ -315,6 +315,13 @@ export function LaudoPrint({
                 </p>
               </div>
             )}
+
+            {/* Rodapé Institucional com Endereço e Contato */}
+            <div className="w-full pt-3 border-t border-stone-200 text-center">
+              <p className="text-[9.5pt] text-stone-500 font-sans tracking-wide">
+                End: Santa Maria - RS &nbsp;|&nbsp; Contato: (55) 99654-7714
+              </p>
+            </div>
           </div>
         </div>
       </div>
