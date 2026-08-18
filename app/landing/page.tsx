@@ -341,7 +341,7 @@ const compliancePoints = [
     title: "Criptografia AES-256 de Ponta a Ponta",
     desc: "Chave exclusiva por psicólogo. O conteúdo clínico é ilegível até no banco de dados.",
     icon: LockKeyhole,
-    highlight: "Segurança Bancária",
+    highlight: "Padrão AES-256",
   },
   {
     title: "Resolução CFP nº 06/2019 Integral",
@@ -359,7 +359,7 @@ const compliancePoints = [
     title: "Timeout de Sessão por Inatividade",
     desc: "Bloqueio automático após 30 minutos de ausência para impedir acessos indevidos.",
     icon: Timer,
-    highlight: "Proteção Física",
+    highlight: "Bloqueio de Sessão",
   },
 ];
 
@@ -1016,7 +1016,7 @@ export default function LandingPage() {
               <Reveal>
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 text-xs font-semibold">
                   <Lock size={13} />
-                  <span>Segurança e Sigilo Inviolável</span>
+                  <span>Proteção de Dados & Sigilo Ético</span>
                 </div>
               </Reveal>
 
@@ -1028,7 +1028,7 @@ export default function LandingPage() {
 
               <Reveal delay={160}>
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
-                  O Código de Ética Profissional do Psicólogo exige a guarda confidencial dos registros clínicos. Desenvolvemos o PsiSetting com blindagem criptográfica avançada para que você atenda com total tranquilidade.
+                  O Código de Ética Profissional do Psicólogo exige a guarda confidencial dos registros clínicos. Desenvolvemos o PsiSetting com arquitetura de proteção em camadas e criptografia para apoiar sua prática clínica com responsabilidade ética e tranquilidade.
                 </p>
               </Reveal>
 
