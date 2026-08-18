@@ -112,7 +112,7 @@ const jsonLdSoftwareApp = {
     "SaaS de gestão clínica para psicólogos com prontuários eletrônicos, laudos CFP 06/2019, agenda, financeiro e Modo Privacidade.",
   offers: {
     "@type": "Offer",
-    price: "49.90",
+    price: "29.90",
     priceCurrency: "BRL",
     priceValidUntil: "2027-12-31",
     availability: "https://schema.org/InStock",
@@ -157,7 +157,7 @@ const faqItems = [
   {
     question: "Existe fidelidade ou contrato de permanência?",
     answer:
-      "Nenhuma fidelidade. A cobrança é mensal (R$ 49,90/mês) e você pode cancelar a qualquer momento diretamente nas configurações da sua conta, sem burocracia ou multas.",
+      "Nenhuma fidelidade. Você tem 7 dias de teste totalmente gratuitos para experimentar todas as funcionalidades. Após o período, a assinatura é de apenas R$ 29,90/mês e você pode cancelar a qualquer momento diretamente nas configurações da sua conta, sem burocracia ou multas.",
   },
 ];
 
@@ -461,7 +461,7 @@ export default function LandingPage() {
               href="/login"
               className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark shadow-xs hover:shadow-md transition-all duration-200"
             >
-              <span>Acessar Consultório</span>
+              <span>Testar 7 Dias Grátis</span>
               <ArrowRight size={15} />
             </Link>
           </div>
@@ -601,7 +601,7 @@ export default function LandingPage() {
                     href="/login"
                     className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark shadow-sm hover:shadow-md transition-all text-base group"
                   >
-                    <span>Começar Agora</span>
+                    <span>Começar Gratuitamente</span>
                     <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                   <a
@@ -613,8 +613,8 @@ export default function LandingPage() {
                   </a>
                 </div>
                 <p className="text-xs text-text-muted pt-2 flex items-center gap-1.5">
-                  <Lock size={12} className="text-emerald-600" />
-                  <span>Plano único de R$ 49,90/mês · Sem fidelidade, cancele quando quiser.</span>
+                  <Sparkles size={13} className="text-amber-600 shrink-0" />
+                  <span>7 dias de teste grátis · Sem cartão de crédito · Depois apenas R$ 29,90/mês</span>
                 </p>
               </Reveal>
             </div>
@@ -1095,18 +1095,22 @@ export default function LandingPage() {
             <div className="max-w-lg mx-auto rounded-3xl bg-surface border-2 border-primary/40 shadow-xl p-8 sm:p-10 relative overflow-hidden">
               {/* Badge de Destaque */}
               <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-bl-2xl uppercase tracking-wider shadow-xs">
-                Acesso Completo
+                7 Dias Grátis
               </div>
 
               <div className="text-center pb-6 border-b border-border/60">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold mb-3">
+                  <Sparkles size={13} />
+                  <span>Experimente 7 dias sem compromisso</span>
+                </div>
                 <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Plano Profissional Clínico</p>
                 <div className="mt-3 flex items-baseline justify-center gap-1">
                   <span className="text-lg font-bold text-text">R$</span>
-                  <span className="text-5xl font-serif font-black text-text tracking-tight">49</span>
+                  <span className="text-5xl font-serif font-black text-text tracking-tight">29</span>
                   <span className="text-2xl font-serif font-bold text-text">,90</span>
                   <span className="text-sm text-text-muted font-medium">/mês</span>
                 </div>
-                <p className="text-xs text-text-muted mt-2">Sem taxa de adesão · Cancele quando quiser</p>
+                <p className="text-xs text-text-muted mt-2">Após os 7 dias grátis · Sem fidelidade · Cancele quando quiser</p>
               </div>
 
               {/* Lista de Recursos Incluídos */}
@@ -1136,12 +1140,12 @@ export default function LandingPage() {
                 href="/login"
                 className="w-full py-4 rounded-xl bg-primary text-white font-bold text-center block hover:bg-primary-dark shadow-md hover:shadow-lg transition-all text-sm group"
               >
-                <span>Criar Conta e Começar Agora</span>
+                <span>Começar 7 Dias de Teste Grátis</span>
                 <ArrowRight size={16} className="inline ml-1.5 group-hover:translate-x-1 transition-transform" />
               </Link>
 
               <p className="text-[11px] text-center text-text-muted mt-3">
-                Garantia de 7 dias ou seu dinheiro de volta.
+                Sem necessidade de cartão de crédito para iniciar o teste.
               </p>
             </div>
           </Reveal>
@@ -1215,12 +1219,12 @@ export default function LandingPage() {
                 href="/login"
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-md hover:shadow-lg transition-all text-base group"
               >
-                <span>Cadastrar e Experimentar</span>
+                <span>Começar Meus 7 Dias Grátis</span>
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
             <p className="text-xs text-text-muted mt-3">
-              Configuração rápida em menos de 2 minutos.
+              Sem cartão de crédito para testar · Apenas R$ 29,90/mês após os 7 dias.
             </p>
           </Reveal>
         </div>
