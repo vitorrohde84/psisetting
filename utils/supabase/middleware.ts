@@ -37,7 +37,8 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginPath = request.nextUrl.pathname.startsWith("/login");
   const isCalendarPath = request.nextUrl.pathname.startsWith("/calendario");
-  const isPublicPath = isLoginPath || isCalendarPath;
+  const isLandingPath = request.nextUrl.pathname.startsWith("/landing");
+  const isPublicPath = isLoginPath || isCalendarPath || isLandingPath;
 
   // Implement 30-minute inactivity timeout
   const lastActivity = request.cookies.get("last_activity")?.value;

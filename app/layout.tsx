@@ -15,6 +15,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://psisetting.com.br"),
   title: "PsiSetting — Gestão Clínica para Psicólogos",
   description:
     "Plataforma segura, ética e acolhedora de gestão clínica, prontuários, laudos e agenda para psicólogos.",
