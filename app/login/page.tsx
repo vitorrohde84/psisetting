@@ -457,11 +457,12 @@ export default function LoginPage() {
           </div>
 
           {/* Divisor */}
-          <div className="relative flex items-center justify-center mb-6">
-            <div className="w-full border-t border-border" />
-            <span className="bg-surface px-3 text-xs text-text-muted uppercase tracking-wider font-medium">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 border-t border-border/70" />
+            <span className="text-xs text-text-muted uppercase tracking-wider font-medium whitespace-nowrap select-none">
               ou com e-mail
             </span>
+            <div className="flex-1 border-t border-border/70" />
           </div>
 
           {/* Mode Toggle */}
