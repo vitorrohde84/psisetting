@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { decryptClinicalData } from "@/utils/crypto";
 
 /**
  * RFC 5545 iCalendar feed for subscribing in Apple Calendar / iPhone.
@@ -62,8 +63,27 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return new NextResponse("Erro interno", { status: 500 });
     }
 
+    // Decodificar dados confidenciais (nome do paciente e observações) para o feed da psicóloga
+    const decryptedAgendamentos = await Promise.all(
+      (agendamentos || []).map(async (ag) => {
+        let pacNome = (ag.pacientes as { nome?: string })?.nome || "Paciente";
+        if (pacNome && pacNome.startsWith("enc:v1:")) {
+          pacNome = await decryptClinicalData(pacNome, psicologoId);
+        }
+        let obs = ag.observacoes;
+        if (obs && obs.startsWith("enc:v1:")) {
+          obs = await decryptClinicalData(obs, psicologoId);
+        }
+        return {
+          ...ag,
+          pacienteNomeDecrypted: pacNome,
+          observacoesDecrypted: obs,
+        };
+      })
+    );
+
     // Generate iCalendar content
-    const icsContent = generateICS(agendamentos || [], psicologoNome);
+    const icsContent = generateICS(decryptedAgendamentos, psicologoNome);
 
     return new NextResponse(icsContent, {
       status: 200,
@@ -106,7 +126,9 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
 
   for (const ag of agendamentos) {
     const pacienteNome =
-      (ag.pacientes as { nome?: string })?.nome || "Paciente";
+      ag.pacienteNomeDecrypted ||
+      (ag.pacientes as { nome?: string })?.nome ||
+      "Paciente";
 
     // Parse date and time
     const dateStr = ag.data; // YYYY-MM-DD
@@ -139,8 +161,9 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
     lines.push(`SUMMARY:${summary}`);
     lines.push(`STATUS:${icsStatus}`);
 
-    if (ag.observacoes) {
-      lines.push(`DESCRIPTION:${escapeICS(ag.observacoes)}`);
+    const obs = ag.observacoesDecrypted || ag.observacoes;
+    if (obs) {
+      lines.push(`DESCRIPTION:${escapeICS(obs)}`);
     }
 
     lines.push("END:VEVENT");
