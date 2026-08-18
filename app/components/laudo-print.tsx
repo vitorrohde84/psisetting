@@ -9,13 +9,9 @@ import {
   Download, 
   Printer, 
   Share2, 
-  Loader2, 
   FileText, 
-  CheckCircle2,
-  AlertCircle,
   PenTool
 } from "lucide-react";
-import { downloadPdf, sharePdf } from "@/utils/pdf-export";
 import { LOGO_BASE64 } from "@/utils/logo-base64";
 
 interface LaudoPrintProps {
@@ -36,11 +32,8 @@ export function LaudoPrint({
 }: LaudoPrintProps) {
   const documentRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
   const [canShare, setCanShare] = useState(false);
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -58,59 +51,25 @@ export function LaudoPrint({
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
   }
 
-  function getPdfFilename() {
-    const sanitize = (s: string) =>
-      s
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9_-]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
-
-    const safeTitulo = sanitize(titulo || "Laudo");
-    const safeNome = sanitize(pacienteNome || "Paciente");
-    const dataHoje = format(new Date(), "dd-MM-yyyy");
-    return `${safeTitulo}_${safeNome}_${dataHoje}.pdf`;
-  }
-
-  async function handleDownloadPdf() {
-    if (!documentRef.current || isGenerating) return;
-    setIsGenerating(true);
-    setFeedback(null);
-
-    try {
-      const filename = getPdfFilename();
-      await downloadPdf(documentRef.current, filename);
-      setFeedback({ type: "success", message: "PDF baixado com sucesso!" });
-      setTimeout(() => setFeedback(null), 3500);
-    } catch (err) {
-      console.error("Erro ao gerar PDF:", err);
-      setFeedback({ type: "error", message: "Erro ao gerar PDF. Tente a opção Imprimir." });
-      setTimeout(() => setFeedback(null), 4000);
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  async function handleSharePdf() {
-    if (!documentRef.current || isSharing) return;
-    setIsSharing(true);
-    setFeedback(null);
-
-    try {
-      const filename = getPdfFilename();
-      await sharePdf(documentRef.current, filename, titulo || "Laudo Psicológico");
-    } catch (err) {
-      console.error("Erro ao compartilhar PDF:", err);
-      setFeedback({ type: "error", message: "Não foi possível abrir o compartilhamento." });
-      setTimeout(() => setFeedback(null), 4000);
-    } finally {
-      setIsSharing(false);
-    }
-  }
-
-  function handlePrint() {
+  function handlePrintOrSave() {
     window.print();
+  }
+
+  async function handleShare() {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: titulo || "Laudo Psicológico",
+          text: `Laudo Psicológico - ${pacienteNome}\nEmitido por Hellen Limberger (CRP 07/45016)`,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          window.print();
+        }
+      }
+    } else {
+      window.print();
+    }
   }
 
   if (!mounted) return null;
@@ -169,69 +128,28 @@ export function LaudoPrint({
               <span>Assinatura</span>
             </label>
 
-            {/* Feedback message */}
-            {feedback && (
-              <div
-                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
-                  feedback.type === "success"
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
-                }`}
-              >
-                {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                <span>{feedback.message}</span>
-              </div>
-            )}
-
             {/* Compartilhar (visível no celular) */}
             {canShare && (
               <button
-                onClick={handleSharePdf}
-                disabled={isSharing || isGenerating}
+                onClick={handleShare}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium
-                           bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                title="Compartilhar PDF (WhatsApp, etc.)"
+                           bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all cursor-pointer"
+                title="Compartilhar"
               >
-                {isSharing ? (
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                ) : (
-                  <Share2 size={16} />
-                )}
+                <Share2 size={16} />
                 <span className="hidden sm:inline">Compartilhar</span>
               </button>
             )}
 
-            {/* Baixar PDF */}
+            {/* Salvar PDF / Imprimir */}
             <button
-              onClick={handleDownloadPdf}
-              disabled={isGenerating || isSharing}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-                         bg-primary text-white hover:bg-primary-dark active:scale-95 shadow-sm transition-all cursor-pointer disabled:opacity-50"
-              title="Baixar arquivo PDF no dispositivo"
+              onClick={handlePrintOrSave}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold
+                         bg-primary text-white hover:bg-primary-dark active:scale-95 shadow-sm transition-all cursor-pointer"
+              title="Salvar como PDF ou Imprimir documento"
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Gerando...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={16} />
-                  <span>Salvar PDF</span>
-                </>
-              )}
-            </button>
-
-            {/* Imprimir */}
-            <button
-              onClick={handlePrint}
-              disabled={isGenerating}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium
-                         border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 active:scale-95 transition-all cursor-pointer"
-              title="Abrir diálogo de impressão do navegador"
-            >
-              <Printer size={16} />
-              <span className="hidden sm:inline">Imprimir</span>
+              <Download size={16} />
+              <span>Salvar PDF / Imprimir</span>
             </button>
           </div>
         </div>
@@ -242,48 +160,48 @@ export function LaudoPrint({
         <div
           ref={documentRef}
           id="print-section"
-          className="w-full max-w-[210mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-8 md:p-[14mm] font-serif relative flex flex-col justify-between"
-          style={{ boxSizing: "border-box", minHeight: "270mm" }}
+          className="w-full max-w-[210mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-8 md:p-[12mm] font-serif relative flex flex-col justify-between"
+          style={{ boxSizing: "border-box" }}
         >
           {/* Topo / Cabeçalho da Psicóloga */}
           <div>
-            <div className="relative flex flex-col items-center justify-center text-center pb-3.5 mb-5 border-b border-stone-200">
+            <div className="relative flex flex-col items-center justify-center text-center pb-3 mb-4 border-b border-stone-200">
               <img
                 src={LOGO_BASE64}
                 alt="Logo Hellen Limberger"
-                className="h-16 sm:h-18 w-auto mb-1.5 object-contain"
+                className="h-14 sm:h-16 w-auto mb-1 object-contain"
               />
 
               <h1 className="text-xl sm:text-[22px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
                 Hellen Limberger
               </h1>
-              <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
+              <p className="text-xs sm:text-sm text-stone-500 italic mb-1.5 font-serif">
                 Psicóloga Clínica
               </p>
-              <div className="inline-flex items-center justify-center px-3.5 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
-                <p className="text-[11px] sm:text-xs font-bold text-stone-600 tracking-wider">
+              <div className="inline-flex items-center justify-center px-3 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
+                <p className="text-[10.5px] sm:text-xs font-bold text-stone-600 tracking-wider">
                   CRP 07/45016
                 </p>
               </div>
             </div>
 
             {/* Título do Documento */}
-            <div className="text-center mb-5">
+            <div className="text-center mb-4">
               <h2 className="inline-block text-base sm:text-lg font-bold uppercase tracking-[0.18em] text-stone-800 border-b border-stone-300 pb-1 px-6 sm:px-10 font-serif">
                 {titulo || "Laudo Psicológico"}
               </h2>
             </div>
 
             {/* Identificação do Paciente */}
-            <div className="mb-5 bg-stone-50/70 p-3.5 sm:p-4 rounded-xl border border-stone-200">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-2.5 flex items-center gap-2">
-                <span className="w-5 h-px bg-stone-300" />
+            <div className="mb-4 bg-stone-50/70 p-3 sm:p-3.5 rounded-xl border border-stone-200">
+              <h3 className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-2 flex items-center gap-2">
+                <span className="w-4 h-px bg-stone-300" />
                 Identificação do Paciente
                 <span className="flex-1 h-px bg-stone-200" />
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 text-[10pt]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4 text-[9.5pt]">
                 <div className="flex flex-col">
-                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
+                  <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Nome Completo
                   </span>
                   <span className="text-stone-800 font-medium text-sm sm:text-base border-b border-stone-200 pb-0.5">
@@ -291,7 +209,7 @@ export function LaudoPrint({
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
+                  <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Documento (CPF)
                   </span>
                   <span className="text-stone-800 font-medium text-sm sm:text-base border-b border-stone-200 pb-0.5">
@@ -302,23 +220,23 @@ export function LaudoPrint({
             </div>
 
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[1.75] whitespace-pre-wrap mb-6 text-[10pt] sm:text-[10.5pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.7] whitespace-pre-wrap mb-5 text-[10pt] text-stone-800 font-serif">
               {conteudo}
             </div>
           </div>
 
           {/* Encerramento, Assinatura e Rodapé */}
-          <div className="mt-4 flex flex-col items-center justify-center pt-3 w-full">
-            <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
+          <div className="mt-3 flex flex-col items-center justify-center pt-2 w-full">
+            <p className="text-center text-stone-600 text-[9.5pt] mb-5 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-5">
-                <p className="font-bold text-[11pt] sm:text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+              <div className="w-full max-w-[260px] border-t border-stone-400 text-center pt-1.5 mb-4">
+                <p className="font-bold text-[10.5pt] sm:text-[11pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
                   Hellen Ketlyn Limberger Silva
                 </p>
-                <p className="text-[11px] text-stone-500 italic font-serif">
+                <p className="text-[10.5px] text-stone-500 italic font-serif">
                   Psicóloga Clínica - CRP 07/45016
                 </p>
               </div>
@@ -326,7 +244,7 @@ export function LaudoPrint({
 
             {/* Rodapé Institucional com Endereço e Contato */}
             <div className="w-full pt-2 border-t border-stone-200 text-center">
-              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
+              <p className="text-[8pt] text-stone-500 font-sans tracking-wide">
                 End: Santa Maria - RS &nbsp;|&nbsp; Contato: (55) 99654-7714
               </p>
             </div>
@@ -339,11 +257,11 @@ export function LaudoPrint({
         __html: `
         @media print {
           @page {
-            margin: 0 !important;
+            margin: 8mm 12mm 8mm 12mm !important;
             size: A4 portrait;
           }
           
-          /* Ocultar toda a aplicação e elementos externos */
+          /* Ocultar toda a aplicação externa */
           body > *:not(#print-root) {
             display: none !important;
           }
@@ -352,10 +270,9 @@ export function LaudoPrint({
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            height: 100% !important;
+            height: auto !important;
             background: #ffffff !important;
             color: #000000 !important;
-            overflow: hidden !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -365,37 +282,33 @@ export function LaudoPrint({
           }
 
           #print-root {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
+            position: static !important;
+            display: block !important;
             width: 100% !important;
-            height: 100vh !important;
+            height: auto !important;
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: hidden !important;
-            display: block !important;
+            overflow: visible !important;
           }
 
           #print-section {
             width: 100% !important;
-            max-width: 210mm !important;
-            height: 100vh !important;
-            max-height: 100vh !important;
-            margin: 0 auto !important;
-            padding: 12mm 15mm 10mm 15mm !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             box-sizing: border-box !important;
             background: #ffffff !important;
             box-shadow: none !important;
             border: none !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
+            display: block !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            overflow: hidden !important;
           }
         }
       `}} />
