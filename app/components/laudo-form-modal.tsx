@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { X, Save, Loader2, Search, FileUp, FileText } from "lucide-react";
+import { X, Save, Loader2, Search, FileUp, FileText, Sparkles, Check } from "lucide-react";
 import { uploadLaudoPdf } from "@/utils/supabase/storage";
 import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
+import { CFP_TEMPLATES, LaudoTemplate } from "@/utils/laudo-templates";
 
 interface PacienteOption {
   id: string;
@@ -31,6 +32,8 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
   const [titulo, setTitulo] = useState("Laudo Psicológico");
   const [conteudoText, setConteudoText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [psicologoProfile, setPsicologoProfile] = useState<{ nome: string; crp: string } | null>(null);
 
   // Patients Search
   const [pacientes, setPacientes] = useState<PacienteOption[]>([]);
@@ -39,15 +42,31 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
   const [selectedPacienteName, setSelectedPacienteName] = useState("");
 
   useEffect(() => {
-    async function fetchPacientes() {
+    async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch psychologist profile
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("nome, nome_completo, crp")
+        .eq("id", user.id)
+        .single();
+      if (prof) {
+        setPsicologoProfile({
+          nome: prof.nome_completo || prof.nome || "Psicóloga Responsável",
+          crp: prof.crp || "CRP",
+        });
+      }
+
+      // Fetch patients
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome, cpf, data_nascimento")
         .eq("ativo", true);
       
       let list: PacienteOption[] = [];
-      if (data && user) {
+      if (data) {
         list = await Promise.all(
           data.map(async (p) => ({
             id: p.id,
@@ -60,7 +79,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
       }
       setPacientes(list);
     }
-    fetchPacientes();
+    fetchData();
   }, []);
 
   const filteredPacientes = pacienteSearch
@@ -74,6 +93,35 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
     setSelectedPacienteName(p.nome);
     setPacienteSearch("");
     setShowPacienteDropdown(false);
+
+    if (selectedTemplateId) {
+      const tmpl = CFP_TEMPLATES.find((t) => t.id === selectedTemplateId);
+      if (tmpl) {
+        setConteudoText(
+          tmpl.buildConteudo({
+            pacienteNome: p.nome,
+            pacienteCpf: p.cpf,
+            psicologoNome: psicologoProfile?.nome,
+            psicologoCrp: psicologoProfile?.crp,
+          })
+        );
+      }
+    }
+  }
+
+  function applyTemplate(tmpl: LaudoTemplate) {
+    setSelectedTemplateId(tmpl.id);
+    setTitulo(tmpl.titulo);
+    
+    const selectedPac = pacientes.find((p) => p.id === pacienteId);
+    const content = tmpl.buildConteudo({
+      pacienteNome: selectedPac?.nome,
+      pacienteCpf: selectedPac?.cpf,
+      psicologoNome: psicologoProfile?.nome,
+      psicologoCrp: psicologoProfile?.crp,
+    });
+    setConteudoText(content);
+    setMode("text");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -271,21 +319,58 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
           </div>
 
           {mode === "text" ? (
-            <div>
-              <label className={labelClass}>
-                Conteúdo <span className="text-danger">*</span>
-              </label>
-              <p className="text-[11px] text-text-muted mb-2">
-                O cabeçalho e assinatura com seu CRP serão adicionados automaticamente ao gerar o PDF.
-              </p>
-              <textarea
-                required={mode === "text"}
-                rows={12}
-                value={conteudoText}
-                onChange={(e) => setConteudoText(e.target.value)}
-                placeholder="Redija o conteúdo do documento aqui..."
-                className={inputClass + " font-serif text-base leading-relaxed resize-none"}
-              />
+            <div className="space-y-4">
+              {/* Seletor de Modelos Oficiais CFP (Res. 06/2019) */}
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+                  <span className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={14} /> Modelos Oficiais CFP (Resolução 06/2019)
+                  </span>
+                  <span className="text-[11px] text-text-muted">
+                    Clique em um modelo para carregar a estrutura pronta
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {CFP_TEMPLATES.map((tmpl) => (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => applyTemplate(tmpl)}
+                      className={`text-left p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-1 ${
+                        selectedTemplateId === tmpl.id
+                          ? "bg-primary text-white border-primary shadow-sm"
+                          : "bg-surface hover:bg-background border-border text-text hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="font-semibold text-xs truncate">{tmpl.label}</span>
+                        {selectedTemplateId === tmpl.id && <Check size={13} className="shrink-0" />}
+                      </div>
+                      <p className={`text-[10.5px] line-clamp-2 ${selectedTemplateId === tmpl.id ? "text-white/80" : "text-text-muted"}`}>
+                        {tmpl.descricao}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>
+                  Conteúdo do Documento <span className="text-danger">*</span>
+                </label>
+                <p className="text-[11px] text-text-muted mb-2">
+                  O cabeçalho, dados do paciente e sua assinatura com CRP serão formatados automaticamente na impressão.
+                </p>
+                <textarea
+                  required={mode === "text"}
+                  rows={13}
+                  value={conteudoText}
+                  onChange={(e) => setConteudoText(e.target.value)}
+                  placeholder="Redija o conteúdo do documento ou selecione um modelo oficial acima..."
+                  className={inputClass + " font-serif text-sm sm:text-base leading-relaxed resize-y"}
+                />
+              </div>
             </div>
           ) : (
             <div className="pt-2">
