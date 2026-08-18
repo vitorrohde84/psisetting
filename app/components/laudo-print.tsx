@@ -4,13 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  ArrowLeft,
-  Download,
-  Printer,
-  Share2,
-  Loader2,
-  FileText,
+import { 
+  ArrowLeft, 
+  Download, 
+  Printer, 
+  Share2, 
+  Loader2, 
+  FileText, 
   CheckCircle2,
   AlertCircle,
   PenTool
@@ -172,10 +172,11 @@ export function LaudoPrint({
             {/* Feedback message */}
             {feedback && (
               <div
-                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${feedback.type === "success"
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
-                  }`}
+                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
+                  feedback.type === "success"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}
               >
                 {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                 <span>{feedback.message}</span>
@@ -237,63 +238,63 @@ export function LaudoPrint({
       </nav>
 
       {/* ===== ÁREA DO DOCUMENTO A4 ===== */}
-      <div className="w-full flex-1 p-3 sm:p-6 md:p-8 flex justify-center items-start">
+      <div className="w-full flex-1 p-3 sm:p-5 md:p-6 flex justify-center items-start">
         <div
           ref={documentRef}
           id="print-section"
-          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-10 md:p-[18mm] font-serif relative flex flex-col justify-between"
-          style={{ boxSizing: "border-box" }}
+          className="w-full max-w-[210mm] bg-white text-stone-900 shadow-2xl rounded-sm p-6 sm:p-8 md:p-[14mm] font-serif relative flex flex-col justify-between"
+          style={{ boxSizing: "border-box", minHeight: "270mm" }}
         >
           {/* Topo / Cabeçalho da Psicóloga */}
           <div>
-            <div className="relative flex flex-col items-center justify-center text-center pb-5 mb-7 border-b border-stone-200">
+            <div className="relative flex flex-col items-center justify-center text-center pb-3.5 mb-5 border-b border-stone-200">
               <img
                 src={LOGO_BASE64}
                 alt="Logo Hellen Limberger"
-                className="h-20 sm:h-22 w-auto mb-2 object-contain"
+                className="h-16 sm:h-18 w-auto mb-1.5 object-contain"
               />
 
-              <h1 className="text-2xl sm:text-[25px] font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1 font-serif">
+              <h1 className="text-xl sm:text-[22px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
                 Hellen Limberger
               </h1>
-              <p className="text-base sm:text-lg text-stone-500 italic mb-2.5 font-serif">
+              <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
                 Psicóloga Clínica
               </p>
-              <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
-                <p className="text-xs sm:text-sm font-bold text-stone-600 tracking-wider">
+              <div className="inline-flex items-center justify-center px-3.5 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
+                <p className="text-[11px] sm:text-xs font-bold text-stone-600 tracking-wider">
                   CRP 07/45016
                 </p>
               </div>
             </div>
 
             {/* Título do Documento */}
-            <div className="text-center mb-7">
-              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-1.5 px-6 sm:px-12 font-serif">
+            <div className="text-center mb-5">
+              <h2 className="inline-block text-base sm:text-lg font-bold uppercase tracking-[0.18em] text-stone-800 border-b border-stone-300 pb-1 px-6 sm:px-10 font-serif">
                 {titulo || "Laudo Psicológico"}
               </h2>
             </div>
 
             {/* Identificação do Paciente */}
-            <div className="mb-7 bg-stone-50/70 p-4 sm:p-5 rounded-xl border border-stone-200">
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3 flex items-center gap-2">
-                <span className="w-6 h-px bg-stone-300" />
+            <div className="mb-5 bg-stone-50/70 p-3.5 sm:p-4 rounded-xl border border-stone-200">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-2.5 flex items-center gap-2">
+                <span className="w-5 h-px bg-stone-300" />
                 Identificação do Paciente
                 <span className="flex-1 h-px bg-stone-200" />
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-[11pt]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 text-[10pt]">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Nome Completo
                   </span>
-                  <span className="text-stone-800 font-medium text-base sm:text-lg border-b border-stone-200 pb-1">
+                  <span className="text-stone-800 font-medium text-sm sm:text-base border-b border-stone-200 pb-0.5">
                     {pacienteNome}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Documento (CPF)
                   </span>
-                  <span className="text-stone-800 font-medium text-base sm:text-lg border-b border-stone-200 pb-1">
+                  <span className="text-stone-800 font-medium text-sm sm:text-base border-b border-stone-200 pb-0.5">
                     {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
                   </span>
                 </div>
@@ -301,31 +302,31 @@ export function LaudoPrint({
             </div>
 
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[1.9] whitespace-pre-wrap mb-10 text-[11pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.75] whitespace-pre-wrap mb-6 text-[10pt] sm:text-[10.5pt] text-stone-800 font-serif">
               {conteudo}
             </div>
           </div>
 
           {/* Encerramento, Assinatura e Rodapé */}
-          <div className="mt-6 flex flex-col items-center justify-center pt-4 w-full">
-            <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-8 italic font-serif">
+          <div className="mt-4 flex flex-col items-center justify-center pt-3 w-full">
+            <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-2.5 mb-7">
-                <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+              <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-5">
+                <p className="font-bold text-[11pt] sm:text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
                   Hellen Ketlyn Limberger Silva
                 </p>
-                <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
+                <p className="text-[11px] text-stone-500 italic font-serif">
                   Psicóloga Clínica - CRP 07/45016
                 </p>
               </div>
             )}
 
             {/* Rodapé Institucional com Endereço e Contato */}
-            <div className="w-full pt-3 border-t border-stone-200 text-center">
-              <p className="text-[9.5pt] text-stone-500 font-sans tracking-wide">
+            <div className="w-full pt-2 border-t border-stone-200 text-center">
+              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
                 End: Santa Maria - RS &nbsp;|&nbsp; Contato: (55) 99654-7714
               </p>
             </div>
@@ -354,7 +355,7 @@ export function LaudoPrint({
             height: 100% !important;
             background: #ffffff !important;
             color: #000000 !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -379,10 +380,10 @@ export function LaudoPrint({
           #print-section {
             width: 100% !important;
             max-width: 210mm !important;
-            min-height: 297mm !important;
             height: 297mm !important;
+            max-height: 297mm !important;
             margin: 0 auto !important;
-            padding: 16mm 18mm 14mm 18mm !important;
+            padding: 12mm 15mm 10mm 15mm !important;
             box-sizing: border-box !important;
             background: #ffffff !important;
             box-shadow: none !important;
@@ -394,6 +395,7 @@ export function LaudoPrint({
             break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            overflow: hidden !important;
           }
         }
       `}} />
