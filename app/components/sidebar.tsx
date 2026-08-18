@@ -74,20 +74,17 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
     <>
       {/* ===== BARRA SUPERIOR MOBILE (h-14) ===== */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-surface/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4">
-        {/* Lado Esquerdo: Logo & Nome */}
+        {/* Lado Esquerdo: Branding do Sistema */}
         <Link href="/" className="flex items-center gap-2.5 min-w-0">
-          {logoUrl ? (
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent overflow-hidden shrink-0">
-              <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 shrink-0">
-              <span className="text-xs font-semibold text-primary">{initials}</span>
-            </div>
-          )}
-          <span className="text-sm font-serif font-semibold text-text truncate max-w-[170px]">
-            {userName}
-          </span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+            <span className="text-base font-serif font-bold leading-none">Ψ</span>
+          </div>
+          <div className="min-w-0">
+            <span className="text-base font-serif font-semibold text-text tracking-tight block leading-none">
+              PsiSetting
+            </span>
+            <span className="text-[10px] text-text-muted leading-tight block mt-0.5">Gestão Clínica</span>
+          </div>
         </Link>
 
         {/* Lado Direito: Botão Privacidade + Botão Hambúrguer */}
@@ -125,25 +122,19 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Cabeçalho da Gaveta */}
+        {/* Topo da Sidebar: Branding Oficial do PsiSetting */}
         <div className="p-5 pb-4 border-b border-border/60 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            {logoUrl ? (
-              <div className="flex items-center justify-center w-11 h-11 rounded-full bg-transparent overflow-hidden shrink-0">
-                <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center w-11 h-11 rounded-full bg-primary/10 shrink-0">
-                <span className="text-base font-serif font-semibold text-primary">{initials}</span>
-              </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-sm font-serif font-semibold text-text leading-tight truncate">
-                {userName}
-              </h1>
-              <p className="text-[11px] text-text-muted truncate">Sistema de Gestão</p>
+          <Link href="/" className="flex items-center gap-3 min-w-0 group">
+            <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-xs group-hover:bg-primary/15 transition-all shrink-0">
+              <span className="text-xl font-serif font-bold leading-none">Ψ</span>
             </div>
-          </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-serif font-semibold text-text leading-tight tracking-tight">
+                PsiSetting
+              </h1>
+              <p className="text-[11px] text-text-muted truncate mt-0.5">Gestão Clínica</p>
+            </div>
+          </Link>
 
           {/* Botão Fechar no celular */}
           <button
@@ -185,19 +176,32 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
           })}
         </nav>
 
-        {/* Rodapé da Sidebar: Usuário + Logout */}
-        <div className="p-3 border-t border-border/60 bg-background/30">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary/15 shrink-0">
-              <span className="text-xs font-semibold text-secondary">
-                {initials}
-              </span>
+        {/* Rodapé da Sidebar: Perfil Personalizado do Usuário + Logout */}
+        <div className="p-3 border-t border-border/60 bg-background/30 space-y-2">
+          <Link
+            href="/configuracoes"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface border border-transparent hover:border-border/60 transition-all group"
+            title="Acessar Configurações e Perfil"
+          >
+            {logoUrl ? (
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-border/70 overflow-hidden shrink-0 shadow-xs">
+                <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary/15 border border-secondary/20 shrink-0">
+                <span className="text-xs font-semibold text-secondary">
+                  {initials}
+                </span>
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-text truncate group-hover:text-primary transition-colors">
+                {userName}
+              </p>
+              <p className="text-[10.5px] text-text-muted truncate">{userEmail}</p>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-text truncate">{userName}</p>
-              <p className="text-[11px] text-text-muted truncate">{userEmail}</p>
-            </div>
-          </div>
+          </Link>
           <LogoutButton />
         </div>
       </aside>
