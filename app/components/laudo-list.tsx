@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2 } from "lucide-react";
+import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
 import { LaudoFormModal } from "./laudo-form-modal";
 import { LaudoPrint } from "./laudo-print";
+import { LaudoConfigModal } from "./laudo-config-modal";
 import { getLaudoSignedUrl } from "@/utils/supabase/storage";
 import { decryptClinicalData } from "@/utils/crypto";
 
@@ -36,6 +37,7 @@ export function LaudoList() {
 
   // Modal
   const [showModal, setShowModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   // Printing state
   const [printingLaudo, setPrintingLaudo] = useState<Laudo | null>(null);
@@ -181,16 +183,29 @@ export function LaudoList() {
             Gestão de declarações, atestados e uploads de arquivos PDF
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                     bg-primary text-white text-sm font-medium
-                     hover:bg-primary-dark active:scale-[0.98]
-                     transition-all duration-200 cursor-pointer shrink-0"
-        >
-          <Plus size={18} />
-          Novo Documento
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => setShowConfigModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl
+                       border border-border bg-surface hover:bg-background text-text text-sm font-medium
+                       active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0 shadow-xs"
+            title="Configurar papel timbrado, nome, cargo, CRP e rodapé dos laudos"
+          >
+            <Settings size={17} className="text-primary" />
+            <span>Configurar Laudo</span>
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                       bg-primary text-white text-sm font-medium
+                       hover:bg-primary-dark active:scale-[0.98]
+                       transition-all duration-200 cursor-pointer shrink-0 shadow-xs"
+          >
+            <Plus size={18} />
+            Novo Documento
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -323,6 +338,15 @@ export function LaudoList() {
           onClose={() => setShowModal(false)}
           onSaved={() => {
             setShowModal(false);
+            fetchLaudos();
+          }}
+        />
+      )}
+
+      {showConfigModal && (
+        <LaudoConfigModal
+          onClose={() => setShowConfigModal(false)}
+          onSaved={() => {
             fetchLaudos();
           }}
         />

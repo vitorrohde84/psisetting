@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -10,10 +10,12 @@ import {
   Share2,
   FileText,
   PenTool,
-  ShieldCheck
+  ShieldCheck,
+  Settings
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
+import { LaudoConfigModal } from "./laudo-config-modal";
 
 interface LaudoPrintProps {
   pacienteNome: string;
@@ -56,12 +58,30 @@ export function LaudoPrint({
   const [canShare, setCanShare] = useState(false);
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   const [decryptedNome, setDecryptedNome] = useState(pacienteNome);
   const [decryptedCpf, setDecryptedCpf] = useState(pacienteCpf);
   const [decryptedConteudo, setDecryptedConteudo] = useState(conteudo);
 
   const supabase = createClient();
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("nome, crp, telefone, genero, cidade, endereco, logo_url")
+        .eq("id", user.id)
+        .single();
+      if (data) {
+        setProfile(data);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar perfil para laudo:", e);
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -98,25 +118,8 @@ export function LaudoPrint({
     }
     decryptInfo();
 
-    // Carregar perfil do psicólogo logado caso não tenha sido passado via props
-    async function loadProfile() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from("profiles")
-          .select("nome, crp, telefone, genero, cidade, endereco, logo_url")
-          .eq("id", user.id)
-          .single();
-        if (data) {
-          setProfile(data);
-        }
-      } catch (e) {
-        console.error("Erro ao carregar perfil para laudo:", e);
-      }
-    }
     loadProfile();
-  }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo]);
+  }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo, loadProfile]);
 
   const nomeProfissional = propNome || profile?.nome || "Hellen Limberger";
   const crpProfissional = propCrp || profile?.crp || "CRP 07/45016";
@@ -231,6 +234,17 @@ export function LaudoPrint({
               <PenTool size={14} className="text-stone-500 hidden xs:block" />
               <span>Assinatura</span>
             </label>
+
+            {/* Botão de Personalização do Papel Timbrado / Dados */}
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium
+                         bg-stone-100 hover:bg-stone-200/90 text-stone-700 active:scale-95 transition-all cursor-pointer border border-stone-200"
+              title="Personalizar dados do papel timbrado, nome, cargo, CRP e rodapé"
+            >
+              <Settings size={14} className="text-stone-500" />
+              <span className="hidden xs:inline">Personalizar</span>
+            </button>
 
             {/* Compartilhar (visível no celular) */}
             {canShare && (
@@ -422,6 +436,16 @@ export function LaudoPrint({
           }
         }
       `}} />
+
+      {/* Modal de Personalização do Papel Timbrado */}
+      {showConfigModal && (
+        <div className="no-print">
+          <LaudoConfigModal
+            onClose={() => setShowConfigModal(false)}
+            onSaved={loadProfile}
+          />
+        </div>
+      )}
     </div>
   );
 
