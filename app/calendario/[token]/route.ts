@@ -99,6 +99,21 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 }
 
+function formatShortPatientName(fullName: string): string {
+  if (!fullName) return "Paciente";
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "Paciente";
+
+  const firstName = parts[0];
+  const initials = parts
+    .slice(1)
+    .filter((p) => !["de", "da", "do", "das", "dos", "e"].includes(p.toLowerCase()))
+    .map((p) => `${p[0].toUpperCase()}.`)
+    .join(" ");
+
+  return initials ? `${firstName} ${initials}` : firstName;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function generateICS(agendamentos: any[], psicologoNome: string): string {
   const now = formatICSDate(new Date());
@@ -130,6 +145,8 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
       (ag.pacientes as { nome?: string })?.nome ||
       "Paciente";
 
+    const shortName = formatShortPatientName(pacienteNome);
+
     // Parse date and time
     const dateStr = ag.data; // YYYY-MM-DD
     const timeStr = ag.horario || "00:00:00"; // HH:MM:SS
@@ -143,9 +160,9 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
     const endDate = new Date(startDate.getTime() + duration * 60000);
     const dtEnd = formatICSDate(endDate);
 
-    // Build summary
+    // Build summary: "Nome S. (Modalidade)"
     const modalidade = ag.modalidade === "online" ? " (Online)" : ag.modalidade === "presencial" ? " (Presencial)" : "";
-    const summary = escapeICS(`Sessão — ${pacienteNome}${modalidade}`);
+    const summary = escapeICS(`${shortName}${modalidade}`);
 
     // Status mapping
     let icsStatus = "CONFIRMED";
@@ -162,8 +179,14 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
     lines.push(`STATUS:${icsStatus}`);
 
     const obs = ag.observacoesDecrypted || ag.observacoes;
-    if (obs) {
-      lines.push(`DESCRIPTION:${escapeICS(obs)}`);
+    const descriptionParts = [
+      `Paciente: ${pacienteNome}`,
+      ag.modalidade ? `Modalidade: ${ag.modalidade === "online" ? "Online" : "Presencial"}` : null,
+      obs ? `Obs: ${obs}` : null,
+    ].filter(Boolean);
+
+    if (descriptionParts.length > 0) {
+      lines.push(`DESCRIPTION:${escapeICS(descriptionParts.join(" | "))}`);
     }
 
     lines.push("END:VEVENT");
