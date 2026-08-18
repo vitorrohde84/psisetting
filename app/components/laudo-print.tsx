@@ -369,19 +369,19 @@ export function LaudoPrint({
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
-            height: auto !important;
+            height: 100vh !important;
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             display: block !important;
           }
 
           #print-section {
             width: 100% !important;
             max-width: 210mm !important;
-            height: 297mm !important;
-            max-height: 297mm !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
             margin: 0 auto !important;
             padding: 12mm 15mm 10mm 15mm !important;
             box-sizing: border-box !important;
