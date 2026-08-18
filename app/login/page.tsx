@@ -11,8 +11,8 @@ import {
   AlertCircle,
   User,
   CheckCircle,
-  ArrowLeft,
   KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 
 type Mode = "login" | "register";
@@ -30,14 +30,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Register fields
   const [nome, setNome] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
-  // Check for invite code in URL and expired session
+  // Check for invite code in URL, errors, and expired session
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -45,6 +47,12 @@ export default function LoginPage() {
       // Check expired session
       if (params.get("expired") === "true") {
         setError("Sua sessão expirou por inatividade. Faça login novamente.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      // Check auth callback error
+      if (params.get("error") === "auth_callback_failed") {
+        setError("Falha na autenticação. Por favor, tente novamente.");
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -58,22 +66,49 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Login handler
+  // Google OAuth Login
+  async function handleGoogleLogin() {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        console.error("Google Auth Error:", error);
+        setError(`Erro ao autenticar com Google: ${error.message}`);
+        setGoogleLoading(false);
+      }
+    } catch {
+      setError("Erro de conexão ao tentar login com Google.");
+      setGoogleLoading(false);
+    }
+  }
+
+  // Email + Password Login handler
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     if (error) {
       console.error("Supabase Login Error:", error);
-      setError(
-        `Erro Supabase: ${error.message} (Verifique se o e-mail foi confirmado)`
-      );
+      if (error.message.includes("Invalid login credentials")) {
+        setError("E-mail ou senha incorretos.");
+      } else if (error.message.includes("Email not confirmed")) {
+        setError("E-mail ainda não confirmado. Verifique sua caixa de entrada.");
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
       return;
     }
@@ -96,38 +131,73 @@ export default function LoginPage() {
       setError("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
-    if (!inviteCode.trim()) {
-      setError("Código de convite é obrigatório.");
-      return;
-    }
 
     setLoading(true);
 
+    // If invite code is provided, use the invite validation endpoint
+    if (inviteCode.trim()) {
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: nome.trim(),
+            email: email.trim(),
+            password,
+            invite_code: inviteCode.trim(),
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Erro ao criar conta com código.");
+          setLoading(false);
+          return;
+        }
+
+        setRegisterSuccess(true);
+        setLoading(false);
+        return;
+      } catch {
+        setError("Erro de conexão com o servidor. Tente novamente.");
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Direct registration with Supabase Auth
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: nome.trim(),
-          email: email.trim(),
-          password,
-          invite_code: inviteCode.trim(),
-        }),
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            nome: nome.trim(),
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Erro ao criar conta.");
+      if (signUpError) {
+        if (signUpError.message.includes("already registered")) {
+          setError("Este e-mail já está cadastrado no sistema.");
+        } else {
+          setError(signUpError.message);
+        }
         setLoading(false);
         return;
       }
 
-      // Success
-      setRegisterSuccess(true);
+      // If user needs email verification
+      if (data?.user && !data.session) {
+        setVerificationSent(true);
+      } else {
+        setRegisterSuccess(true);
+      }
       setLoading(false);
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError("Erro ao criar conta. Tente novamente.");
       setLoading(false);
     }
   }
@@ -137,19 +207,43 @@ export default function LoginPage() {
     setMode(newMode);
     setError(null);
     setRegisterSuccess(false);
+    setVerificationSent(false);
     setPassword("");
     setConfirmPassword("");
+  }
+
+  // Message if email verification was sent
+  if (verificationSent) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4 py-12">
+        <div className="relative w-full max-w-md">
+          <div className="bg-surface rounded-2xl shadow-[0_4px_32px_rgba(0,0,0,0.06)] border border-border/60 p-8 text-center">
+            <div className="w-14 h-14 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail size={28} />
+            </div>
+            <h2 className="text-xl font-serif font-semibold text-text mb-2">
+              Verifique seu e-mail
+            </h2>
+            <p className="text-sm text-text-muted mb-6 leading-relaxed">
+              Enviamos um link de confirmação para <strong>{email}</strong>. Por favor, clique no link recebido para ativar sua conta profissional.
+            </p>
+            <button
+              onClick={() => switchMode("login")}
+              className="w-full py-2.5 px-4 rounded-xl bg-primary text-white font-medium text-sm
+                         hover:bg-primary-dark active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            >
+              Voltar para o Login
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   // Success message after registration
   if (registerSuccess) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4 py-12">
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-secondary/5 blur-3xl" />
-        </div>
-
         <div className="relative w-full max-w-md">
           <div className="bg-surface rounded-2xl shadow-[0_4px_32px_rgba(0,0,0,0.06)] border border-border/60 p-8 text-center">
             <div className="w-14 h-14 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-4">
@@ -158,16 +252,13 @@ export default function LoginPage() {
             <h2 className="text-xl font-serif font-semibold text-text mb-2">
               Conta criada com sucesso!
             </h2>
-            <p className="text-sm text-text-muted mb-6">
-              Sua conta foi criada. Faça login com suas credenciais para acessar
-              o sistema.
+            <p className="text-sm text-text-muted mb-6 leading-relaxed">
+              Sua conta profissional foi criada. Acesse agora com suas credenciais.
             </p>
             <button
               onClick={() => switchMode("login")}
               className="w-full py-2.5 px-4 rounded-xl bg-primary text-white font-medium text-sm
-                         hover:bg-primary-dark active:scale-[0.98]
-                         focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2
-                         transition-all duration-200 cursor-pointer"
+                         hover:bg-primary-dark active:scale-[0.98] transition-all duration-200 cursor-pointer"
             >
               Ir para o Login
             </button>
@@ -179,31 +270,74 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-12">
-      {/* Background decoration */}
+      {/* Background ambient gradient */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-secondary/5 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-10">
-          {/* Monogram */}
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-6">
-            <span className="text-2xl font-serif font-semibold text-primary">
-              HL
-            </span>
+        {/* Header com Identidade Neutra / Símbolo Psi */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-4 shadow-xs border border-primary/20">
+            <span className="text-2xl font-serif font-bold">Ψ</span>
           </div>
           <h1 className="text-2xl font-serif font-semibold text-text tracking-tight">
-            Sistema de Gestão
+            PsychoCare
           </h1>
-          <p className="mt-1.5 text-sm text-text-muted">
-            Para profissionais de psicologia
+          <p className="mt-1 text-sm text-text-muted">
+            Gestão Clínica e Prontuários para Psicólogos
           </p>
         </div>
 
-        {/* Card */}
+        {/* Card Principal */}
         <div className="bg-surface rounded-2xl shadow-[0_4px_32px_rgba(0,0,0,0.06)] border border-border/60 p-8">
+          
+          {/* Botão de Autenticação com Google */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading || loading}
+            className="w-full py-2.5 px-4 rounded-xl border border-border bg-background hover:bg-surface text-text font-medium text-sm
+                       flex items-center justify-center gap-3 shadow-xs hover:border-text-muted/40 active:scale-[0.98]
+                       transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-5"
+          >
+            {googleLoading ? (
+              <svg className="animate-spin h-4 w-4 text-text" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+            )}
+            <span>Continuar com o Google</span>
+          </button>
+
+          {/* Divisor */}
+          <div className="relative flex items-center justify-center mb-6">
+            <div className="w-full border-t border-border" />
+            <span className="bg-surface px-3 text-xs text-text-muted uppercase tracking-wider font-medium">
+              ou com e-mail
+            </span>
+          </div>
+
           {/* Mode Toggle */}
           <div className="flex bg-background rounded-xl p-1 mb-6">
             <button
@@ -232,7 +366,7 @@ export default function LoginPage() {
 
           {mode === "login" ? (
             /* ─── Login Form ─── */
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4">
               {/* Email */}
               <div>
                 <label
@@ -293,7 +427,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted/60
-                               hover:text-text-muted transition-colors"
+                               hover:text-text-muted transition-colors cursor-pointer"
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -315,12 +449,12 @@ export default function LoginPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full py-2.5 px-4 rounded-xl bg-primary text-white font-medium text-sm
                            hover:bg-primary-dark active:scale-[0.98]
                            focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2
                            disabled:opacity-60 disabled:cursor-not-allowed
-                           transition-all duration-200 cursor-pointer"
+                           transition-all duration-200 cursor-pointer shadow-sm"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
@@ -346,41 +480,13 @@ export default function LoginPage() {
                     Entrando…
                   </span>
                 ) : (
-                  "Entrar"
+                  "Entrar no Sistema"
                 )}
               </button>
             </form>
           ) : (
             /* ─── Register Form ─── */
             <form onSubmit={handleRegister} className="space-y-4">
-              {/* Invite Code */}
-              <div>
-                <label
-                  htmlFor="register-invite"
-                  className="block text-sm font-medium text-text-muted mb-1.5"
-                >
-                  Código de Convite
-                </label>
-                <div className="relative">
-                  <KeyRound
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/60"
-                    size={18}
-                  />
-                  <input
-                    id="register-invite"
-                    type="text"
-                    required
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="Cole o código recebido"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-background border border-border
-                               text-text placeholder:text-text-muted/50
-                               focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
-                               transition-all text-sm font-mono"
-                  />
-                </div>
-              </div>
-
               {/* Nome */}
               <div>
                 <label
@@ -400,7 +506,7 @@ export default function LoginPage() {
                     required
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    placeholder="Seu nome completo"
+                    placeholder="Seu nome profissional"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-background border border-border
                                text-text placeholder:text-text-muted/50
                                focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
@@ -468,7 +574,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted/60
-                               hover:text-text-muted transition-colors"
+                               hover:text-text-muted transition-colors cursor-pointer"
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -505,6 +611,34 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {/* Invite Code (Opcional) */}
+              <div>
+                <label
+                  htmlFor="register-invite"
+                  className="block text-xs font-medium text-text-muted mb-1 flex items-center justify-between"
+                >
+                  <span>Código de Convite / Parceria</span>
+                  <span className="text-[10px] text-text-muted/70">(Opcional)</span>
+                </label>
+                <div className="relative">
+                  <KeyRound
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/60"
+                    size={16}
+                  />
+                  <input
+                    id="register-invite"
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder="Se tiver, cole seu código aqui"
+                    className="w-full pl-9 pr-4 py-2 rounded-xl bg-background border border-border
+                               text-text placeholder:text-text-muted/50
+                               focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+                               transition-all text-xs font-mono"
+                  />
+                </div>
+              </div>
+
               {/* Error message */}
               {error && (
                 <div className="flex items-start gap-2.5 p-3 rounded-xl bg-danger/5 border border-danger/15">
@@ -519,12 +653,12 @@ export default function LoginPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full py-2.5 px-4 rounded-xl bg-primary text-white font-medium text-sm
                            hover:bg-primary-dark active:scale-[0.98]
                            focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2
                            disabled:opacity-60 disabled:cursor-not-allowed
-                           transition-all duration-200 cursor-pointer"
+                           transition-all duration-200 cursor-pointer shadow-sm"
               >
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
@@ -550,17 +684,18 @@ export default function LoginPage() {
                     Criando conta…
                   </span>
                 ) : (
-                  "Criar Conta"
+                  "Criar Conta Profissional"
                 )}
               </button>
             </form>
           )}
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-text-muted/60 mt-8">
-          Sistema privado · Acesso restrito a profissionais autorizados
-        </p>
+        {/* Footer com Selo de Segurança e Sigilo */}
+        <div className="mt-8 text-center flex items-center justify-center gap-1.5 text-xs text-text-muted/70">
+          <ShieldCheck size={14} className="text-primary" />
+          <span>Plataforma Segura · Criptografia AES-256 · Conforme LGPD & CFP</span>
+        </div>
       </div>
     </main>
   );

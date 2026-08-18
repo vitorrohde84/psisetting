@@ -3,6 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/app/components/sidebar";
 import { SessionMonitor } from "@/app/components/session-monitor";
 import { PrivacyToggle } from "@/app/components/privacy-toggle";
+import Link from "next/link";
+import { Sparkles, ArrowRight } from "lucide-react";
 
 export default async function DashboardLayout({
   children,
@@ -18,15 +20,16 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Fetch profile with logo_url
+  // Fetch profile with logo_url and crp
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nome, logo_url")
+    .select("nome, crp, logo_url")
     .eq("id", user.id)
     .single();
 
-  const userName = profile?.nome || user.email?.split("@")[0] || "Usuário";
+  const userName = profile?.nome || user.email?.split("@")[0] || "Profissional";
   const userEmail = user.email || "";
+  const isProfileIncomplete = !profile?.crp || !profile?.nome;
 
   // Construct public logo URL if available
   const logoUrl = profile?.logo_url
@@ -43,7 +46,35 @@ export default async function DashboardLayout({
         <div className="lg:hidden h-14 shrink-0" />
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:py-8 lg:pb-8">
-          <div className="max-w-6xl mx-auto">{children}</div>
+          <div className="max-w-6xl mx-auto space-y-6">
+            {/* Onboarding Banner sutil se o perfil estiver incompleto */}
+            {isProfileIncomplete && (
+              <div className="no-print bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2.5 text-text">
+                  <div className="p-2 rounded-xl bg-primary/15 text-primary shrink-0">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <p className="font-medium text-text">
+                      Configure seu perfil profissional (CRP e Logotipo)
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      Seus laudos e recibos serão gerados automaticamente com seus dados profissionais.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/configuracoes"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all cursor-pointer shadow-xs"
+                >
+                  <span>Completar Perfil</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
+            )}
+
+            {children}
+          </div>
         </main>
       </div>
 

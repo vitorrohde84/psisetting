@@ -6,6 +6,7 @@ import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen,
 import { LaudoFormModal } from "./laudo-form-modal";
 import { LaudoPrint } from "./laudo-print";
 import { getLaudoSignedUrl } from "@/utils/supabase/storage";
+import { decryptClinicalData } from "@/utils/crypto";
 
 interface Laudo {
   id: string;
@@ -48,6 +49,9 @@ export function LaudoList() {
 
   const fetchLaudos = useCallback(async () => {
     setLoading(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     let query = supabase
       .from("laudos")
@@ -62,7 +66,20 @@ export function LaudoList() {
     }
 
     const { data } = await query;
-    setLaudos(data || []);
+    if (data && user) {
+      const decrypted = await Promise.all(
+        data.map(async (l) => ({
+          ...l,
+          conteudo:
+            l.tipo_documento === "text"
+              ? await decryptClinicalData(l.conteudo, user.id)
+              : l.conteudo,
+        }))
+      );
+      setLaudos(decrypted);
+    } else {
+      setLaudos(data || []);
+    }
     setLoading(false);
   }, [pacienteFilter, search]);
 

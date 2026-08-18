@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Search, Plus, Filter, FileText, Pencil, Calendar, Loader2, BookOpen } from "lucide-react";
+import { Search, Plus, Filter, FileText, Pencil, Calendar, Loader2, BookOpen, ShieldCheck } from "lucide-react";
 import { DiarioFormModal } from "./diario-form-modal";
+import { decryptClinicalData } from "@/utils/crypto";
 
 interface Diario {
   id: string;
@@ -38,6 +39,10 @@ export function DiarioList() {
   const fetchDiarios = useCallback(async () => {
     setLoading(true);
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     let query = supabase
       .from("diario_bordo")
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, pacientes(nome)")
@@ -47,12 +52,32 @@ export function DiarioList() {
     if (pacienteFilter !== "all") {
       query = query.eq("paciente_id", pacienteFilter);
     }
-    if (search) {
-      query = query.ilike("conteudo", `%${search}%`);
-    }
 
     const { data } = await query;
-    setDiarios(data || []);
+    
+    if (data && user) {
+      // Descriptografa os registros na memória da sessão do psicólogo
+      const decryptedList = await Promise.all(
+        data.map(async (d) => ({
+          ...d,
+          conteudo: await decryptClinicalData(d.conteudo, user.id),
+        }))
+      );
+
+      // Filtro de busca textual na memória decifrada
+      const filtered = search.trim()
+        ? decryptedList.filter(
+            (d) =>
+              d.conteudo.toLowerCase().includes(search.toLowerCase()) ||
+              getPacienteName(d).toLowerCase().includes(search.toLowerCase())
+          )
+        : decryptedList;
+
+      setDiarios(filtered);
+    } else {
+      setDiarios([]);
+    }
+
     setLoading(false);
   }, [pacienteFilter, search]);
 
@@ -90,7 +115,15 @@ export function DiarioList() {
     <>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-serif font-semibold text-text">Notas Confidenciais</h2>
+          <h2 className="text-2xl font-serif font-semibold text-text flex items-center gap-2">
+            <span>Notas Confidenciais (Diário de Bordo)</span>
+            <span className="text-xs font-sans px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1 font-normal">
+              <ShieldCheck size={12} /> Criptografia AES-256 Ativa
+            </span>
+          </h2>
+          <p className="text-xs text-text-muted mt-0.5">
+            Suas anotações são armazenadas cifradas no banco de dados e legíveis apenas na sua sessão.
+          </p>
         </div>
         <button
           onClick={() => {
@@ -100,7 +133,7 @@ export function DiarioList() {
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
                      bg-primary text-white text-sm font-medium
                      hover:bg-primary-dark active:scale-[0.98]
-                     transition-all duration-200 cursor-pointer shrink-0"
+                     transition-all duration-200 cursor-pointer shrink-0 shadow-xs"
         >
           <Plus size={18} />
           Nova Anotação
@@ -113,20 +146,21 @@ export function DiarioList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50" size={16} />
           <input
             type="text"
-            placeholder="Buscar nas anotações..."
+            placeholder="Buscar nas anotações descriptografadas..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                        focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all"
           />
         </div>
-        <div className="relative sm:w-64 shrink-0">
+
+        <div className="relative sm:w-64">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50" size={16} />
           <select
             value={pacienteFilter}
             onChange={(e) => setPacienteFilter(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-background border border-border text-text text-sm
-                       focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                       focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all appearance-none cursor-pointer"
           >
             <option value="all">Todos os pacientes</option>
             {pacientesOptions.map((p) => (
@@ -138,79 +172,71 @@ export function DiarioList() {
         </div>
       </div>
 
-      {/* Timeline List */}
-      <div className="bg-surface rounded-xl border border-border/60 overflow-hidden min-h-[400px]">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-64">
-            <Loader2 size={28} className="animate-spin text-primary mb-3" />
-          </div>
-        ) : diarios.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-            <BookOpen size={36} className="text-border mb-3" />
-            <h3 className="text-base font-medium text-text mb-1">Nenhuma anotação</h3>
-            <p className="text-sm text-text-muted">
-              Comece a documentar os bastidores das suas sessões.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border/40">
-            {diarios.map((d) => {
-              const dataSessao = d.data
-                ? new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
-                    weekday: "long",
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric"
-                  })
-                : "Data não informada";
-
-              return (
-                <div key={d.id} className="p-5 md:p-6 hover:bg-background/30 transition-colors">
-                  <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    {/* Metadata */}
-                    <div className="md:w-1/3 xl:w-1/4 shrink-0">
-                      <h4 className="text-sm font-medium text-text mb-1 flex items-center gap-2 sensitive-data">
-                        {getPacienteName(d)}
-                      </h4>
-                      <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 w-fit px-2 py-1 rounded-md mb-2">
-                        <Calendar size={13} />
-                        <span className="capitalize">{dataSessao}</span>
-                      </div>
-                      <button
-                        onClick={() => handleEdit(d)}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary mt-3 transition-colors cursor-pointer"
-                      >
-                        <Pencil size={12} />
-                        Editar anotação
-                      </button>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 bg-background/50 rounded-xl p-4 border border-border/30">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText size={14} className="text-text-muted/60" />
-                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                          Registro Oculto
-                        </span>
-                      </div>
-                      <p className="text-sm md:text-base text-text font-serif leading-relaxed whitespace-pre-wrap select-none">
-                        {d.conteudo}
-                      </p>
-                    </div>
-                  </div>
+      {/* List */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-text-muted">
+          <Loader2 className="animate-spin mb-3 text-primary" size={24} />
+          <p className="text-sm">Decifrando anotações seguras…</p>
+        </div>
+      ) : diarios.length === 0 ? (
+        <div className="bg-surface rounded-2xl border border-border/60 p-12 text-center">
+          <BookOpen className="mx-auto text-text-muted/30 mb-3" size={40} />
+          <h3 className="text-base font-serif font-medium text-text mb-1">
+            Nenhuma anotação encontrada
+          </h3>
+          <p className="text-sm text-text-muted max-w-sm mx-auto">
+            {search || pacienteFilter !== "all"
+              ? "Tente ajustar os filtros de busca."
+              : "Registre o que aconteceu nas sessões com sigilo clínico e criptografia de ponta a ponta."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {diarios.map((d) => (
+            <div
+              key={d.id}
+              onClick={() => handleEdit(d)}
+              className="bg-surface rounded-xl border border-border/60 p-5 hover:border-primary/30 hover:shadow-xs transition-all cursor-pointer group"
+            >
+              <div className="flex items-start justify-between gap-4 mb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="font-serif font-semibold text-text truncate">
+                    {getPacienteName(d)}
+                  </span>
+                  <span className="text-xs text-text-muted/60 flex items-center gap-1 shrink-0">
+                    <Calendar size={12} />
+                    {new Date(d.data + "T00:00:00").toLocaleDateString("pt-BR")}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(d);
+                  }}
+                  className="text-text-muted hover:text-primary p-1 rounded-lg hover:bg-background transition-colors shrink-0"
+                >
+                  <Pencil size={15} />
+                </button>
+              </div>
+              <p className="text-sm text-text-muted line-clamp-3 leading-relaxed whitespace-pre-wrap font-serif select-none sensitive-data">
+                {d.conteudo}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showModal && (
         <DiarioFormModal
           diario={editingDiario}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            setEditingDiario(null);
+          }}
           onSaved={() => {
             setShowModal(false);
+            setEditingDiario(null);
             fetchDiarios();
           }}
         />

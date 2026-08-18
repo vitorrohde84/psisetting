@@ -86,7 +86,7 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Sistema Hellen//Agenda//PT-BR",
+    "PRODID:-//PsychoCare//Agenda//PT-BR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:Agenda — ${escapeICS(psicologoNome)}`,
@@ -132,7 +132,7 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
 
     lines.push("");
     lines.push("BEGIN:VEVENT");
-    lines.push(`UID:${ag.id}@sistema-hellen`);
+    lines.push(`UID:${ag.id}@psychocare.app`);
     lines.push(`DTSTAMP:${now}`);
     lines.push(`DTSTART;TZID=America/Sao_Paulo:${dtStart}`);
     lines.push(`DTEND;TZID=America/Sao_Paulo:${dtEnd}`);

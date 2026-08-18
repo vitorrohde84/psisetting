@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { X, Save, Loader2, Search, FileUp, FileText } from "lucide-react";
 import { uploadLaudoPdf } from "@/utils/supabase/storage";
+import { encryptClinicalData } from "@/utils/crypto";
 
 interface PacienteOption {
   id: string;
@@ -97,7 +98,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
     try {
       let finalConteudo = "";
 
-      // Handle Upload
+      // Handle Upload vs Text
       if (mode === "upload" && file) {
         const { path, error: uploadErr } = await uploadLaudoPdf(file, pacienteId);
         if (uploadErr || !path) {
@@ -105,7 +106,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
         }
         finalConteudo = path; // Save the storage path in the DB
       } else {
-        finalConteudo = conteudoText.trim();
+        finalConteudo = await encryptClinicalData(conteudoText.trim(), user.id);
       }
 
       // Save to DB
@@ -113,7 +114,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
         .from("laudos")
         .insert({
           paciente_id: pacienteId,
-          
+          psicologo_id: user.id,
           titulo: titulo.trim(),
           tipo_documento: mode,
           conteudo: finalConteudo,

@@ -15,9 +15,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Hellen Limberger — Sistema de Gestão",
+  title: "PsychoCare — Sistema de Gestão para Psicólogos",
   description:
-    "Sistema privado de gestão de consultório para psicóloga clínica.",
+    "Plataforma segura e completa de gestão clínica e prontuários para psicólogos.",
 };
 
 export default function RootLayout({

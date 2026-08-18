@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
 import { downloadPdf } from "@/utils/pdf-export";
+import { decryptClinicalData } from "@/utils/crypto";
 
 interface Prontuario {
   id: string;
@@ -82,13 +83,27 @@ export function ProntuarioList() {
 
   const fetchProntuariosDoPaciente = useCallback(async (pacId: string) => {
     setLoadingProntuarios(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     const { data } = await supabase
       .from("prontuarios")
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, agendamentos(horario)")
       .eq("paciente_id", pacId)
       .order("data", { ascending: false });
     
-    setProntuariosPaciente(data || []);
+    if (data && user) {
+      const decrypted = await Promise.all(
+        data.map(async (p) => ({
+          ...p,
+          conteudo: await decryptClinicalData(p.conteudo, user.id),
+        }))
+      );
+      setProntuariosPaciente(decrypted);
+    } else {
+      setProntuariosPaciente(data || []);
+    }
     setLoadingProntuarios(false);
   }, []);
 

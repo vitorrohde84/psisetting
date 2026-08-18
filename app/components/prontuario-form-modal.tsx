@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { X, Save, Loader2, Search } from "lucide-react";
+import { X, Save, Loader2, Search, ShieldCheck } from "lucide-react";
+import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 
 interface Prontuario {
   id: string;
-  paciente_id: string;
-  agendamento_id: string | null;
   data: string;
   conteudo: string;
+  paciente_id: string;
+  agendamento_id: string | null;
 }
 
 interface PacienteOption {
@@ -25,11 +26,7 @@ interface AgendamentoOption {
 
 interface ProntuarioFormModalProps {
   prontuario: Prontuario | null;
-  prefillData?: {
-    paciente_id: string;
-    data?: string;
-    agendamento_id?: string;
-  };
+  prefillData?: { paciente_id?: string; data?: string; agendamento_id?: string };
   onClose: () => void;
   onSaved: () => void;
 }
@@ -64,27 +61,33 @@ export function ProntuarioFormModal({
   const [agendamentos, setAgendamentos] = useState<AgendamentoOption[]>([]);
   const [loadingAgendamentos, setLoadingAgendamentos] = useState(false);
 
-  // Fetch initial patients
   useEffect(() => {
-    async function fetchPacientes() {
-      const { data } = await supabase
+    async function initModal() {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: pacData } = await supabase
         .from("pacientes")
         .select("id, nome")
         .eq("ativo", true)
         .order("nome", { ascending: true });
       
-      setPacientes(data || []);
+      setPacientes(pacData || []);
 
-      const pIdToFind = prontuario?.paciente_id || prefillData?.paciente_id;
-      if (pIdToFind && data) {
-        const found = data.find((p) => p.id === pIdToFind);
+      const targetId = prontuario?.paciente_id || prefillData?.paciente_id;
+      if (targetId && pacData) {
+        const found = pacData.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
       }
-    }
-    fetchPacientes();
-  }, []);
 
-  // Fetch agendamentos when patient changes
+      // Se for edição, descriptografa o conteúdo
+      if (prontuario?.conteudo && user) {
+        const dec = await decryptClinicalData(prontuario.conteudo, user.id);
+        setForm((prev) => ({ ...prev, conteudo: dec }));
+      }
+    }
+    initModal();
+  }, [prontuario, prefillData]);
+
   useEffect(() => {
     async function fetchAgendamentos() {
       if (!form.paciente_id) {
@@ -147,11 +150,24 @@ export function ProntuarioFormModal({
 
     setSaving(true);
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Sessão expirada. Faça login novamente.");
+      setSaving(false);
+      return;
+    }
+
+    // Criptografa o conteúdo clínico do prontuário antes de salvar
+    const encryptedConteudo = await encryptClinicalData(form.conteudo.trim(), user.id);
+
     const payload = {
       paciente_id: form.paciente_id,
       agendamento_id: form.agendamento_id || null,
       data: form.data,
-      conteudo: form.conteudo.trim(),
+      conteudo: encryptedConteudo,
     };
 
     let result;
@@ -161,19 +177,9 @@ export function ProntuarioFormModal({
         .update(payload)
         .eq("id", prontuario.id);
     } else {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError("Sessão expirada. Faça login novamente.");
-        setSaving(false);
-        return;
-      }
-
       result = await supabase
         .from("prontuarios")
-        .insert({ ...payload, });
+        .insert({ ...payload, psicologo_id: user.id });
     }
 
     if (result.error) {
@@ -188,7 +194,7 @@ export function ProntuarioFormModal({
 
   async function handleDelete() {
     if (!prontuario) return;
-    if (!confirm("Tem certeza que deseja excluir este prontuário?")) return;
+    if (!confirm("Tem certeza que deseja excluir esta evolução de prontuário?")) return;
     
     setDeleting(true);
     setError(null);
@@ -208,187 +214,194 @@ export function ProntuarioFormModal({
     onSaved();
   }
 
-  const inputClass =
-    "w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm " +
-    "placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 " +
-    "focus:border-primary/40 transition-all";
-  const labelClass = "block text-sm font-medium text-text-muted mb-1.5";
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-text/20 backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-surface rounded-2xl shadow-xl border border-border/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 shrink-0">
-          <div>
-            <h3 className="text-lg font-serif font-medium text-text">
-              {isEditing ? "Editar Prontuário" : "Novo Prontuário"}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <h3 className="font-serif font-semibold text-lg text-text">
+              {isEditing ? "Editar Evolução de Prontuário" : "Nova Evolução Clínica"}
             </h3>
-            <p className="text-xs text-text-muted mt-0.5">Evolução clínica do paciente</p>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-0.5">
+              <ShieldCheck size={10} /> Criptografado
+            </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-background transition-colors cursor-pointer"
+            className="text-text-muted hover:text-text p-1 rounded-lg hover:bg-background transition-colors cursor-pointer"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Paciente */}
-            <div className="relative">
-              <label className={labelClass}>
-                Paciente <span className="text-danger">*</span>
-              </label>
-              {selectedPacienteName && !showPacienteDropdown ? (
-                <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-background border border-border">
-                  <span className="text-sm text-text">{selectedPacienteName}</span>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-danger/10 border border-danger/20 rounded-xl text-danger text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Paciente Selector */}
+          <div className="relative">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5">
+              Paciente *
+            </label>
+            {selectedPacienteName ? (
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-background">
+                <span className="text-sm font-medium text-text">
+                  {selectedPacienteName}
+                </span>
+                {!isEditing && !prefillData && (
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedPacienteName("");
                       setForm((prev) => ({ ...prev, paciente_id: "", agendamento_id: "" }));
+                    }}
+                    className="text-xs text-primary hover:underline cursor-pointer"
+                  >
+                    Trocar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="relative">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Buscar paciente..."
+                    value={pacienteSearch}
+                    onChange={(e) => {
+                      setPacienteSearch(e.target.value);
                       setShowPacienteDropdown(true);
                     }}
-                    className="text-text-muted hover:text-text transition-colors cursor-pointer"
-                  >
-                    <X size={14} />
-                  </button>
+                    onFocus={() => setShowPacienteDropdown(true)}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-background border border-border text-text text-sm focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50" size={16} />
-                    <input
-                      type="text"
-                      placeholder="Buscar paciente..."
-                      autoFocus={!isEditing}
-                      value={pacienteSearch}
-                      onChange={(e) => {
-                        setPacienteSearch(e.target.value);
-                        setShowPacienteDropdown(true);
-                      }}
-                      onFocus={() => setShowPacienteDropdown(true)}
-                      className={inputClass + " pl-9"}
-                    />
+
+                {showPacienteDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-surface border border-border rounded-xl shadow-lg z-20">
+                    {filteredPacientes.length === 0 ? (
+                      <div className="p-3 text-xs text-text-muted text-center">
+                        Nenhum paciente encontrado.
+                      </div>
+                    ) : (
+                      filteredPacientes.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectPaciente(p)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/5 text-text hover:text-primary transition-colors cursor-pointer"
+                        >
+                          {p.nome}
+                        </button>
+                      ))
+                    )}
                   </div>
-                  {showPacienteDropdown && (
-                    <div className="absolute z-20 w-full mt-1 max-h-48 overflow-y-auto bg-surface rounded-xl border border-border shadow-lg">
-                      {filteredPacientes.length === 0 ? (
-                        <p className="px-3.5 py-3 text-sm text-text-muted">Nenhum paciente encontrado</p>
-                      ) : (
-                        filteredPacientes.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => selectPaciente(p)}
-                            className="w-full text-left px-3.5 py-2.5 text-sm text-text hover:bg-background transition-colors cursor-pointer"
-                          >
-                            {p.nome}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Data */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5">
+                Data do Atendimento *
+              </label>
+              <input
+                type="date"
+                required
+                value={form.data}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, data: e.target.value }))
+                }
+                className="w-full p-2.5 rounded-xl bg-background border border-border text-text text-sm focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all"
+              />
             </div>
 
-            {/* Agendamento vinculado */}
+            {/* Agendamento Link (Optional) */}
             <div>
-              <label className={labelClass}>Vincular a Agendamento (Opcional)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5">
+                Vincular Agendamento
+              </label>
               <select
-                disabled={!form.paciente_id || loadingAgendamentos}
                 value={form.agendamento_id}
                 onChange={handleAgendamentoChange}
-                className={inputClass}
+                disabled={!form.paciente_id || loadingAgendamentos}
+                className="w-full p-2.5 rounded-xl bg-background border border-border text-text text-sm focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
               >
-                <option value="">-- Sem vínculo específico --</option>
+                <option value="">Nenhum (avulso)</option>
                 {agendamentos.map((ag) => (
                   <option key={ag.id} value={ag.id}>
-                    {ag.data ? new Date(ag.data + "T12:00:00").toLocaleDateString("pt-BR") : "Data desconhecida"} às {ag.horario ? ag.horario.slice(0, 5) : "--:--"}
+                    {new Date(ag.data + "T00:00:00").toLocaleDateString("pt-BR")} às {ag.horario.slice(0, 5)}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
+          {/* Conteúdo */}
           <div>
-            <label className={labelClass}>
-              Data da Sessão <span className="text-danger">*</span>
-            </label>
-            <input
-              type="date"
-              required
-              value={form.data}
-              onChange={(e) => setForm((prev) => ({ ...prev, data: e.target.value }))}
-              className={inputClass + " md:max-w-[200px]"}
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>
-              Evolução Clínica / Resumo <span className="text-danger">*</span>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5 flex items-center justify-between">
+              <span>Evolução Clínica e Intervenções *</span>
+              <span className="text-[10px] text-text-muted font-normal lowercase">Cifrado com AES-256</span>
             </label>
             <textarea
               required
-              rows={12}
+              rows={8}
+              placeholder="Descreva a evolução clínica, técnicas utilizadas, resposta do paciente às intervenções e planejamento terapêutico..."
               value={form.conteudo}
-              onChange={(e) => setForm((prev) => ({ ...prev, conteudo: e.target.value }))}
-              placeholder="Descreva o andamento da sessão, evolução do paciente, intervenções..."
-              className={inputClass + " font-serif text-base leading-relaxed resize-none"}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, conteudo: e.target.value }))
+              }
+              className="w-full p-3.5 rounded-xl bg-background border border-border text-text text-sm focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all resize-none leading-relaxed font-serif"
             />
           </div>
 
-          {error && (
-            <div className="p-3 rounded-xl bg-danger/5 border border-danger/15">
-              <p className="text-sm text-danger">{error}</p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-3">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-between pt-3 border-t border-border">
             {isEditing ? (
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={saving || deleting}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                disabled={deleting || saving}
+                className="text-xs text-danger hover:underline disabled:opacity-50 cursor-pointer"
               >
-                {deleting ? "Excluindo..." : "Excluir"}
+                {deleting ? "Excluindo..." : "Excluir evolução"}
               </button>
-            ) : (
-              <div />
-            )}
-            <div className="flex items-center gap-3">
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-muted
-                           hover:bg-background transition-colors cursor-pointer"
+                disabled={saving || deleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving || deleting}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
-                           bg-primary text-white text-sm font-medium
-                           hover:bg-primary-dark active:scale-[0.98]
-                           disabled:opacity-60 disabled:cursor-not-allowed
-                           transition-all duration-200 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer shadow-xs"
               >
                 {saving ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Salvando…
+                    <span>Salvando Seguro…</span>
                   </>
                 ) : (
                   <>
                     <Save size={16} />
-                    {isEditing ? "Salvar alterações" : "Registrar prontuário"}
+                    <span>Salvar Evolução</span>
                   </>
                 )}
               </button>

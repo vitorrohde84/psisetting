@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { decryptClinicalData } from "@/utils/crypto";
 import {
   ArrowLeft,
   Pencil,
@@ -139,13 +140,24 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
           break;
         }
         case "prontuarios": {
+          const { data: { user } } = await supabase.auth.getUser();
           const { data } = await supabase
             .from("prontuarios")
             .select("id, data, conteudo, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
             .limit(50);
-          setProntuarios(data || []);
+          if (data && user) {
+            const decrypted = await Promise.all(
+              data.map(async (p) => ({
+                ...p,
+                conteudo: await decryptClinicalData(p.conteudo, user.id),
+              }))
+            );
+            setProntuarios(decrypted);
+          } else {
+            setProntuarios(data || []);
+          }
           break;
         }
         case "diario": {

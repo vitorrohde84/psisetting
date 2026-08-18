@@ -15,6 +15,10 @@ import {
   Link as LinkIcon,
   Save,
   Image as ImageIcon,
+  ShieldCheck,
+  Phone,
+  Award,
+  Sparkles,
 } from "lucide-react";
 
 interface Profile {
@@ -44,6 +48,8 @@ export function ConfiguracoesView() {
   // Profile state
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nome, setNome] = useState("");
+  const [crp, setCrp] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{
@@ -82,6 +88,8 @@ export function ConfiguracoesView() {
     if (data) {
       setProfile(data);
       setNome(data.nome || "");
+      setCrp(data.crp || "");
+      setTelefone(data.telefone || "");
       if (data.logo_url) {
         const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
         setLogoPreview(url);
@@ -120,7 +128,11 @@ export function ConfiguracoesView() {
 
     const { error } = await supabase
       .from("profiles")
-      .update({ nome: nome.trim() })
+      .update({
+        nome: nome.trim(),
+        crp: crp.trim() || null,
+        telefone: telefone.trim() || null,
+      })
       .eq("id", profile.id);
 
     if (error) {
@@ -129,9 +141,9 @@ export function ConfiguracoesView() {
         text: `Erro ao salvar: ${error.message}`,
       });
     } else {
-      setProfileMessage({ type: "success", text: "Perfil atualizado!" });
-      router.refresh(); // Update sidebar name
-      setTimeout(() => setProfileMessage(null), 3000);
+      setProfileMessage({ type: "success", text: "Perfil profissional atualizado com sucesso!" });
+      router.refresh();
+      setTimeout(() => setProfileMessage(null), 3500);
     }
     setSavingProfile(false);
   }
@@ -141,7 +153,6 @@ export function ConfiguracoesView() {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
 
-    // Validate file type and size
     const validTypes = ["image/png", "image/jpeg", "image/webp"];
     if (!validTypes.includes(file.type)) {
       setProfileMessage({
@@ -164,12 +175,10 @@ export function ConfiguracoesView() {
     const fileExt = file.name.split(".").pop();
     const filePath = `${profile.id}/logo.${fileExt}`;
 
-    // Delete old logo if exists
     if (profile.logo_url) {
       await supabase.storage.from("logos").remove([profile.logo_url]);
     }
 
-    // Upload new logo
     const { error: uploadError } = await supabase.storage
       .from("logos")
       .upload(filePath, file, { cacheControl: "3600", upsert: true });
@@ -183,7 +192,6 @@ export function ConfiguracoesView() {
       return;
     }
 
-    // Update profile with new logo path
     const { error: updateError } = await supabase
       .from("profiles")
       .update({ logo_url: filePath })
@@ -192,10 +200,10 @@ export function ConfiguracoesView() {
     if (updateError) {
       setProfileMessage({
         type: "error",
-        text: `Erro ao salvar: ${updateError.message}`,
+        text: `Erro ao salvar logo: ${updateError.message}`,
       });
     } else {
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${filePath}`;
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${filePath}?t=${Date.now()}`;
       setLogoPreview(url);
       setProfile({ ...profile, logo_url: filePath });
       setProfileMessage({ type: "success", text: "Logo atualizado!" });
@@ -207,10 +215,13 @@ export function ConfiguracoesView() {
 
   // Remove logo
   async function handleRemoveLogo() {
-    if (!profile?.logo_url) return;
+    if (!profile || !profile.logo_url) return;
 
     setUploadingLogo(true);
+    setProfileMessage(null);
+
     await supabase.storage.from("logos").remove([profile.logo_url]);
+
     await supabase
       .from("profiles")
       .update({ logo_url: null })
@@ -270,45 +281,83 @@ export function ConfiguracoesView() {
       {/* Page header */}
       <div className="mb-8">
         <h2 className="text-2xl font-serif font-semibold text-text">
-          Configurações
+          Configurações da Conta
         </h2>
         <p className="mt-1 text-text-muted">
-          Gerencie seu perfil, logo e convites
+          Personalize seu perfil profissional, logotipo para laudos e preferências
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
-        {/* ─── Perfil ─── */}
-        <div className="bg-surface rounded-xl border border-border/60">
-          <div className="flex items-center gap-2.5 p-5 pb-3 border-b border-border/40">
-            <User size={18} className="text-primary" />
-            <h3 className="text-base font-serif font-medium text-text">
-              Perfil
-            </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl">
+        {/* ─── Perfil Profissional ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs">
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <User size={18} className="text-primary" />
+              <h3 className="text-base font-serif font-medium text-text">
+                Dados Profissionais
+              </h3>
+            </div>
+            <span className="text-xs text-text-muted flex items-center gap-1">
+              <ShieldCheck size={14} className="text-success" /> Dados do Laudo
+            </span>
           </div>
+
           <form onSubmit={handleSaveProfile} className="p-5 space-y-4">
             <div>
               <label className="block text-sm font-medium text-text-muted mb-1.5">
-                Nome
+                Nome Profissional Completo
               </label>
               <input
                 type="text"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 required
+                placeholder="Ex: Dra. Ana Paula Silva"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                            focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
               />
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5 flex items-center gap-1.5">
+                  <Award size={14} /> Registro (CRP)
+                </label>
+                <input
+                  type="text"
+                  value={crp}
+                  onChange={(e) => setCrp(e.target.value)}
+                  placeholder="Ex: CRP 06/123456"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5 flex items-center gap-1.5">
+                  <Phone size={14} /> Telefone / WhatsApp
+                </label>
+                <input
+                  type="text"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  placeholder="Ex: (11) 99999-9999"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-text-muted mb-1.5">
-                E-mail
+                E-mail da Conta
               </label>
               <input
                 type="email"
                 value={profile?.email || ""}
                 disabled
-                className="w-full px-3.5 py-2.5 rounded-xl bg-background/50 border border-border/50 text-text-muted text-sm cursor-not-allowed"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-background/60 border border-border/60 text-text-muted text-sm cursor-not-allowed"
               />
             </div>
 
@@ -330,38 +379,41 @@ export function ConfiguracoesView() {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
                          bg-primary text-white text-sm font-medium
                          hover:bg-primary-dark active:scale-[0.98] disabled:opacity-70
-                         transition-all duration-200 cursor-pointer"
+                         transition-all duration-200 cursor-pointer shadow-sm"
             >
               {savingProfile ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <Save size={16} />
               )}
-              Salvar
+              Salvar Alterações
             </button>
           </form>
         </div>
 
-        {/* ─── Logo ─── */}
-        <div className="bg-surface rounded-xl border border-border/60">
-          <div className="flex items-center gap-2.5 p-5 pb-3 border-b border-border/40">
+        {/* ─── Logo do Consultório ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs">
+          <div className="flex items-center gap-2.5 p-5 pb-4 border-b border-border/40">
             <ImageIcon size={18} className="text-primary" />
             <h3 className="text-base font-serif font-medium text-text">
-              Logo do Consultório
+              Logotipo do Consultório
             </h3>
           </div>
           <div className="p-5 space-y-4">
-            {/* Logo preview */}
+            <p className="text-sm text-text-muted">
+              Esta imagem será impressa automaticamente no cabeçalho de todos os laudos, recibos e documentos emitidos.
+            </p>
+
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                 {logoPreview ? (
                   <img
                     src={logoPreview}
                     alt="Logo"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain p-1"
                   />
                 ) : (
-                  <Camera size={24} className="text-text-muted/40" />
+                  <Camera size={28} className="text-text-muted/40" />
                 )}
               </div>
               <div className="space-y-2">
@@ -380,24 +432,26 @@ export function ConfiguracoesView() {
                   ) : (
                     <Camera size={14} />
                   )}
-                  {logoPreview ? "Alterar" : "Enviar Logo"}
+                  {logoPreview ? "Alterar Logotipo" : "Enviar Logotipo"}
                 </button>
                 {logoPreview && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveLogo}
-                    disabled={uploadingLogo}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-danger
-                               hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Trash2 size={12} />
-                    Remover
-                  </button>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      disabled={uploadingLogo}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs text-danger
+                                 hover:bg-danger/5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={12} />
+                      Remover Logo
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
             <p className="text-xs text-text-muted">
-              PNG, JPG ou WebP. Máximo 2MB. Recomendado: imagem quadrada.
+              Formatos aceitos: PNG, JPG ou WebP. Máximo 2MB. Recomendado: fundo transparente.
             </p>
             <input
               ref={fileInputRef}
@@ -409,18 +463,17 @@ export function ConfiguracoesView() {
           </div>
         </div>
 
-        {/* ─── Calendário ─── */}
-        <div className="bg-surface rounded-xl border border-border/60">
-          <div className="flex items-center gap-2.5 p-5 pb-3 border-b border-border/40">
+        {/* ─── Calendário (iCal) ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs">
+          <div className="flex items-center gap-2.5 p-5 pb-4 border-b border-border/40">
             <Calendar size={18} className="text-primary" />
             <h3 className="text-base font-serif font-medium text-text">
-              Calendário (iCal)
+              Sincronização de Agenda (iPhone / Google Calendar)
             </h3>
           </div>
           <div className="p-5 space-y-3">
-            <p className="text-sm text-text-muted">
-              Assine este calendário no seu iPhone ou app de agenda para ver seus
-              agendamentos automaticamente.
+            <p className="text-sm text-text-muted leading-relaxed">
+              Assine este feed para sincronizar seus atendimentos diretamente no calendário do iPhone, Mac ou Google Agenda.
             </p>
             {profile?.calendar_token ? (
               <div className="flex items-center gap-2">
@@ -433,39 +486,39 @@ export function ConfiguracoesView() {
                   className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl
                              bg-primary text-white text-sm font-medium
                              hover:bg-primary-dark active:scale-[0.98]
-                             transition-all duration-200 cursor-pointer"
+                             transition-all duration-200 cursor-pointer shadow-xs"
                 >
                   {copiedCalendar ? (
                     <Check size={14} />
                   ) : (
                     <Copy size={14} />
                   )}
-                  {copiedCalendar ? "Copiado!" : "Copiar"}
+                  {copiedCalendar ? "Copiado!" : "Copiar Link"}
                 </button>
               </div>
             ) : (
-              <p className="text-sm text-danger">Token não encontrado.</p>
+              <p className="text-sm text-danger">Token não configurado.</p>
             )}
           </div>
         </div>
 
-        {/* ─── Convites ─── */}
-        <div className="bg-surface rounded-xl border border-border/60">
-          <div className="flex items-center justify-between p-5 pb-3 border-b border-border/40">
+        {/* ─── Convites / Equipe ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs">
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
             <div className="flex items-center gap-2.5">
               <UserPlus size={18} className="text-primary" />
               <h3 className="text-base font-serif font-medium text-text">
-                Convidar Psicólogo
+                Convites & Parcerias
               </h3>
             </div>
             <button
               type="button"
               onClick={handleGenerateInvite}
               disabled={generatingInvite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl
                          bg-primary text-white text-xs font-medium
                          hover:bg-primary-dark active:scale-[0.98] disabled:opacity-70
-                         transition-all duration-200 cursor-pointer"
+                         transition-all duration-200 cursor-pointer shadow-xs"
             >
               {generatingInvite ? (
                 <Loader2 size={12} className="animate-spin" />
@@ -482,23 +535,23 @@ export function ConfiguracoesView() {
               </div>
             ) : invites.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-4">
-                Nenhum convite gerado ainda.
+                Nenhum código de convite ativo.
               </p>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
                 {invites.map((invite) => (
                   <div
                     key={invite.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-background"
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-background border border-border/50"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-mono text-text truncate">
+                      <p className="text-xs font-mono text-text font-semibold truncate">
                         {invite.code}
                       </p>
-                      <p className="text-[11px] text-text-muted">
+                      <p className="text-[10px] text-text-muted">
                         {invite.used_at
-                          ? `Usado em ${new Date(invite.used_at).toLocaleDateString("pt-BR")}`
-                          : "Pendente"}
+                          ? `Utilizado em ${new Date(invite.used_at).toLocaleDateString("pt-BR")}`
+                          : "Disponível para cadastro"}
                       </p>
                     </div>
                     {!invite.used_at && (

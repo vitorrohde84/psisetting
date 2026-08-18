@@ -7,12 +7,12 @@ import { ptBR } from "date-fns/locale";
 import { 
   ArrowLeft, 
   Download, 
-  Printer, 
   Share2, 
   FileText, 
-  PenTool
+  PenTool,
+  ShieldCheck
 } from "lucide-react";
-import { LOGO_BASE64 } from "@/utils/logo-base64";
+import { createClient } from "@/utils/supabase/client";
 
 interface LaudoPrintProps {
   pacienteNome: string;
@@ -20,7 +20,20 @@ interface LaudoPrintProps {
   pacienteNascimento?: string;
   titulo: string;
   conteudo: string;
+  psicologoNome?: string;
+  psicologoCrp?: string;
+  psicologoTelefone?: string;
+  psicologoEndereco?: string;
+  psicologoLogoUrl?: string | null;
   onPrinted: () => void; // Closes the modal
+}
+
+interface ProfileData {
+  nome: string | null;
+  crp: string | null;
+  telefone: string | null;
+  endereco?: string | null;
+  logo_url: string | null;
 }
 
 export function LaudoPrint({
@@ -28,20 +41,68 @@ export function LaudoPrint({
   pacienteCpf,
   titulo,
   conteudo,
+  psicologoNome: propNome,
+  psicologoCrp: propCrp,
+  psicologoTelefone: propTelefone,
+  psicologoEndereco: propEndereco,
+  psicologoLogoUrl: propLogoUrl,
   onPrinted,
 }: LaudoPrintProps) {
   const documentRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [canShare, setCanShare] = useState(false);
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+
+  const supabase = createClient();
 
   useEffect(() => {
     setMounted(true);
-    // Check if Web Share API is available (iOS / Android)
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       setCanShare(true);
     }
-  }, []);
+
+    // Carregar perfil do psicólogo logado caso não tenha sido passado via props
+    async function loadProfile() {
+      if (propNome && propCrp) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("profiles")
+          .select("nome, crp, telefone, logo_url")
+          .eq("id", user.id)
+          .single();
+        if (data) {
+          setProfile(data);
+        }
+      } catch (e) {
+        console.error("Erro ao carregar perfil para laudo:", e);
+      }
+    }
+    loadProfile();
+  }, [propNome, propCrp]);
+
+  const nomeProfissional = propNome || profile?.nome || "Psicólogo(a) Responsável";
+  const crpProfissional = propCrp || profile?.crp || "CRP a definir";
+  const telefoneProfissional = propTelefone || profile?.telefone || "";
+  const enderecoProfissional = propEndereco || "Consultório de Psicologia";
+  
+  const rawLogoUrl = propLogoUrl !== undefined ? propLogoUrl : profile?.logo_url;
+  const logoSrc = rawLogoUrl
+    ? (rawLogoUrl.startsWith("http") || rawLogoUrl.startsWith("data:")
+        ? rawLogoUrl
+        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${rawLogoUrl}`)
+    : null;
+
+  // Iniciais do profissional para monograma fallback
+  const initials = nomeProfissional
+    .split(" ")
+    .filter(Boolean)
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
@@ -60,7 +121,7 @@ export function LaudoPrint({
       try {
         await navigator.share({
           title: titulo || "Laudo Psicológico",
-          text: `Laudo Psicológico - ${pacienteNome}\nEmitido por Hellen Limberger (CRP 07/45016)`,
+          text: `Laudo Psicológico - ${pacienteNome}\nEmitido por ${nomeProfissional} (${crpProfissional})`,
         });
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
@@ -166,21 +227,27 @@ export function LaudoPrint({
           {/* Topo / Cabeçalho da Psicóloga */}
           <div>
             <div className="relative flex flex-col items-center justify-center text-center pb-4 mb-6 border-b border-stone-200">
-              <img
-                src={LOGO_BASE64}
-                alt="Logo Hellen Limberger"
-                className="h-18 sm:h-20 w-auto mb-2 object-contain"
-              />
+              {logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt={`Logo ${nomeProfissional}`}
+                  className="h-16 sm:h-18 w-auto mb-2 object-contain max-w-[200px]"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center mb-2 shadow-xs">
+                  <span className="text-xl font-bold font-serif text-stone-700">{initials || "Ψ"}</span>
+                </div>
+              )}
 
               <h1 className="text-2xl sm:text-[24px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
-                Hellen Limberger
+                {nomeProfissional}
               </h1>
               <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
-                Psicóloga Clínica
+                Psicólogo(a) Clínico(a)
               </p>
               <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
                 <p className="text-xs font-bold text-stone-600 tracking-wider">
-                  CRP 07/45016
+                  {crpProfissional}
                 </p>
               </div>
             </div>
@@ -228,25 +295,28 @@ export function LaudoPrint({
           {/* Encerramento, Assinatura e Rodapé */}
           <div className="mt-4 flex flex-col items-center justify-center pt-2 w-full">
             <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
-              Santa Maria, RS. {dateStr}.
+              {enderecoProfissional ? `${enderecoProfissional}. ` : ""}{dateStr}.
             </p>
 
             {incluirAssinatura && (
               <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-6">
                 <p className="font-bold text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
-                  Hellen Ketlyn Limberger Silva
+                  {nomeProfissional}
                 </p>
                 <p className="text-xs text-stone-500 italic font-serif">
-                  Psicóloga Clínica - CRP 07/45016
+                  Psicólogo(a) Clínico(a) - {crpProfissional}
                 </p>
               </div>
             )}
 
-            {/* Rodapé Institucional com Endereço e Contato */}
-            <div className="w-full pt-2.5 border-t border-stone-200 text-center">
-              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
-                End: Santa Maria - RS &nbsp;|&nbsp; Contato: (55) 99654-7714
-              </p>
+            {/* Rodapé Institucional com Contato e Sigilo */}
+            <div className="w-full pt-2.5 border-t border-stone-200 text-center flex flex-col sm:flex-row items-center justify-between text-stone-400 text-[8pt] font-sans gap-1">
+              <span className="flex items-center gap-1">
+                <ShieldCheck size={12} /> Documento confidencial para uso exclusivo profissional e do paciente
+              </span>
+              <span>
+                {telefoneProfissional ? `Contato: ${telefoneProfissional}` : ""}
+              </span>
             </div>
           </div>
         </div>
@@ -261,7 +331,6 @@ export function LaudoPrint({
             size: A4 portrait;
           }
           
-          /* Ocultar toda a aplicação externa */
           body > *:not(#print-root) {
             display: none !important;
           }
