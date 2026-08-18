@@ -47,8 +47,7 @@ a {
 
 /* ===== Print Styles (PDF Export) ===== */
 @media print {
-  /* Esconder sidebar, modais de controle e elementos com .no-print */
-  nav, aside, .no-print {
+  .no-print {
     display: none !important;
   }
 
@@ -61,20 +60,6 @@ a {
   *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-
-  /* Remover margens do main para usar a página toda */
-  main {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background-color: white !important;
-  }
-  
-  body {
-    background-color: white !important;
-    color: black !important;
   }
 }
 

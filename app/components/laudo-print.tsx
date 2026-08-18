@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  ArrowLeft,
-  Download,
-  Printer,
-  Share2,
-  Loader2,
-  FileText,
+import { 
+  ArrowLeft, 
+  Download, 
+  Printer, 
+  Share2, 
+  Loader2, 
+  FileText, 
   CheckCircle2,
   AlertCircle,
   PenTool
@@ -34,6 +35,7 @@ export function LaudoPrint({
   onPrinted,
 }: LaudoPrintProps) {
   const documentRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [canShare, setCanShare] = useState(false);
@@ -41,6 +43,7 @@ export function LaudoPrint({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
+    setMounted(true);
     // Check if Web Share API is available (iOS / Android)
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       setCanShare(true);
@@ -110,15 +113,17 @@ export function LaudoPrint({
     window.print();
   }
 
-  return (
+  if (!mounted) return null;
+
+  const content = (
     <div
-      id="print-wrapper"
-      className="fixed inset-0 z-[100] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center"
+      id="print-root"
+      className="fixed inset-0 z-[1000] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center"
     >
       {/* ===== BARRA SUPERIOR DE AÇÕES (Oculta na impressão) ===== */}
       <nav
         aria-label="Ações do documento"
-        className="no-print sticky top-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 z-50 px-4 py-3 shadow-md"
+        className="no-print sticky top-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 z-50 px-4 py-3 shadow-md shrink-0"
       >
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
           {/* Lado Esquerdo: Voltar & Título */}
@@ -166,10 +171,13 @@ export function LaudoPrint({
 
             {/* Feedback message */}
             {feedback && (
-              <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${feedback.type === "success"
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
-                }`}>
+              <div
+                className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
+                  feedback.type === "success"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}
+              >
                 {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                 <span>{feedback.message}</span>
               </div>
@@ -239,20 +247,20 @@ export function LaudoPrint({
         >
           {/* Topo / Cabeçalho da Psicóloga */}
           <div>
-            <div className="relative flex flex-col items-center justify-center text-center pb-6 mb-8 border-b border-stone-200">
+            <div className="relative flex flex-col items-center justify-center text-center pb-5 mb-7 border-b border-stone-200">
               <img
                 src={LOGO_BASE64}
                 alt="Logo Hellen Limberger"
-                className="h-20 sm:h-24 w-auto mb-3 object-contain"
+                className="h-20 sm:h-22 w-auto mb-2 object-contain"
               />
 
-              <h1 className="text-2xl sm:text-[26px] font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1 font-serif">
+              <h1 className="text-2xl sm:text-[25px] font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1 font-serif">
                 Hellen Limberger
               </h1>
-              <p className="text-base sm:text-lg text-stone-500 italic mb-3 font-serif">
+              <p className="text-base sm:text-lg text-stone-500 italic mb-2.5 font-serif">
                 Psicóloga Clínica
               </p>
-              <div className="inline-flex items-center justify-center px-4 py-1 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
+              <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
                 <p className="text-xs sm:text-sm font-bold text-stone-600 tracking-wider">
                   CRP 07/45016
                 </p>
@@ -260,15 +268,15 @@ export function LaudoPrint({
             </div>
 
             {/* Título do Documento */}
-            <div className="text-center mb-8">
-              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-2 px-6 sm:px-12 font-serif">
+            <div className="text-center mb-7">
+              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-1.5 px-6 sm:px-12 font-serif">
                 {titulo || "Laudo Psicológico"}
               </h2>
             </div>
 
-            {/* Identificação do Paciente (SEM IDADE) */}
-            <div className="mb-8 bg-stone-50/70 p-5 sm:p-6 rounded-xl border border-stone-200">
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-4 flex items-center gap-2">
+            {/* Identificação do Paciente */}
+            <div className="mb-7 bg-stone-50/70 p-4 sm:p-5 rounded-xl border border-stone-200">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3 flex items-center gap-2">
                 <span className="w-6 h-px bg-stone-300" />
                 Identificação do Paciente
                 <span className="flex-1 h-px bg-stone-200" />
@@ -294,19 +302,19 @@ export function LaudoPrint({
             </div>
 
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[2] sm:leading-[2.2] whitespace-pre-wrap mb-14 text-[11.5pt] sm:text-[12pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.9] sm:leading-[2.1] whitespace-pre-wrap mb-10 text-[11.5pt] sm:text-[12pt] text-stone-800 font-serif">
               {conteudo}
             </div>
           </div>
 
           {/* Encerramento, Assinatura e Rodapé */}
-          <div className="mt-8 flex flex-col items-center justify-center pt-6 w-full">
-            <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-10 italic font-serif">
+          <div className="mt-6 flex flex-col items-center justify-center pt-4 w-full">
+            <p className="text-center text-stone-600 text-[10.5pt] sm:text-[11pt] mb-8 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3 mb-8">
+              <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-2.5 mb-7">
                 <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
                   Hellen Ketlyn Limberger Silva
                 </p>
@@ -334,46 +342,64 @@ export function LaudoPrint({
             margin: 0 !important;
             size: A4 portrait;
           }
+          
+          /* Ocultar toda a aplicação e elementos externos */
+          body > *:not(#print-root) {
+            display: none !important;
+          }
+
           html, body {
-            height: auto !important;
-            overflow: visible !important;
-            background: white !important;
-            color: black !important;
             margin: 0 !important;
             padding: 0 !important;
-          }
-          body * {
-            visibility: hidden;
-          }
-          #print-wrapper, #print-wrapper * {
-            visibility: visible;
-          }
-          #print-wrapper {
-            position: static !important;
-            display: block !important;
             width: 100% !important;
-            background: white !important;
+            height: 100% !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          #print-root {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
             overflow: visible !important;
+            display: block !important;
           }
+
           #print-section {
-            position: static !important;
+            width: 100% !important;
+            max-width: 210mm !important;
+            min-height: 297mm !important;
+            height: 297mm !important;
+            margin: 0 auto !important;
+            padding: 16mm 18mm 14mm 18mm !important;
+            box-sizing: border-box !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border: none !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: 297mm !important;
-            background: white !important;
-            margin: 0 !important;
-            padding: 20mm 18mm 18mm 18mm !important;
-            box-sizing: border-box !important;
-            box-shadow: none !important;
-            border: none !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
       `}} />
     </div>
   );
+
+  return createPortal(content, document.body);
 }
