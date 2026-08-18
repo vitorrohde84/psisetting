@@ -8,6 +8,7 @@ import {
   MapPin,
   Video,
   AlertCircle,
+  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -65,7 +66,19 @@ export default async function DashboardPage() {
     .order("horario", { ascending: true })
     .limit(8);
 
-  // Query 2: Pagamentos pendentes do mês
+  // Query 2: Pagamentos recebidos do mês
+  const { data: pagamentosRecebidos } = await supabase
+    .from("pagamentos")
+    .select("id, valor, data_pagamento")
+    .gte("data_pagamento", firstDayOfMonth)
+    .lte("data_pagamento", lastDayOfMonth)
+    .eq("status", "pago");
+
+  const totalRecebido =
+    pagamentosRecebidos?.reduce((sum, p) => sum + (p.valor || 0), 0) || 0;
+  const qtdRecebidos = pagamentosRecebidos?.length || 0;
+
+  // Query 3: Pagamentos pendentes do mês
   const { data: pagamentosPendentes } = await supabase
     .from("pagamentos")
     .select("id, valor, data_vencimento, pacientes(nome)")
@@ -126,21 +139,25 @@ export default async function DashboardPage() {
         </div>
         <div className="bg-surface rounded-xl border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <DollarSign size={14} className="text-danger" />
-            <span className="text-xs text-text-muted">Pendentes</span>
+            <TrendingUp size={14} className="text-success" />
+            <span className="text-xs text-text-muted">Recebido</span>
           </div>
-          <p className="text-2xl font-semibold text-text">{qtdPendentes}</p>
+          <p className="text-2xl font-semibold text-text sensitive-data">
+            {formatCurrency(totalRecebido)}
+          </p>
           <p className="text-xs text-text-muted">em {monthName}</p>
         </div>
         <div className="bg-surface rounded-xl border border-border/60 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <DollarSign size={14} className="text-primary" />
-            <span className="text-xs text-text-muted">Total pendente</span>
+            <DollarSign size={14} className="text-secondary" />
+            <span className="text-xs text-text-muted">Pendente</span>
           </div>
           <p className="text-2xl font-semibold text-text sensitive-data">
             {formatCurrency(totalPendente)}
           </p>
-          <p className="text-xs text-text-muted">no mês</p>
+          <p className="text-xs text-text-muted">
+            {qtdPendentes} {qtdPendentes === 1 ? "pagamento" : "pagamentos"}
+          </p>
         </div>
       </div>
 
