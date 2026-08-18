@@ -32,6 +32,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
   // Form states
   const [userId, setUserId] = useState<string | null>(null);
   const [nome, setNome] = useState("");
+  const [nomeCompleto, setNomeCompleto] = useState("");
   const [crp, setCrp] = useState("");
   const [telefone, setTelefone] = useState("");
   const [genero, setGenero] = useState<"F" | "M" | "outro">("F");
@@ -56,12 +57,13 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
 
     const { data } = await supabase
       .from("profiles")
-      .select("nome, crp, telefone, genero, cidade, endereco, logo_url")
+      .select("nome, nome_completo, crp, telefone, genero, cidade, endereco, logo_url")
       .eq("id", user.id)
       .single();
 
     if (data) {
       setNome(data.nome || "");
+      setNomeCompleto(data.nome_completo || data.nome || "");
       setCrp(data.crp || "");
       setTelefone(data.telefone || "");
       setGenero((data.genero as "F" | "M" | "outro") || "F");
@@ -92,6 +94,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
       .from("profiles")
       .update({
         nome: nome.trim(),
+        nome_completo: nomeCompleto.trim() || nome.trim(),
         crp: crp.trim() || null,
         telefone: telefone.trim() || null,
         genero: genero || "F",
@@ -257,20 +260,38 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
               </div>
             </div>
 
-            {/* Nome Profissional Completo */}
-            <div>
-              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-                Nome Profissional Completo (Cabeçalho e Assinatura)
-              </label>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                required
-                placeholder="Ex: Dra. Hellen Ketlyn Limberger Silva"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
-                           focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
-              />
+            {/* Nome no Topo e Nome Completo na Assinatura */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+                  Nome no Topo / Cabeçalho
+                </label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  required
+                  placeholder="Ex: Hellen Limberger"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+                <p className="mt-1 text-[10.5px] text-text-muted">Exibido em destaque no cabeçalho</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+                  Nome Completo (Para Assinatura)
+                </label>
+                <input
+                  type="text"
+                  value={nomeCompleto}
+                  onChange={(e) => setNomeCompleto(e.target.value)}
+                  placeholder="Ex: Hellen Ketlyn Limberger Silva"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+                <p className="mt-1 text-[10.5px] text-text-muted">Exibido acima do CRP na assinatura</p>
+              </div>
             </div>
 
             {/* CRP e Telefone */}

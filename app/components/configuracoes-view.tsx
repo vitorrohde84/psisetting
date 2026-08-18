@@ -24,6 +24,7 @@ import {
 interface Profile {
   id: string;
   nome: string;
+  nome_completo?: string | null;
   email: string | null;
   crp: string | null;
   telefone: string | null;
@@ -42,6 +43,7 @@ export function ConfiguracoesView() {
   // Profile state
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nome, setNome] = useState("");
+  const [nomeCompleto, setNomeCompleto] = useState("");
   const [crp, setCrp] = useState("");
   const [telefone, setTelefone] = useState("");
   const [genero, setGenero] = useState<"F" | "M" | "outro">("F");
@@ -72,13 +74,14 @@ export function ConfiguracoesView() {
 
     const { data } = await supabase
       .from("profiles")
-      .select("id, nome, email, crp, telefone, genero, cidade, endereco, logo_url, calendar_token")
+      .select("id, nome, nome_completo, email, crp, telefone, genero, cidade, endereco, logo_url, calendar_token")
       .eq("id", user.id)
       .single();
 
     if (data) {
       setProfile(data);
       setNome(data.nome || "");
+      setNomeCompleto(data.nome_completo || data.nome || "");
       setCrp(data.crp || "");
       setTelefone(data.telefone || "");
       setGenero((data.genero as "F" | "M" | "outro") || "F");
@@ -108,6 +111,7 @@ export function ConfiguracoesView() {
       .from("profiles")
       .update({
         nome: nome.trim(),
+        nome_completo: nomeCompleto.trim() || nome.trim(),
         crp: crp.trim() || null,
         telefone: telefone.trim() || null,
         genero: genero || "F",
@@ -304,19 +308,38 @@ export function ConfiguracoesView() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-text-muted mb-1.5">
-                Nome Profissional Completo
-              </label>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                required
-                placeholder="Ex: Dra. Hellen Ketlyn Limberger Silva"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
-                           focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
-              />
+            {/* Nome no Topo e Nome Completo na Assinatura */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5">
+                  Nome no Topo / Cabeçalho
+                </label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  required
+                  placeholder="Ex: Hellen Limberger"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+                <p className="mt-1 text-[11px] text-text-muted">Exibido em destaque no topo do documento</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5">
+                  Nome Completo (Para Assinatura)
+                </label>
+                <input
+                  type="text"
+                  value={nomeCompleto}
+                  onChange={(e) => setNomeCompleto(e.target.value)}
+                  placeholder="Ex: Hellen Ketlyn Limberger Silva"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+                <p className="mt-1 text-[11px] text-text-muted">Exibido na linha de assinatura acima do CRP</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

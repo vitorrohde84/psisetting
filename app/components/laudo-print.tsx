@@ -33,6 +33,7 @@ interface LaudoPrintProps {
 
 interface ProfileData {
   nome: string | null;
+  nome_completo?: string | null;
   crp: string | null;
   telefone: string | null;
   genero?: string | null;
@@ -72,7 +73,7 @@ export function LaudoPrint({
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("nome, crp, telefone, genero, cidade, endereco, logo_url")
+        .select("nome, nome_completo, crp, telefone, genero, cidade, endereco, logo_url")
         .eq("id", user.id)
         .single();
       if (data) {
@@ -121,7 +122,8 @@ export function LaudoPrint({
     loadProfile();
   }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo, loadProfile]);
 
-  const nomeProfissional = propNome || profile?.nome || "Hellen Limberger";
+  const nomeTopo = propNome || profile?.nome || "Hellen Limberger";
+  const nomeAssinatura = profile?.nome_completo || propNome || profile?.nome || "Hellen Ketlyn Limberger Silva";
   const crpProfissional = propCrp || profile?.crp || "CRP 07/45016";
   const telefoneProfissional = propTelefone || profile?.telefone || "(55) 99654-7714";
   const cidadeProfissional = profile?.cidade || "Santa Maria, RS";
@@ -142,7 +144,7 @@ export function LaudoPrint({
     : null;
 
   // Iniciais do profissional para monograma fallback
-  const initials = nomeProfissional
+  const initials = nomeTopo
     .split(" ")
     .filter(Boolean)
     .map((n) => n[0])
@@ -167,7 +169,7 @@ export function LaudoPrint({
       try {
         await navigator.share({
           title: titulo || "Laudo Psicológico",
-          text: `Laudo Psicológico - ${decryptedNome}\nEmitido por ${nomeProfissional} (${crpProfissional})`,
+          text: `Laudo Psicológico - ${decryptedNome}\nEmitido por ${nomeTopo} (${crpProfissional})`,
         });
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
@@ -287,7 +289,7 @@ export function LaudoPrint({
               {logoSrc ? (
                 <img
                   src={logoSrc}
-                  alt={`Logo ${nomeProfissional}`}
+                  alt={`Logo ${nomeTopo}`}
                   className="h-16 sm:h-18 w-auto mb-2 object-contain max-w-[200px]"
                 />
               ) : (
@@ -297,7 +299,7 @@ export function LaudoPrint({
               )}
 
               <h1 className="text-2xl sm:text-[24px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
-                {nomeProfissional}
+                {nomeTopo}
               </h1>
               <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
                 {tituloProfissional}
@@ -358,7 +360,7 @@ export function LaudoPrint({
             {incluirAssinatura && (
               <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-6">
                 <p className="font-bold text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
-                  {nomeProfissional}
+                  {nomeAssinatura}
                 </p>
                 <p className="text-xs text-stone-500 italic font-serif">
                   {tituloProfissional} - {crpProfissional}
