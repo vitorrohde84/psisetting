@@ -14,6 +14,7 @@ import {
   KeyRound,
   ShieldCheck,
 } from "lucide-react";
+import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 
 declare global {
   interface Window {
@@ -397,12 +398,9 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-4 shadow-xs border border-primary/20">
             <span className="text-2xl font-serif font-bold">Ψ</span>
           </div>
-          <h1 className="text-2xl font-serif font-semibold text-text tracking-tight">
-            PsiSetting
-          </h1>
-          <p className="mt-1 text-sm text-text-muted">
-            Gestão Clínica e Prontuários para Psicólogos
-          </p>
+          <div className="flex justify-center">
+            <PsiSettingBrand size="lg" showSubtitle={true} subtitleText="Gestão Clínica e Prontuários para Psicólogos" />
+          </div>
         </div>
 
         {/* Card Principal */}

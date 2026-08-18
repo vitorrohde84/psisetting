@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { LogoutButton } from "@/app/components/logout-button";
 import { PrivacyToggle } from "@/app/components/privacy-toggle";
+import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import {
   LayoutDashboard,
   Users,
@@ -79,12 +80,7 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
           <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
             <span className="text-base font-serif font-bold leading-none">Ψ</span>
           </div>
-          <div className="min-w-0">
-            <span className="text-base font-serif font-semibold text-text tracking-tight block leading-none">
-              PsiSetting
-            </span>
-            <span className="text-[10px] text-text-muted leading-tight block mt-0.5">Gestão Clínica</span>
-          </div>
+          <PsiSettingBrand size="sm" showSubtitle={false} />
         </Link>
 
         {/* Lado Direito: Botão Privacidade + Botão Hambúrguer */}
@@ -128,12 +124,7 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
             <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-xs group-hover:bg-primary/15 transition-all shrink-0">
               <span className="text-xl font-serif font-bold leading-none">Ψ</span>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-base font-serif font-semibold text-text leading-tight tracking-tight">
-                PsiSetting
-              </h1>
-              <p className="text-[11px] text-text-muted truncate mt-0.5">Gestão Clínica</p>
-            </div>
+            <PsiSettingBrand size="md" showSubtitle={true} subtitleText="Gestão Clínica" />
           </Link>
 
           {/* Botão Fechar no celular */}
