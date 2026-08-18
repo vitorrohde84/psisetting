@@ -69,10 +69,20 @@ export function DiarioFormModal({
         .eq("ativo", true)
         .order("nome", { ascending: true });
       
-      setPacientes(pacData || []);
+      let list: PacienteOption[] = [];
+      if (pacData && user) {
+        list = await Promise.all(
+          pacData.map(async (p) => ({
+            id: p.id,
+            nome: await decryptClinicalData(p.nome, user.id),
+          }))
+        );
+        list.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+      setPacientes(list);
 
-      if (diario?.paciente_id && pacData) {
-        const found = pacData.find((p) => p.id === diario.paciente_id);
+      if (diario?.paciente_id && list.length > 0) {
+        const found = list.find((p) => p.id === diario.paciente_id);
         if (found) setSelectedPacienteName(found.nome);
       }
 

@@ -71,11 +71,21 @@ export function ProntuarioFormModal({
         .eq("ativo", true)
         .order("nome", { ascending: true });
       
-      setPacientes(pacData || []);
+      let list: PacienteOption[] = [];
+      if (pacData && user) {
+        list = await Promise.all(
+          pacData.map(async (p) => ({
+            id: p.id,
+            nome: await decryptClinicalData(p.nome, user.id),
+          }))
+        );
+        list.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+      setPacientes(list);
 
       const targetId = prontuario?.paciente_id || prefillData?.paciente_id;
-      if (targetId && pacData) {
-        const found = pacData.find((p) => p.id === targetId);
+      if (targetId && list.length > 0) {
+        const found = list.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
       }
 

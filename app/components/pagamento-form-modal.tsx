@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import { X, Save, Loader2, Search } from "lucide-react";
 
 interface PagamentoFormModalProps {
@@ -61,17 +62,28 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
 
   useEffect(() => {
     async function fetchPacientes() {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome, cpf")
-        .eq("ativo", true)
-        .order("nome", { ascending: true });
+        .eq("ativo", true);
       
-      setPacientes(data || []);
+      let list: PacienteOption[] = [];
+      if (data && user) {
+        list = await Promise.all(
+          data.map(async (p) => ({
+            id: p.id,
+            nome: await decryptClinicalData(p.nome, user.id),
+            cpf: await decryptClinicalData(p.cpf, user.id),
+          }))
+        );
+        list.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+      setPacientes(list);
 
       const pIdToFind = pagamento?.paciente_id || prefillData?.paciente_id;
-      if (pIdToFind && data) {
-        const found = data.find((p) => p.id === pIdToFind);
+      if (pIdToFind && list.length > 0) {
+        const found = list.find((p) => p.id === pIdToFind);
         if (found) setSelectedPacienteName(found.nome);
       }
     }

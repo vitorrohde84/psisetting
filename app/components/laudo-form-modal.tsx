@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { X, Save, Loader2, Search, FileUp, FileText } from "lucide-react";
 import { uploadLaudoPdf } from "@/utils/supabase/storage";
-import { encryptClinicalData } from "@/utils/crypto";
+import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 
 interface PacienteOption {
   id: string;
@@ -40,13 +40,25 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
 
   useEffect(() => {
     async function fetchPacientes() {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome, cpf, data_nascimento")
-        .eq("ativo", true)
-        .order("nome", { ascending: true });
+        .eq("ativo", true);
       
-      setPacientes(data || []);
+      let list: PacienteOption[] = [];
+      if (data && user) {
+        list = await Promise.all(
+          data.map(async (p) => ({
+            id: p.id,
+            nome: await decryptClinicalData(p.nome, user.id),
+            cpf: await decryptClinicalData(p.cpf, user.id),
+            data_nascimento: p.data_nascimento,
+          }))
+        );
+        list.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+      setPacientes(list);
     }
     fetchPacientes();
   }, []);

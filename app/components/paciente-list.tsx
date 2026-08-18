@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { PacienteFormModal } from "./paciente-form-modal";
@@ -55,14 +56,33 @@ export function PacienteList() {
 
   const fetchPacientes = useCallback(async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("pacientes")
       .select("*")
-      .order("nome", { ascending: true });
+      .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setPacientes(data);
-      setFilteredPacientes(data);
+      if (user) {
+        const decrypted = await Promise.all(
+          data.map(async (p) => ({
+            ...p,
+            nome: await decryptClinicalData(p.nome, user.id),
+            cpf: await decryptClinicalData(p.cpf, user.id),
+            telefone: await decryptClinicalData(p.telefone, user.id),
+            email: await decryptClinicalData(p.email, user.id),
+            endereco: await decryptClinicalData(p.endereco, user.id),
+            contato_emergencia: await decryptClinicalData(p.contato_emergencia, user.id),
+            observacoes_gerais: await decryptClinicalData(p.observacoes_gerais, user.id),
+          }))
+        );
+        decrypted.sort((a, b) => a.nome.localeCompare(b.nome));
+        setPacientes(decrypted);
+        setFilteredPacientes(decrypted);
+      } else {
+        setPacientes(data);
+        setFilteredPacientes(data);
+      }
     }
     setLoading(false);
   }, []);

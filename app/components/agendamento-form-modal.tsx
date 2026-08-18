@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import { X, Save, Loader2, Search } from "lucide-react";
 import type { Agendamento } from "./agenda-view";
 
@@ -78,17 +79,28 @@ export function AgendamentoFormModal({
   // Fetch patients for dropdown
   useEffect(() => {
     async function fetchPacientes() {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome")
-        .eq("ativo", true)
-        .order("nome", { ascending: true });
-      setPacientes(data || []);
+        .eq("ativo", true);
+      
+      let list: PacienteOption[] = [];
+      if (data && user) {
+        list = await Promise.all(
+          data.map(async (p) => ({
+            id: p.id,
+            nome: await decryptClinicalData(p.nome, user.id),
+          }))
+        );
+        list.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+      setPacientes(list);
 
       // If editing or duplicating, find patient name
       const targetId = agendamento?.paciente_id || prefillData?.paciente_id;
-      if (targetId && data) {
-        const found = data.find((p) => p.id === targetId);
+      if (targetId && list.length > 0) {
+        const found = list.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
       }
     }

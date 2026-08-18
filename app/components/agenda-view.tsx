@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import {
   Calendar,
   List,
@@ -176,17 +177,34 @@ export function AgendaView() {
       }
     });
 
-    const enhancedAgs = (agsRes.data || []).map(ag => {
-      const pStatus = pagMap.get(ag.id) || pagMap.get(`${ag.paciente_id}_${ag.data}`);
-      return {
-        ...ag,
-        has_prontuario: prontSet.has(`${ag.paciente_id}_${ag.data}`),
-        has_pagamento: !!pStatus,
-        pagamento_status: pStatus,
-      };
-    });
+    const { data: { user } } = await supabase.auth.getUser();
 
-    setAgendamentos(enhancedAgs);
+    const enhancedAgs = await Promise.all(
+      (agsRes.data || []).map(async (ag) => {
+        const pStatus =
+          pagMap.get(ag.id) || pagMap.get(`${ag.paciente_id}_${ag.data}`);
+        
+        let pacienteNome = (ag.pacientes as any)?.nome || "Paciente";
+        if (user && (ag.pacientes as any)?.nome) {
+          pacienteNome = await decryptClinicalData(
+            (ag.pacientes as any).nome,
+            user.id
+          );
+        }
+
+        return {
+          ...ag,
+          pacientes: {
+            nome: pacienteNome,
+          },
+          has_prontuario: prontSet.has(`${ag.paciente_id}_${ag.data}`),
+          has_pagamento: !!pStatus,
+          pagamento_status: pStatus,
+        };
+      })
+    );
+
+    setAgendamentos(enhancedAgs as any);
     setLoading(false);
   }, [firstDay, lastDayStr]);
 

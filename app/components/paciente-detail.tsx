@@ -104,6 +104,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
   const [tabLoading, setTabLoading] = useState(false);
 
   const fetchPaciente = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("pacientes")
       .select("*")
@@ -114,7 +115,22 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
       router.push("/pacientes");
       return;
     }
-    setPaciente(data);
+
+    if (user) {
+      const decrypted = {
+        ...data,
+        nome: await decryptClinicalData(data.nome, user.id),
+        cpf: await decryptClinicalData(data.cpf, user.id),
+        telefone: await decryptClinicalData(data.telefone, user.id),
+        email: await decryptClinicalData(data.email, user.id),
+        endereco: await decryptClinicalData(data.endereco, user.id),
+        contato_emergencia: await decryptClinicalData(data.contato_emergencia, user.id),
+        observacoes_gerais: await decryptClinicalData(data.observacoes_gerais, user.id),
+      };
+      setPaciente(decrypted);
+    } else {
+      setPaciente(data);
+    }
     setLoading(false);
   }, [pacienteId]);
 

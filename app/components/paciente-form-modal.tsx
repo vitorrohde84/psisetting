@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { encryptClinicalData } from "@/utils/crypto";
 import { X, Save, Loader2 } from "lucide-react";
 import type { Paciente } from "./paciente-list";
 
@@ -100,16 +101,41 @@ export function PacienteFormModal({
 
     setSaving(true);
 
-    // Clean CPF and phone for storage (digits only)
+    // Obter o usuário logado para derivar a chave de criptografia
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Sessão expirada. Faça login novamente.");
+      setSaving(false);
+      return;
+    }
+
+    const userId = user.id;
+
+    // Criptografar todos os dados confidenciais do paciente
     const payload = {
-      nome: form.nome.trim(),
-      cpf: form.cpf.replace(/\D/g, "") || null,
+      nome: await encryptClinicalData(form.nome.trim(), userId),
+      cpf: form.cpf.trim()
+        ? await encryptClinicalData(form.cpf.replace(/\D/g, ""), userId)
+        : null,
       data_nascimento: form.data_nascimento || null,
-      telefone: form.telefone.replace(/\D/g, "") || null,
-      email: form.email.trim() || null,
-      endereco: form.endereco.trim() || null,
-      contato_emergencia: form.contato_emergencia.trim() || null,
-      observacoes_gerais: form.observacoes_gerais.trim() || null,
+      telefone: form.telefone.trim()
+        ? await encryptClinicalData(form.telefone.replace(/\D/g, ""), userId)
+        : null,
+      email: form.email.trim()
+        ? await encryptClinicalData(form.email.trim(), userId)
+        : null,
+      endereco: form.endereco.trim()
+        ? await encryptClinicalData(form.endereco.trim(), userId)
+        : null,
+      contato_emergencia: form.contato_emergencia.trim()
+        ? await encryptClinicalData(form.contato_emergencia.trim(), userId)
+        : null,
+      observacoes_gerais: form.observacoes_gerais.trim()
+        ? await encryptClinicalData(form.observacoes_gerais.trim(), userId)
+        : null,
       ativo: form.ativo,
     };
 
@@ -120,20 +146,9 @@ export function PacienteFormModal({
         .update(payload)
         .eq("id", paciente.id);
     } else {
-      // Get the current user's id for psicologo_id
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError("Sessão expirada. Faça login novamente.");
-        setSaving(false);
-        return;
-      }
-
       result = await supabase
         .from("pacientes")
-        .insert({ ...payload, psicologo_id: user.id });
+        .insert({ ...payload, psicologo_id: userId });
     }
 
     if (result.error) {
