@@ -7,12 +7,10 @@ import {
   User,
   Camera,
   Calendar,
-  UserPlus,
   Copy,
   Check,
   Loader2,
   Trash2,
-  Link as LinkIcon,
   Save,
   Image as ImageIcon,
   ShieldCheck,
@@ -29,15 +27,6 @@ interface Profile {
   telefone: string | null;
   logo_url: string | null;
   calendar_token: string | null;
-}
-
-interface Invite {
-  id: string;
-  code: string;
-  created_by: string;
-  used_by: string | null;
-  used_at: string | null;
-  created_at: string;
 }
 
 export function ConfiguracoesView() {
@@ -63,12 +52,6 @@ export function ConfiguracoesView() {
 
   // Calendar state
   const [copiedCalendar, setCopiedCalendar] = useState(false);
-
-  // Invite state
-  const [invites, setInvites] = useState<Invite[]>([]);
-  const [loadingInvites, setLoadingInvites] = useState(true);
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
   // Fetch profile
   const fetchProfile = useCallback(async () => {
@@ -98,25 +81,9 @@ export function ConfiguracoesView() {
     setLoadingProfile(false);
   }, []);
 
-  // Fetch invites
-  const fetchInvites = useCallback(async () => {
-    setLoadingInvites(true);
-    try {
-      const res = await fetch("/api/invites");
-      if (res.ok) {
-        const data = await res.json();
-        setInvites(data);
-      }
-    } catch (err) {
-      console.error("Error fetching invites:", err);
-    }
-    setLoadingInvites(false);
-  }, []);
-
   useEffect(() => {
     fetchProfile();
-    fetchInvites();
-  }, [fetchProfile, fetchInvites]);
+  }, [fetchProfile]);
 
   // Save profile
   async function handleSaveProfile(e: React.FormEvent) {
@@ -243,29 +210,6 @@ export function ConfiguracoesView() {
     navigator.clipboard.writeText(webcalUrl);
     setCopiedCalendar(true);
     setTimeout(() => setCopiedCalendar(false), 2500);
-  }
-
-  // Generate invite
-  async function handleGenerateInvite() {
-    setGeneratingInvite(true);
-    try {
-      const res = await fetch("/api/invites", { method: "POST" });
-      if (res.ok) {
-        await fetchInvites();
-      }
-    } catch (err) {
-      console.error("Error generating invite:", err);
-    }
-    setGeneratingInvite(false);
-  }
-
-  // Copy invite link
-  function handleCopyInvite(invite: Invite) {
-    const origin = window.location.origin;
-    const link = `${origin}/login?convite=${invite.code}`;
-    navigator.clipboard.writeText(link);
-    setCopiedInviteId(invite.id);
-    setTimeout(() => setCopiedInviteId(null), 2500);
   }
 
   if (loadingProfile) {
@@ -498,86 +442,6 @@ export function ConfiguracoesView() {
               </div>
             ) : (
               <p className="text-sm text-danger">Token não configurado.</p>
-            )}
-          </div>
-        </div>
-
-        {/* ─── Convites / Equipe ─── */}
-        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs">
-          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
-            <div className="flex items-center gap-2.5">
-              <UserPlus size={18} className="text-primary" />
-              <h3 className="text-base font-serif font-medium text-text">
-                Convites & Parcerias
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={handleGenerateInvite}
-              disabled={generatingInvite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl
-                         bg-primary text-white text-xs font-medium
-                         hover:bg-primary-dark active:scale-[0.98] disabled:opacity-70
-                         transition-all duration-200 cursor-pointer shadow-xs"
-            >
-              {generatingInvite ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <UserPlus size={12} />
-              )}
-              Gerar Convite
-            </button>
-          </div>
-          <div className="p-5">
-            {loadingInvites ? (
-              <div className="flex justify-center py-4">
-                <Loader2 size={20} className="animate-spin text-primary" />
-              </div>
-            ) : invites.length === 0 ? (
-              <p className="text-sm text-text-muted text-center py-4">
-                Nenhum código de convite ativo.
-              </p>
-            ) : (
-              <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                {invites.map((invite) => (
-                  <div
-                    key={invite.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-background border border-border/50"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-mono text-text font-semibold truncate">
-                        {invite.code}
-                      </p>
-                      <p className="text-[10px] text-text-muted">
-                        {invite.used_at
-                          ? `Utilizado em ${new Date(invite.used_at).toLocaleDateString("pt-BR")}`
-                          : "Disponível para cadastro"}
-                      </p>
-                    </div>
-                    {!invite.used_at && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopyInvite(invite)}
-                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg
-                                   text-xs text-primary font-medium
-                                   hover:bg-primary/10 transition-colors cursor-pointer"
-                      >
-                        {copiedInviteId === invite.id ? (
-                          <>
-                            <Check size={12} />
-                            Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <LinkIcon size={12} />
-                            Copiar Link
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
             )}
           </div>
         </div>
