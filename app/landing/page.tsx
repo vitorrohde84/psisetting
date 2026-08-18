@@ -647,19 +647,19 @@ export default function LandingPage() {
                     {/* Cabeçalho do Prontuário Simulado */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-secondary/20 text-secondary flex items-center justify-center font-bold text-xs">
+                        <div className={`w-8 h-8 rounded-full bg-secondary/20 text-secondary flex items-center justify-center font-bold text-xs transition-all duration-300 ${isPrivacyActive ? "blur-[3px] opacity-50" : ""}`}>
                           MR
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs font-semibold text-text ${isPrivacyActive ? "sensitive-data" : ""}`}>
+                            <span className={`text-xs font-semibold text-text transition-all duration-300 ${isPrivacyActive ? "blur-[6px] opacity-30 select-none pointer-events-none" : ""}`}>
                               Mariana R. S. (28 anos)
                             </span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-medium">
                               Sessão #14
                             </span>
                           </div>
-                          <p className={`text-[11px] text-text-muted ${isPrivacyActive ? "sensitive-data" : ""}`}>
+                          <p className={`text-[11px] text-text-muted transition-all duration-300 ${isPrivacyActive ? "blur-[5px] opacity-30 select-none pointer-events-none" : ""}`}>
                             Demanda: Ansiedade Generalizada & Conflito Familiar
                           </p>
                         </div>
@@ -667,16 +667,24 @@ export default function LandingPage() {
                       <span className="text-[11px] font-mono text-text-muted">14:00h</span>
                     </div>
 
-                    {/* Registro Clínico Confidencial (com blur reativo) */}
-                    <div className="p-3 rounded-xl bg-surface border border-border/50 text-xs leading-relaxed text-text">
+                    {/* Registro Clínico Confidencial (com blur reativo direto) */}
+                    <div className="p-3 rounded-xl bg-surface border border-border/50 text-xs leading-relaxed text-text relative overflow-hidden">
                       <p className="font-semibold text-text-muted text-[10px] uppercase tracking-wider mb-1">
                         Evolução Clínica da Sessão
                       </p>
-                      <p className={`transition-all duration-300 ${isPrivacyActive ? "sensitive-data select-none" : ""}`}>
+                      <p className={`transition-all duration-300 leading-relaxed ${isPrivacyActive ? "blur-[7px] opacity-25 select-none pointer-events-none" : ""}`}>
                         &ldquo;Paciente relata avanço no manejo das crises noturnas após técnicas de ancoragem. 
                         Discutida a relação com a figura materna e estabelecimento de limites assertivos. 
                         Humor eutímico, com boa adesão terapêutica.&rdquo;
                       </p>
+                      {isPrivacyActive && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-700/90 text-white text-[11px] font-bold shadow-md backdrop-blur-xs animate-in fade-in zoom-in duration-200">
+                            <Lock size={11} />
+                            <span>Dado Protegido (Modo Privacidade)</span>
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Alerta de Sigilo no Prontuário */}
