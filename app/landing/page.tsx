@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import {
   FileText,
@@ -26,6 +25,16 @@ import {
   CheckCircle2,
   Sparkles,
   Eye,
+  EyeOff,
+  Check,
+  Award,
+  AlertTriangle,
+  FileSpreadsheet,
+  FolderX,
+  FileCheck2,
+  LockKeyhole,
+  Smartphone,
+  Zap,
 } from "lucide-react";
 
 /* ──────────────────────────── SCROLL ANIMATION HOOK ──────────────────────────── */
@@ -45,7 +54,7 @@ function useScrollReveal() {
           observer.unobserve(el);
         }
       },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
     );
 
     observer.observe(el);
@@ -72,8 +81,8 @@ function Reveal({
       className={className}
       style={{
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? "translateY(0)" : "translateY(28px)",
-        transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+        transform: isVisible ? "translateY(0)" : "translateY(24px)",
+        transition: `opacity 0.6s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.6s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
       }}
     >
       {children}
@@ -121,34 +130,34 @@ const jsonLdWebSite = {
 
 const faqItems = [
   {
-    question: "O PsiSetting é seguro para armazenar prontuários?",
+    question: "O PsiSetting é seguro para armazenar prontuários confidenciais?",
     answer:
-      "Sim. Todos os dados clínicos sensíveis são criptografados com AES-256 utilizando uma chave derivada exclusiva de cada profissional. Nem mesmo a equipe do PsiSetting tem acesso ao conteúdo dos seus prontuários.",
+      "Sim. Todos os dados clínicos sensíveis (evoluções, hipóteses e diagnósticos) são criptografados com o algoritmo AES-256 utilizando uma chave derivada exclusiva de cada profissional. Nem mesmo administradores ou banco de dados têm acesso legível ao conteúdo dos seus registros.",
   },
   {
-    question: "Atende às exigências do Conselho Federal de Psicologia?",
+    question: "Como os laudos atendem à Resolução CFP nº 06/2019?",
     answer:
-      "Sim. Os modelos de laudos e documentos seguem integralmente a Resolução CFP nº 06/2019. A plataforma também implementa isolamento de dados por profissional, timeout automático e criptografia — atendendo às orientações do CFP sobre sigilo profissional em meios digitais.",
+      "A plataforma disponibiliza os 5 modelos oficiais definidos pelo Conselho Federal de Psicologia (Declaração de Comparecimento, Declaração de Acompanhamento, Atestado Psicológico, Relatório Psicológico e Laudo de Avaliação). Todos já vêm estruturados com os tópicos obrigatórios (Identificação, Descrição da Demanda, Procedimento, Análise, Conclusão e Guarda Documental de 5 anos), prontos para exportação em PDF A4 padrão CFP.",
   },
   {
-    question: "Posso usar no celular?",
+    question: "Como funciona o 'Modo Privacidade' durante os atendimentos?",
     answer:
-      "Sim. O PsiSetting é totalmente responsivo e funciona em qualquer navegador de smartphone, tablet ou computador. Não é necessário instalar nenhum aplicativo.",
+      "Com apenas um clique no ícone do 'olho' (ou tecla de atalho), o sistema aplica um desfoque instantâneo em todos os dados sensíveis na tela (nomes de pacientes, prontuários, valores). Você pode atender com seu computador aberto sem receio de que o paciente ou terceiros visualizem anotações sigilosas.",
   },
   {
-    question: "Como funciona o Modo Privacidade?",
+    question: "Como funciona a sincronização com a minha agenda do celular?",
     answer:
-      "Com um clique, o Modo Privacidade aplica um desfoque instantâneo em todos os dados sensíveis na tela — nomes de pacientes, prontuários e informações clínicas. Ideal para quando alguém se aproxima da sua tela durante um atendimento.",
+      "O PsiSetting gera um link seguro criptografado iCal (.ics) exclusivo para você. Basta adicioná-lo uma única vez ao Google Agenda (Android) ou Apple Calendário (iPhone). Suas sessões aparecem automaticamente no celular, sempre preservando a privacidade dos nomes dos pacientes.",
   },
   {
-    question: "Meus dados ficam armazenados onde?",
+    question: "Preciso instalar algum programa no computador?",
     answer:
-      "Os dados são armazenados em servidores seguros da Supabase (baseados na AWS), com criptografia em repouso e em trânsito. Cada profissional tem seus dados completamente isolados através de Row Level Security (RLS).",
+      "Não. O PsiSetting é 100% web e baseado em nuvem. Funciona diretamente no navegador do seu notebook, computador do consultório, iPad, tablet ou smartphone, com sincronização em tempo real.",
   },
   {
-    question: "Posso cancelar a qualquer momento?",
+    question: "Existe fidelidade ou contrato de permanência?",
     answer:
-      "Sim. Não há fidelidade, contratos ou multas. Você pode cancelar sua assinatura a qualquer momento diretamente nas configurações da sua conta.",
+      "Nenhuma fidelidade. A cobrança é mensal (R$ 49,90/mês) e você pode cancelar a qualquer momento diretamente nas configurações da sua conta, sem burocracia ou multas.",
   },
 ];
 
@@ -165,173 +174,217 @@ const jsonLdFAQ = {
   })),
 };
 
-/* ──────────────────────────── DATA ──────────────────────────── */
+/* ──────────────────────────── CFP MODELS DATA ──────────────────────────── */
+
+const cfpModels = [
+  {
+    id: "atestado",
+    name: "Atestado Psicológico",
+    badge: "Art. 10 - Res. 06/2019",
+    category: "Finalidade Específica",
+    description: "Certifica estado psicológico para justificar faltas, licenças ou aptidões.",
+    preview: {
+      title: "ATESTADO PSICOLÓGICO",
+      subtitle: "Conforme Resolução CFP nº 06/2019",
+      body: "Atesto, para os devidos fins a pedido da interessada, que a Sra. M. S. R., sob meus cuidados profissionais em psicoterapia, encontra-se em acompanhamento clínico regular. Recomenda-se o afastamento de suas atividades por período de 05 (cinco) dias a contar desta data.",
+      sections: ["Identificação Profissional & CRP", "Descrição Sintética do Estado", "Prazo ou Finalidade Recomendada", "Declaração de Guarda por 5 Anos"],
+    },
+  },
+  {
+    id: "relatorio",
+    name: "Relatório Psicológico",
+    badge: "Art. 11 - Res. 06/2019",
+    category: "Comunicação Técnica",
+    description: "Comunica histórico, procedimentos e encaminhamentos a outros profissionais.",
+    preview: {
+      title: "RELATÓRIO PSICOLÓGICO",
+      subtitle: "Conforme Resolução CFP nº 06/2019",
+      body: "O presente relatório tem por objetivo prestar informações acerca do processo terapêutico desenvolvido com a paciente. Foram realizadas 16 sessões semanais de abordagem cognitivo-comportamental, com foco no manejo de sintomas ansiosos e reestruturação cognitiva.",
+      sections: ["1. Identificação do Solicitante e Paciente", "2. Descrição da Demanda Clínica", "3. Procedimentos & Técnicas Empregadas", "4. Análise e Encaminhamentos Finais"],
+    },
+  },
+  {
+    id: "declaracao-comp",
+    name: "Declaração de Comparecimento",
+    badge: "Art. 9º - Res. 06/2019",
+    category: "Comprovação de Horário",
+    description: "Comprova presença do paciente ou acompanhante na data e horário da sessão.",
+    preview: {
+      title: "DECLARAÇÃO DE COMPARECIMENTO",
+      subtitle: "Conforme Resolução CFP nº 06/2019",
+      body: "Declaro, para os devidos fins de comprovação, que Mariana S. R. compareceu ao atendimento psicológico no dia 18/08/2026, no horário das 14:00 às 15:00 horas, sob meus cuidados profissionais.",
+      sections: ["Identificação do Paciente", "Data e Horário de Início e Término", "Carimbo com Nome e CRP", "Local e Data de Emissão"],
+    },
+  },
+  {
+    id: "declaracao-acomp",
+    name: "Declaração de Acompanhamento",
+    badge: "Art. 9º - Res. 06/2019",
+    category: "Processo em Andamento",
+    description: "Atesta que o paciente está em processo psicoterápico ativo e continuado.",
+    preview: {
+      title: "DECLARAÇÃO DE ACOMPANHAMENTO",
+      subtitle: "Conforme Resolução CFP nº 06/2019",
+      body: "Declaro que o(a) paciente acima qualificado(a) realiza acompanhamento psicológico regular neste consultório clínico, com frequência de sessões semanais, desde fevereiro de 2026 até a presente data.",
+      sections: ["Declaração de Vínculo Clínico", "Frequência dos Atendimentos", "Finalidade sem Quebra de Sigilo", "Assinatura do Profissional"],
+    },
+  },
+  {
+    id: "laudo",
+    name: "Laudo de Avaliação",
+    badge: "Art. 13 - Res. 06/2019",
+    category: "Avaliação Psicológica",
+    description: "Resultado aprofundado de processo de avaliação ou perícia psicológica.",
+    preview: {
+      title: "LAUDO PSICOLÓGICO",
+      subtitle: "Conforme Resolução CFP nº 06/2019",
+      body: "Trata-se de processo de avaliação psicológica estruturada conduzido em 6 encontros diagnósticos. Foram aplicadas entrevistas clínicas, escalas psicométricas validadas pelo SATEPSI e observação comportamental sistematizada.",
+      sections: ["1. Identificação Completa", "2. Descrição Minuciosa da Demanda", "3. Procedimentos & Instrumentos SATEPSI", "4. Análise Compreensiva & Conclusão"],
+    },
+  },
+];
+
+/* ──────────────────────────── FEATURES LIST ──────────────────────────── */
 
 const features = [
   {
     icon: FileText,
-    title: "Prontuário Eletrônico",
+    title: "Prontuário com Modo Privacidade",
     description:
-      "Registro de evolução por sessão com Modo Privacidade — ocultação instantânea de dados sensíveis em tela com um clique.",
-    accent: "from-emerald-500/20 to-emerald-600/5",
-    iconBg: "bg-emerald-500/12",
-    iconColor: "text-emerald-700",
+      "Registro confidencial por sessão com botão de ocultação rápida. Seus dados clínicos ficam protegidos até quando alguém se aproxima da tela.",
+    tag: "Sigilo Clínico",
+    tagColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    iconBg: "bg-emerald-500/15 text-emerald-700",
+    gradient: "from-emerald-500/10 via-transparent to-transparent",
   },
   {
     icon: FileCheck,
-    title: "Laudos Oficiais CFP",
+    title: "5 Modelos Oficiais CFP (Res. 06/2019)",
     description:
-      "5 modelos padronizados conforme Resolução CFP nº 06/2019 com preenchimento automático dos dados do profissional e paciente.",
-    accent: "from-amber-500/20 to-amber-600/5",
-    iconBg: "bg-amber-500/12",
-    iconColor: "text-amber-700",
+      "Declarações, Atestados, Relatórios e Laudos com tópicos obrigatórios pré-formatados. Preenchimento automático e exportação em PDF A4 impecável.",
+    tag: "Conformidade CFP",
+    tagColor: "bg-amber-100 text-amber-900 border-amber-200",
+    iconBg: "bg-amber-500/15 text-amber-700",
+    gradient: "from-amber-500/10 via-transparent to-transparent",
   },
   {
     icon: Calendar,
-    title: "Agenda Clínica",
+    title: "Agenda & Sincronização iCal",
     description:
-      "Visualização semanal e mensal com sincronização automática via iCal — Google Calendar e Apple Calendar.",
-    accent: "from-sky-500/20 to-sky-600/5",
-    iconBg: "bg-sky-500/12",
-    iconColor: "text-sky-700",
+      "Visualize horários no computador e receba alertas automáticos no iPhone ou Google Calendar com nomes compactados para proteger a identidade do paciente.",
+    tag: "Google & Apple",
+    tagColor: "bg-sky-100 text-sky-800 border-sky-200",
+    iconBg: "bg-sky-500/15 text-sky-700",
+    gradient: "from-sky-500/10 via-transparent to-transparent",
   },
   {
     icon: Users,
-    title: "Gestão de Pacientes",
+    title: "Gestão Humanizada de Pacientes",
     description:
-      "Cadastro completo, histórico de sessões e documentos, busca rápida e prontuários vinculados por paciente.",
-    accent: "from-violet-500/20 to-violet-600/5",
-    iconBg: "bg-violet-500/12",
-    iconColor: "text-violet-700",
+      "Ficha de contato, histórico cronológico de atendimentos, documentos emitidos, contatos de emergência e anotações clínicas em um só lugar.",
+    tag: "Organização",
+    tagColor: "bg-violet-100 text-violet-800 border-violet-200",
+    iconBg: "bg-violet-500/15 text-violet-700",
+    gradient: "from-violet-500/10 via-transparent to-transparent",
   },
   {
     icon: DollarSign,
-    title: "Controle Financeiro",
+    title: "Controle Financeiro de Sessões",
     description:
-      "Acompanhe recebimentos e pendências, relatórios mensais e status financeiro por sessão em tempo real.",
-    accent: "from-rose-500/20 to-rose-600/5",
-    iconBg: "bg-rose-500/12",
-    iconColor: "text-rose-700",
+      "Acompanhe recebimentos e pendências em tempo real. Veja o total pago no mês, valores a receber e emita recibos clínicos sem complicação.",
+    tag: "Financeiro",
+    tagColor: "bg-rose-100 text-rose-800 border-rose-200",
+    iconBg: "bg-rose-500/15 text-rose-700",
+    gradient: "from-rose-500/10 via-transparent to-transparent",
   },
   {
     icon: BookOpen,
-    title: "Diário de Bordo",
+    title: "Diário de Bordo & Supervisão",
     description:
-      "Espaço privado para anotações pessoais do psicólogo — insights clínicos, supervisão e reflexões por sessão.",
-    accent: "from-teal-500/20 to-teal-600/5",
-    iconBg: "bg-teal-500/12",
-    iconColor: "text-teal-700",
+      "Espaço confidencial exclusivo do psicólogo para registrar reflexões contratransferenciais, notas de supervisão e hipóteses teóricas.",
+    tag: "Reflexão Clínica",
+    tagColor: "bg-teal-100 text-teal-800 border-teal-200",
+    iconBg: "bg-teal-500/15 text-teal-700",
+    gradient: "from-teal-500/10 via-transparent to-transparent",
   },
 ];
 
-const painPoints = [
+/* ──────────────────────────── BEFORE VS AFTER ──────────────────────────── */
+
+const comparisonItems = [
   {
-    icon: ClipboardList,
-    title: "Prontuários soltos por todo lado",
-    description:
-      "Cadernos, planilhas, documentos no computador... informações clínicas espalhadas e sem padronização.",
+    before: "Cadernos de anotações, folhas soltas e pastas físicas acumulando poeira no consultório.",
+    after: "Prontuário digital centralizado, seguro e acessível de qualquer dispositivo com 1 clique.",
   },
   {
-    icon: Clock,
-    title: "Horas perdidas com burocracia",
-    description:
-      "Formatar laudos, declarações e atestados manualmente toda vez. Copiar dados, ajustar margens, conferir normas.",
+    before: "Formatação manual no Word toda vez que precisa de um laudo, com medo de descumprir o CFP.",
+    after: "5 modelos oficiais da Resolução CFP 06/2019 preenchidos automaticamente em menos de 1 minuto.",
   },
   {
-    icon: ShieldAlert,
-    title: "Receio constante com sigilo",
-    description:
-      "O medo de que alguém veja a tela. A preocupação com a fiscalização do CRP. A incerteza sobre a segurança digital.",
+    before: "Tensão de alguém olhar para a tela do computador durante a sessão ou na sala de espera.",
+    after: "Modo Privacidade com 1 clique: desfoque instantâneo de nomes, diagnósticos e valores.",
+  },
+  {
+    before: "Sessões esquecidas ou cobranças perdidas em anotações soltas e planilhas confusas.",
+    after: "Painel financeiro transparente: saiba exatamente o que foi recebido e o que está pendente no mês.",
+  },
+  {
+    before: "Agenda do consultório desconectada do calendário pessoal do celular.",
+    after: "Feed iCal sincronizado com iPhone e Google Agenda, preservando a confidencialidade do paciente.",
   },
 ];
 
-const securityItems = [
+/* ──────────────────────────── COMPLIANCE BADGES ──────────────────────────── */
+
+const compliancePoints = [
   {
-    icon: Lock,
-    title: "Criptografia AES-256",
-    description: "Dados clínicos criptografados ponta a ponta com chave exclusiva por profissional.",
+    title: "Criptografia AES-256 de Ponta a Ponta",
+    desc: "Chave exclusiva por psicólogo. O conteúdo clínico é ilegível até no banco de dados.",
+    icon: LockKeyhole,
+    highlight: "Segurança Bancária",
   },
   {
+    title: "Resolução CFP nº 06/2019 Integral",
+    desc: "Modelos oficiais, tópicos obrigatórios e guarda documental conforme o Código de Ética.",
     icon: Scale,
-    title: "Conformidade LGPD",
-    description: "Tratamento de dados alinhado à Lei Geral de Proteção de Dados.",
+    highlight: "Conformidade Ética",
   },
   {
+    title: "Adequação Total à LGPD",
+    desc: "Isolamento multi-tenant (RLS) que impede qualquer vazamento ou cruzamento de dados.",
     icon: Shield,
-    title: "Resoluções do CFP",
-    description: "Laudos e práticas conforme normativas do Conselho Federal de Psicologia.",
+    highlight: "Proteção de Dados",
   },
   {
-    icon: Database,
-    title: "Isolamento de Dados",
-    description: "Row Level Security — cada profissional acessa apenas seus próprios dados.",
-  },
-  {
+    title: "Timeout de Sessão por Inatividade",
+    desc: "Bloqueio automático após 30 minutos de ausência para impedir acessos indevidos.",
     icon: Timer,
-    title: "Timeout Automático",
-    description: "Sessão encerrada automaticamente após 30 minutos de inatividade.",
-  },
-  {
-    icon: Eye,
-    title: "Modo Privacidade",
-    description: "Desfoque instantâneo de dados sensíveis na tela com um clique.",
+    highlight: "Proteção Física",
   },
 ];
 
-const planFeatures = [
-  "Pacientes ilimitados",
-  "Prontuários por sessão",
-  "5 modelos de laudos CFP 06/2019",
-  "Agenda com sincronização iCal",
-  "Controle financeiro completo",
-  "Modo Privacidade",
-  "Diário de Bordo",
-  "Criptografia AES-256",
-  "Conformidade LGPD",
-  "Suporte por e-mail",
-];
-
-/* ──────────────────────────── FAQ ACCORDION ──────────────────────────── */
-
-function FAQItem({ question, answer, index }: { question: string; answer: string; index: number }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Reveal delay={index * 60}>
-      <div className="border border-border/50 rounded-xl mb-3 overflow-hidden bg-surface/80 backdrop-blur-sm hover:border-primary/25 transition-all duration-300">
-        <button
-          onClick={() => setOpen(!open)}
-          className="w-full flex items-center justify-between py-4.5 px-5 text-left group cursor-pointer"
-          aria-expanded={open}
-        >
-          <span className="text-[15px] font-medium text-text group-hover:text-primary transition-colors pr-4">
-            {question}
-          </span>
-          <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${open ? "bg-primary/15 rotate-180" : "bg-background"}`}>
-            <ChevronDown size={15} className={`transition-colors ${open ? "text-primary" : "text-text-muted"}`} />
-          </div>
-        </button>
-        <div
-          className={`overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? "max-h-60" : "max-h-0"}`}
-        >
-          <p className="text-sm text-text-muted leading-relaxed px-5 pb-5">{answer}</p>
-        </div>
-      </div>
-    </Reveal>
-  );
-}
-
-/* ──────────────────────────── MAIN PAGE ──────────────────────────── */
+/* ──────────────────────────── MAIN COMPONENT ──────────────────────────── */
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // Interactive Privacy Simulator State
+  const [isPrivacyActive, setIsPrivacyActive] = useState(false);
+
+  // Interactive CFP Model Tab State
+  const [activeCfpTab, setActiveCfpTab] = useState(cfpModels[0].id);
+
+  // FAQ Accordion State
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const selectedCfpModel = cfpModels.find((m) => m.id === activeCfpTab) || cfpModels[0];
 
   return (
     <>
@@ -357,31 +410,59 @@ export default function LandingPage() {
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-surface/85 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b border-border/30"
+            ? "bg-surface/90 backdrop-blur-xl shadow-xs border-b border-border/60"
             : "bg-transparent"
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/landing" className="shrink-0">
+          <Link href="/landing" className="shrink-0 flex items-center gap-2">
             <PsiSettingBrand size="md" />
           </Link>
 
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-8">
-            {["Funcionalidades", "Segurança", "Preço", "FAQ"].map((label) => (
-              <a
-                key={label}
-                href={`#${label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`}
-                className="text-[13px] font-medium text-text-muted hover:text-text transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 hover:after:scale-x-100 after:origin-left"
-              >
-                {label}
-              </a>
-            ))}
+          {/* Desktop nav links */}
+          <div className="hidden md:flex items-center gap-7">
+            <a
+              href="#demonstracao"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              Simulador
+            </a>
+            <a
+              href="#modelos-cfp"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              Modelos CFP
+            </a>
+            <a
+              href="#funcionalidades"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              Módulos
+            </a>
+            <a
+              href="#seguranca"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              Segurança & Ética
+            </a>
+            <a
+              href="#preco"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              Planos
+            </a>
+            <a
+              href="#faq"
+              className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
+            >
+              FAQ
+            </a>
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark hover:shadow-md transition-all duration-200"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark shadow-xs hover:shadow-md transition-all duration-200"
             >
-              Começar Agora
+              <span>Acessar Consultório</span>
+              <ArrowRight size={15} />
             </Link>
           </div>
 
@@ -396,175 +477,471 @@ export default function LandingPage() {
         </div>
 
         {/* Mobile menu */}
-        <div
-          className={`md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            mobileMenuOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="bg-surface/95 backdrop-blur-2xl border-t border-border/30 px-4 py-4 flex flex-col gap-1">
-            {[
-              { label: "Funcionalidades", href: "#funcionalidades" },
-              { label: "Segurança", href: "#seguranca" },
-              { label: "Preço", href: "#preco" },
-              { label: "FAQ", href: "#faq" },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-text-muted hover:text-text hover:bg-background/60 rounded-lg py-2.5 px-3 transition-all"
-              >
-                {item.label}
-              </a>
-            ))}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-surface border-t border-border/60 shadow-lg px-4 py-4 flex flex-col gap-2">
+            <a
+              href="#demonstracao"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              Simulador Interativo
+            </a>
+            <a
+              href="#modelos-cfp"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              Modelos CFP 06/2019
+            </a>
+            <a
+              href="#funcionalidades"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              Módulos Clínicos
+            </a>
+            <a
+              href="#seguranca"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              Segurança & Ética
+            </a>
+            <a
+              href="#preco"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              Preço
+            </a>
+            <a
+              href="#faq"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
+            >
+              FAQ
+            </a>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-all mt-2"
+              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark mt-2"
             >
-              Começar Agora
+              Acessar Consultório
             </Link>
           </div>
-        </div>
+        )}
       </nav>
 
-      {/* ───────── HERO ───────── */}
-      <section className="relative pt-28 pb-8 sm:pt-32 lg:pt-36 overflow-hidden min-h-[90vh] flex items-center">
-        {/* Background elements */}
+      {/* ───────── HERO SECTION (INTERACTIVE LIVE CLINICAL HUB) ───────── */}
+      <section className="relative pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden">
+        {/* Colorful background gradients */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-gradient-radial from-primary/[0.07] via-transparent to-transparent rounded-full blur-3xl" />
-          <div className="absolute top-40 right-0 w-[300px] h-[300px] rounded-full bg-secondary/[0.08] blur-3xl" />
-          <div className="absolute bottom-0 left-10 w-[250px] h-[250px] rounded-full bg-primary/[0.05] blur-3xl" />
-          {/* Floating decorative shapes */}
-          <div className="absolute top-32 left-[8%] w-3 h-3 rounded-full bg-primary/20 animate-[float_6s_ease-in-out_infinite]" />
-          <div className="absolute top-48 right-[12%] w-2 h-2 rounded-full bg-secondary/30 animate-[float_8s_ease-in-out_infinite_1s]" />
-          <div className="absolute bottom-40 left-[15%] w-2.5 h-2.5 rounded-full bg-primary/15 animate-[float_7s_ease-in-out_infinite_2s]" />
-          <div className="absolute top-60 left-[25%] w-1.5 h-1.5 rounded-full bg-secondary/25 animate-[float_5s_ease-in-out_infinite_0.5s]" />
+          <div className="absolute top-10 left-1/4 w-[550px] h-[550px] rounded-full bg-primary/10 blur-[100px]" />
+          <div className="absolute top-32 right-10 w-[450px] h-[450px] rounded-full bg-secondary/15 blur-[90px]" />
+          <div className="absolute bottom-10 left-10 w-[350px] h-[350px] rounded-full bg-emerald-500/10 blur-[80px]" />
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
-            {/* Left — Text */}
-            <div className="max-w-xl">
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+            {/* LADO ESQUERDO: Headline & Proposta de Valor */}
+            <div className="lg:col-span-6 space-y-6">
               <Reveal>
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.08] text-primary text-xs font-medium mb-6 border border-primary/[0.12] backdrop-blur-sm">
-                  <Sparkles size={13} />
-                  <span>Gestão Clínica para Psicólogos</span>
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-wide shadow-2xs">
+                  <Sparkles size={14} className="text-secondary" />
+                  <span>SaaS de Gestão Clínica Ética</span>
                 </div>
               </Reveal>
 
               <Reveal delay={80}>
-                <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-serif font-semibold text-text leading-[1.18] tracking-tight">
-                  O <em className="not-italic text-primary">setting</em> terapêutico{" "}
-                  do seu consultório, agora também digital.
+                <h1 className="text-3xl sm:text-4xl lg:text-[2.85rem] font-serif font-bold text-text leading-[1.18] tracking-tight">
+                  O <span className="text-primary font-serif italic">setting</span> terapêutico do seu consultório, agora{" "}
+                  <span className="text-secondary underline decoration-secondary/40 underline-offset-8">seguro e digital.</span>
                 </h1>
               </Reveal>
 
               <Reveal delay={160}>
-                <p className="mt-5 text-base sm:text-[17px] text-text-muted leading-relaxed">
-                  Prontuários, laudos, agenda e financeiro — tudo em um só lugar, seguro e em conformidade
-                  com o CFP. Para que seu foco seja apenas a escuta.
+                <p className="text-base sm:text-lg text-text-muted leading-relaxed max-w-xl">
+                  Prontuários protegidos por criptografia, <strong>5 modelos oficiais CFP (Res. 06/2019)</strong>, agenda com sincronização iCal e controle financeiro. Elimine a burocracia para que seu foco seja 100% a escuta.
                 </p>
               </Reveal>
 
-              <Reveal delay={240}>
-                <div className="mt-8 flex flex-col sm:flex-row items-start gap-3">
-                  <Link
-                    href="/login"
-                    className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_6px_24px_rgba(110,115,96,0.35)] text-[15px]"
-                  >
-                    Começar Agora
-                    <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                  <a
-                    href="#funcionalidades"
-                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-text font-semibold border border-border/70 hover:border-primary/30 hover:bg-surface/60 backdrop-blur-sm transition-all text-[15px]"
-                  >
-                    Ver Funcionalidades
-                  </a>
+              {/* Checklist de Destaques Rápidos */}
+              <Reveal delay={220}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                  <div className="flex items-center gap-2 text-xs font-medium text-text">
+                    <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+                      <Check size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Resolução CFP nº 06/2019</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium text-text">
+                    <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+                      <Check size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Criptografia AES-256 Real</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium text-text">
+                    <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+                      <Check size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Modo Privacidade com 1 Clique</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium text-text">
+                    <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+                      <Check size={13} strokeWidth={2.5} />
+                    </div>
+                    <span>Sincronização iPhone & Google</span>
+                  </div>
                 </div>
               </Reveal>
 
-              <Reveal delay={320}>
-                <div className="mt-8 flex items-center gap-6 text-xs text-text-muted">
-                  <div className="flex items-center gap-1.5">
-                    <Shield size={13} className="text-primary" />
-                    <span>Conforme LGPD</span>
+              {/* Botões CTA */}
+              <Reveal delay={280}>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark shadow-sm hover:shadow-md transition-all text-base group"
+                  >
+                    <span>Começar Gratuitamente</span>
+                    <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                  <a
+                    href="#demonstracao"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-surface border border-border text-text font-semibold hover:bg-background hover:border-primary/40 transition-all text-base shadow-2xs"
+                  >
+                    <Eye size={17} className="text-primary" />
+                    <span>Testar Simulador</span>
+                  </a>
+                </div>
+                <p className="text-xs text-text-muted pt-2 flex items-center gap-1.5">
+                  <Lock size={12} className="text-emerald-600" />
+                  <span>Sem cartão de crédito. Cancele quando quiser por R$ 49,90/mês.</span>
+                </p>
+              </Reveal>
+            </div>
+
+            {/* LADO DIREITO: HUB INTERATIVO (SIMULADOR DO MODO PRIVACIDADE & CHECKLIST VIVO) */}
+            <div className="lg:col-span-6" id="demonstracao">
+              <Reveal delay={200}>
+                <div className="relative rounded-3xl bg-surface border border-border/80 shadow-[0_12px_40px_rgba(0,0,0,0.08)] p-6 sm:p-7 overflow-hidden">
+                  {/* Top Bar do Card Interativo */}
+                  <div className="flex items-center justify-between pb-4 border-b border-border/60">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-serif font-bold text-sm">
+                        Ψ
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-text">Setting Clínico Digital</h3>
+                        <p className="text-[11px] text-text-muted">Demonstração Interativa ao Vivo</p>
+                      </div>
+                    </div>
+
+                    {/* Status da Criptografia */}
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                      <Lock size={11} className="text-emerald-600" />
+                      <span>AES-256 Ativo</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Lock size={13} className="text-primary" />
-                    <span>AES-256</span>
+
+                  {/* MINI-PRONTUÁRIO INTERATIVO */}
+                  <div className="mt-5 rounded-2xl bg-background border border-border/70 p-4.5 space-y-3.5 relative">
+                    {/* Cabeçalho do Prontuário Simulado */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-secondary/20 text-secondary flex items-center justify-center font-bold text-xs">
+                          MR
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold text-text ${isPrivacyActive ? "sensitive-data" : ""}`}>
+                              Mariana R. S. (28 anos)
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-medium">
+                              Sessão #14
+                            </span>
+                          </div>
+                          <p className={`text-[11px] text-text-muted ${isPrivacyActive ? "sensitive-data" : ""}`}>
+                            Demanda: Ansiedade Generalizada & Conflito Familiar
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-text-muted">14:00h</span>
+                    </div>
+
+                    {/* Registro Clínico Confidencial (com blur reativo) */}
+                    <div className="p-3 rounded-xl bg-surface border border-border/50 text-xs leading-relaxed text-text">
+                      <p className="font-semibold text-text-muted text-[10px] uppercase tracking-wider mb-1">
+                        Evolução Clínica da Sessão
+                      </p>
+                      <p className={`transition-all duration-300 ${isPrivacyActive ? "sensitive-data select-none" : ""}`}>
+                        &ldquo;Paciente relata avanço no manejo das crises noturnas após técnicas de ancoragem. 
+                        Discutida a relação com a figura materna e estabelecimento de limites assertivos. 
+                        Humor eutímico, com boa adesão terapêutica.&rdquo;
+                      </p>
+                    </div>
+
+                    {/* Alerta de Sigilo no Prontuário */}
+                    <div className="flex items-center justify-between text-[11px] pt-1">
+                      <span className="text-text-muted">Status do Sigilo em Tela:</span>
+                      <span
+                        className={`inline-flex items-center gap-1 font-semibold ${
+                          isPrivacyActive ? "text-emerald-700" : "text-amber-700"
+                        }`}
+                      >
+                        {isPrivacyActive ? (
+                          <>
+                            <CheckCircle2 size={13} className="text-emerald-600" />
+                            <span>Protegido (Ocultado)</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={13} className="text-amber-600" />
+                            <span>Visível em Tela</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Scale size={13} className="text-primary" />
-                    <span>CFP 06/2019</span>
+
+                  {/* BOTÃO INTERATIVO DE CONTROLE DO MODO PRIVACIDADE */}
+                  <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-surface to-secondary/10 border border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-2 rounded-xl transition-colors ${isPrivacyActive ? "bg-emerald-600 text-white" : "bg-primary text-white"}`}>
+                        {isPrivacyActive ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-text">Clique para Testar o Modo Privacidade</p>
+                        <p className="text-[11px] text-text-muted">Simule o que acontece se alguém se aproximar</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsPrivacyActive(!isPrivacyActive)}
+                      className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 ${
+                        isPrivacyActive
+                          ? "bg-emerald-700 text-white hover:bg-emerald-800 ring-2 ring-emerald-400/40"
+                          : "bg-primary text-white hover:bg-primary-dark ring-2 ring-primary/30"
+                      }`}
+                    >
+                      {isPrivacyActive ? (
+                        <>
+                          <Eye size={14} />
+                          <span>Desativar Desfoque</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff size={14} />
+                          <span>Ativar Desfoque</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Checklist Dinâmico com Benefícios Clínicos */}
+                  <div className="mt-5 grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-text">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                      <span>Guarda Ética por 5 Anos</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-text">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                      <span>Assinatura Digital & CRP</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-text">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                      <span>Isolamento RLS por Psicólogo</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-text">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                      <span>Backup Automático em Nuvem</span>
+                    </div>
                   </div>
                 </div>
               </Reveal>
             </div>
+          </div>
+        </div>
+      </section>
 
-            {/* Right — Dashboard Mockup with 3D perspective */}
-            <Reveal delay={200} className="relative lg:pl-4">
-              <div className="relative">
-                {/* Glow behind mockup */}
-                <div className="absolute -inset-6 bg-gradient-to-br from-primary/[0.08] via-transparent to-secondary/[0.06] rounded-3xl blur-2xl" />
+      {/* ───────── SEÇÃO 2: COMPARATIVO ANTES vs. DEPOIS ───────── */}
+      <section className="py-20 sm:py-28 bg-surface border-y border-border/60">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center max-w-2xl mx-auto mb-14">
+              <span className="text-xs font-bold uppercase tracking-wider text-secondary px-3 py-1 rounded-full bg-secondary/15 border border-secondary/20">
+                Transformação da Rotina
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-text mt-3">
+                Sua prática clínica: Como é hoje vs. Com o PsiSetting
+              </h2>
+              <p className="text-sm sm:text-base text-text-muted mt-2">
+                A psicologia exige entrega emocional. A burocracia não deveria consumir suas noites e fins de semana.
+              </p>
+            </div>
+          </Reveal>
 
-                {/* 3D perspective container */}
-                <div
-                  className="relative rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.06)] border border-border/30 bg-surface"
-                  style={{
-                    transform: "perspective(1200px) rotateY(-6deg) rotateX(2deg)",
-                    transformOrigin: "center center",
-                  }}
-                >
-                  {/* Browser chrome */}
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F2F0EC] border-b border-border/30">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
+          <div className="grid md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto">
+            {/* CARD ANTES (O Caos Tradicional) */}
+            <Reveal delay={100}>
+              <div className="h-full rounded-3xl bg-rose-50/50 border border-rose-200/80 p-6 sm:p-8 space-y-4 shadow-2xs">
+                <div className="flex items-center gap-3 pb-3 border-b border-rose-200/60">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                    <FolderX size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-rose-950">A Rotina Sem o PsiSetting</h3>
+                    <p className="text-xs text-rose-700">Atrito burocrático e insegurança ética</p>
+                  </div>
+                </div>
+
+                <ul className="space-y-3.5 pt-2">
+                  {comparisonItems.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-rose-900/90 leading-relaxed">
+                      <X size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                      <span>{item.before}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+
+            {/* CARD DEPOIS (O Setting Estruturado) */}
+            <Reveal delay={200}>
+              <div className="h-full rounded-3xl bg-emerald-50/60 border-2 border-emerald-300 p-6 sm:p-8 space-y-4 shadow-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-xl bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                  Recomendado
+                </div>
+
+                <div className="flex items-center gap-3 pb-3 border-b border-emerald-200/80">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <FileCheck2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-emerald-950">Com o PsiSetting</h3>
+                    <p className="text-xs text-emerald-700 font-medium">Tranquilidade ética e foco na escuta</p>
+                  </div>
+                </div>
+
+                <ul className="space-y-3.5 pt-2">
+                  {comparisonItems.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-emerald-950 leading-relaxed font-medium">
+                      <CheckCircle2 size={16} className="text-emerald-700 shrink-0 mt-0.5" />
+                      <span>{item.after}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── SEÇÃO 3: VITRINE INTERATIVA DOS 5 MODELOS CFP (RES. 06/2019) ───────── */}
+      <section className="py-20 sm:py-28" id="modelos-cfp">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800 px-3 py-1 rounded-full bg-amber-100 border border-amber-200">
+                Resolução CFP nº 06/2019
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-text mt-3">
+                Os 5 Documentos Oficiais Prontos para Emitir
+              </h2>
+              <p className="text-sm sm:text-base text-text-muted mt-2">
+                Nunca mais perca tempo formatando margens ou temendo fiscalizações. Todos os modelos oficiais estruturados conforme a legislação ética do CFP.
+              </p>
+            </div>
+          </Reveal>
+
+          {/* SELETOR DE ABAS INTERATIVO DOS MODELOS */}
+          <div className="max-w-4xl mx-auto">
+            <div className="flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-surface border border-border/80 shadow-2xs mb-8">
+              {cfpModels.map((model) => {
+                const isActive = activeCfpTab === model.id;
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => setActiveCfpTab(model.id)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? "bg-primary text-white shadow-xs"
+                        : "text-text-muted hover:text-text hover:bg-background"
+                    }`}
+                  >
+                    <span>{model.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* PREVIEW DO DOCUMENTO SELECIONADO (SIMULAÇÃO DE FOLHA A4 TIMBRADA) */}
+            <Reveal delay={100}>
+              <div className="rounded-3xl bg-surface border border-border/80 shadow-lg p-6 sm:p-10 relative overflow-hidden">
+                {/* Faixa decorativa superior */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-primary to-secondary" />
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-6 border-b border-border/60">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                      {selectedCfpModel.badge}
+                    </span>
+                    <h3 className="text-xl font-serif font-bold text-text mt-1.5">
+                      {selectedCfpModel.name}
+                    </h3>
+                    <p className="text-xs text-text-muted mt-0.5">{selectedCfpModel.description}</p>
+                  </div>
+
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
+                  >
+                    <span>Emitir no Sistema</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+
+                {/* Estrutura Oficial Exigida pelo CFP */}
+                <div className="mt-6 grid sm:grid-cols-12 gap-6">
+                  {/* Lado Esquerdo: Seções Obrigatórias */}
+                  <div className="sm:col-span-5 space-y-3">
+                    <p className="text-xs font-bold uppercase text-text tracking-wide">
+                      Tópicos Normativos Obrigatórios:
+                    </p>
+                    <div className="space-y-2">
+                      {selectedCfpModel.preview.sections.map((sec, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2.5 rounded-xl bg-background border border-border/60 text-xs font-medium text-text">
+                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                          <span>{sec}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex-1 flex justify-center">
-                      <div className="px-6 py-1 rounded-md bg-white/70 text-[11px] text-text-muted border border-border/30 font-mono">
-                        app.psisetting.com.br
+                  </div>
+
+                  {/* Lado Direito: Preview da Folha Timbrada */}
+                  <div className="sm:col-span-7 bg-[#FBFBFA] border border-border/80 rounded-2xl p-5 shadow-inner space-y-3 font-serif">
+                    <div className="text-center border-b border-border/40 pb-2">
+                      <p className="text-xs font-bold tracking-widest text-text">
+                        {selectedCfpModel.preview.title}
+                      </p>
+                      <p className="text-[10px] text-text-muted font-sans">
+                        {selectedCfpModel.preview.subtitle}
+                      </p>
+                    </div>
+
+                    <p className="text-xs text-text leading-relaxed text-justify italic">
+                      &ldquo;{selectedCfpModel.preview.body}&rdquo;
+                    </p>
+
+                    <div className="pt-3 border-t border-border/40 flex justify-between items-end text-[10px] font-sans text-text-muted">
+                      <div>
+                        <p className="font-bold text-text">HELLEN K. L. SILVA</p>
+                        <p>Psicóloga Clínica — CRP 07/XXXXX</p>
                       </div>
+                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        Exportação em PDF A4
+                      </span>
                     </div>
-                  </div>
-
-                  {/* Dashboard image */}
-                  <Image
-                    src="/dashboard-preview.jpg"
-                    alt="Dashboard do PsiSetting — Gestão clínica para psicólogos"
-                    width={800}
-                    height={533}
-                    className="w-full h-auto"
-                    priority
-                  />
-                </div>
-
-                {/* Floating accent cards */}
-                <div
-                  className="absolute -bottom-4 -left-6 bg-surface/90 backdrop-blur-xl rounded-xl shadow-lg border border-border/30 px-4 py-3 flex items-center gap-3"
-                  style={{ transform: "perspective(800px) rotateY(4deg)" }}
-                >
-                  <div className="w-9 h-9 rounded-lg bg-success/15 flex items-center justify-center">
-                    <Lock size={16} className="text-success" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-text">Criptografia AES-256</p>
-                    <p className="text-[10px] text-text-muted">Dados protegidos</p>
-                  </div>
-                </div>
-
-                <div
-                  className="absolute -top-3 -right-4 bg-surface/90 backdrop-blur-xl rounded-xl shadow-lg border border-border/30 px-4 py-3 flex items-center gap-3"
-                  style={{ transform: "perspective(800px) rotateY(-4deg)" }}
-                >
-                  <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center">
-                    <Eye size={16} className="text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-text">Modo Privacidade</p>
-                    <p className="text-[10px] text-text-muted">Sigilo em 1 clique</p>
                   </div>
                 </div>
               </div>
@@ -573,31 +950,44 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ───────── DOR / PROBLEMA ───────── */}
-      <section className="py-24 sm:py-32 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-surface/50 to-surface" />
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ───────── SEÇÃO 4: FUNCIONALIDADES / MÓDULOS ESSENCIAIS ───────── */}
+      <section className="py-20 sm:py-28 bg-surface border-t border-border/60" id="funcionalidades">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal>
-            <div className="text-center mb-16">
-              <p className="text-xs font-semibold text-secondary uppercase tracking-widest mb-3">O problema</p>
-              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
-                A dor que você conhece bem
+            <div className="text-center max-w-2xl mx-auto mb-14">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                Tudo em um Só Lugar
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-text mt-3">
+                Módulos pensados exclusivamente para a clínica psicológica
               </h2>
-              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
-                O trabalho clínico já exige presença total. A burocracia não deveria competir com a escuta.
+              <p className="text-sm sm:text-base text-text-muted mt-2">
+                Esqueça os sistemas genéricos para médicos ou dentistas. Cada fluxo do PsiSetting respeita o sigilo e o tempo da psicoterapia.
               </p>
             </div>
           </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-5">
-            {painPoints.map((item, i) => (
-              <Reveal key={item.title} delay={i * 100}>
-                <div className="bg-surface/80 backdrop-blur-sm rounded-2xl p-7 border border-border/40 hover:border-secondary/30 hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] transition-all duration-500 group h-full">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300">
-                    <item.icon size={22} className="text-secondary" strokeWidth={1.6} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((item, idx) => (
+              <Reveal key={item.title} delay={idx * 70}>
+                <div className={`h-full rounded-3xl bg-gradient-to-b ${item.gradient} bg-background border border-border/80 hover:border-primary/40 p-6 sm:p-7 space-y-4 shadow-2xs hover:shadow-md transition-all duration-300 group`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`w-12 h-12 rounded-2xl ${item.iconBg} flex items-center justify-center transition-transform group-hover:scale-110 duration-300`}>
+                      <item.icon size={24} />
+                    </div>
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${item.tagColor}`}>
+                      {item.tag}
+                    </span>
                   </div>
-                  <h3 className="text-[15px] font-semibold text-text mb-2.5">{item.title}</h3>
-                  <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
+
+                  <div>
+                    <h3 className="text-base font-bold text-text group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-text-muted leading-relaxed mt-2">
+                      {item.description}
+                    </p>
+                  </div>
                 </div>
               </Reveal>
             ))}
@@ -605,86 +995,68 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ───────── FUNCIONALIDADES ───────── */}
-      <section id="funcionalidades" className="py-24 sm:py-32 bg-surface scroll-mt-20 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/[0.03] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-secondary/[0.04] rounded-full blur-3xl" />
+      {/* ───────── SEÇÃO 5: SEGURANÇA NOBRE & ÉTICA (BLOCO ESCURO DE ALTO IMPACTO) ───────── */}
+      <section className="py-20 sm:py-28 bg-[#1B261A] text-white relative overflow-hidden" id="seguranca">
+        {/* Glows verdes sutis no fundo escuro */}
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-emerald-500/10 blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
 
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Reveal>
-            <div className="text-center mb-16">
-              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Funcionalidades</p>
-              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
-                Tudo que seu consultório precisa
-              </h2>
-              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
-                Do prontuário ao financeiro, cada módulo foi pensado por e para psicólogos.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {features.map((feat, i) => (
-              <Reveal key={feat.title} delay={i * 80}>
-                <div className="relative bg-background/80 backdrop-blur-sm rounded-2xl p-7 border border-border/40 hover:border-primary/20 hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] transition-all duration-500 group h-full overflow-hidden">
-                  {/* Subtle gradient accent */}
-                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feat.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-
-                  <div className={`w-12 h-12 rounded-xl ${feat.iconBg} flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300`}>
-                    <feat.icon size={22} className={feat.iconColor} strokeWidth={1.6} />
-                  </div>
-                  <h3 className="text-[15px] font-semibold text-text mb-2.5">{feat.title}</h3>
-                  <p className="text-sm text-text-muted leading-relaxed">{feat.description}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───────── SEGURANÇA ───────── */}
-      <section id="seguranca" className="py-24 sm:py-32 scroll-mt-20 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/[0.03]" />
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left text */}
-            <div>
+          <div className="grid lg:grid-cols-12 gap-12 items-center">
+            {/* Lado Esquerdo: Declaração de Compromisso Ético */}
+            <div className="lg:col-span-5 space-y-6">
               <Reveal>
-                <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Segurança</p>
-                <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text leading-tight">
-                  Segurança e conformidade que você pode confiar
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 text-xs font-semibold">
+                  <Lock size={13} />
+                  <span>Segurança e Sigilo Inviolável</span>
+                </div>
+              </Reveal>
+
+              <Reveal delay={80}>
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold leading-tight">
+                  Seus prontuários protegidos com o mesmo rigor ético do consultório.
                 </h2>
-                <p className="mt-4 text-text-muted text-[15px] leading-relaxed">
-                  Seus dados clínicos protegidos com o mesmo rigor ético do setting presencial.
-                  Cada camada de segurança foi projetada para que você atenda com tranquilidade.
+              </Reveal>
+
+              <Reveal delay={160}>
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
+                  O Código de Ética Profissional do Psicólogo exige a guarda confidencial dos registros clínicos. Desenvolvemos o PsiSetting com blindagem criptográfica avançada para que você atenda com total tranquilidade.
                 </p>
               </Reveal>
 
-              <Reveal delay={150}>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  {["LGPD", "CFP", "AES-256", "RLS"].map((badge) => (
-                    <span
-                      key={badge}
-                      className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-primary/[0.08] text-primary text-xs font-bold border border-primary/[0.12] tracking-wide"
-                    >
-                      {badge}
-                    </span>
-                  ))}
+              <Reveal delay={220}>
+                <div className="pt-2 flex flex-wrap gap-2.5">
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-emerald-300 border border-white/10">
+                    🔒 AES-256 Bit
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-amber-300 border border-white/10">
+                    📜 CFP 06/2019
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-sky-300 border border-white/10">
+                    🛡️ LGPD Compliant
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-rose-300 border border-white/10">
+                    ⏱️ Auto-Timeout
+                  </span>
                 </div>
               </Reveal>
             </div>
 
-            {/* Right grid */}
-            <div className="grid grid-cols-2 gap-3.5">
-              {securityItems.map((item, i) => (
-                <Reveal key={item.title} delay={i * 70}>
-                  <div className="bg-surface/80 backdrop-blur-sm rounded-xl p-5 border border-border/40 hover:border-primary/20 hover:shadow-[0_8px_24px_rgba(0,0,0,0.05)] transition-all duration-400 group h-full">
-                    <div className="w-10 h-10 rounded-lg bg-primary/[0.08] flex items-center justify-center mb-3 group-hover:bg-primary/[0.12] transition-colors duration-300">
-                      <item.icon size={18} className="text-primary" strokeWidth={1.6} />
+            {/* Lado Direito: Grid com os 4 Pilares Técnicos */}
+            <div className="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+              {compliancePoints.map((pt, i) => (
+                <Reveal key={pt.title} delay={i * 80}>
+                  <div className="h-full rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/40 p-5 space-y-2.5 backdrop-blur-xs transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <pt.icon size={20} />
+                      </div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                        {pt.highlight}
+                      </span>
                     </div>
-                    <h3 className="text-[13px] font-semibold text-text mb-1">{item.title}</h3>
-                    <p className="text-xs text-text-muted leading-relaxed">{item.description}</p>
+                    <h3 className="text-sm font-bold text-white pt-1">{pt.title}</h3>
+                    <p className="text-xs text-gray-300 leading-relaxed">{pt.desc}</p>
                   </div>
                 </Reveal>
               ))}
@@ -693,231 +1065,179 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ───────── COMO FUNCIONA ───────── */}
-      <section className="py-24 sm:py-32 bg-surface relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-3xl" />
-
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ───────── SEÇÃO 6: PLANO ÚNICO & PREÇO CLARO ───────── */}
+      <section className="py-20 sm:py-28" id="preco">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal>
-            <div className="text-center mb-16">
-              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Como funciona</p>
-              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
-                Comece em 3 passos
+            <div className="text-center max-w-xl mx-auto mb-14">
+              <span className="text-xs font-bold uppercase tracking-wider text-secondary px-3 py-1 rounded-full bg-secondary/15 border border-secondary/20">
+                Investimento Simples
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-text mt-3">
+                Apenas um plano. Tudo incluso, sem taxas ocultas.
               </h2>
-            </div>
-          </Reveal>
-
-          <div className="grid md:grid-cols-3 gap-0">
-            {[
-              {
-                step: "1",
-                title: "Crie sua conta",
-                description: "Cadastro rápido com Google ou e-mail. Sem cartão de crédito.",
-              },
-              {
-                step: "2",
-                title: "Cadastre seus pacientes",
-                description: "Registre um a um, no seu ritmo. Simples e intuitivo.",
-              },
-              {
-                step: "3",
-                title: "Foque no que importa",
-                description: "A escuta. O PsiSetting cuida do resto.",
-              },
-            ].map((item, i) => (
-              <Reveal key={item.step} delay={i * 120}>
-                <div className="text-center relative px-6 py-6">
-                  {/* Connector line */}
-                  {i < 2 && (
-                    <div className="hidden md:block absolute top-[52px] left-[calc(50%+40px)] w-[calc(100%-80px)] h-px bg-gradient-to-r from-primary/20 to-primary/5" />
-                  )}
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-primary mb-5 mx-auto border border-primary/10 shadow-[0_4px_16px_rgba(110,115,96,0.1)]">
-                    <span className="text-xl font-serif font-bold">{item.step}</span>
-                  </div>
-                  <h3 className="text-base font-semibold text-text mb-2">{item.title}</h3>
-                  <p className="text-sm text-text-muted leading-relaxed max-w-[220px] mx-auto">{item.description}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───────── PREÇO ───────── */}
-      <section id="preco" className="py-24 sm:py-32 scroll-mt-20 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-primary/[0.03]" />
-        <div className="absolute top-20 right-[10%] w-2 h-2 rounded-full bg-primary/15 animate-[float_6s_ease-in-out_infinite]" />
-        <div className="absolute bottom-20 left-[15%] w-3 h-3 rounded-full bg-secondary/15 animate-[float_8s_ease-in-out_infinite_1s]" />
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Reveal>
-            <div className="text-center mb-16">
-              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Preço</p>
-              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
-                Um plano. Tudo incluso.
-              </h2>
-              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
-                Sem surpresas, sem funcionalidades bloqueadas. Acesso completo a todas as ferramentas.
+              <p className="text-sm sm:text-base text-text-muted mt-2">
+                Menos que o valor de meia sessão terapêutica para manter seu consultório 100% organizado e ético.
               </p>
             </div>
           </Reveal>
 
+          {/* CARD DE PREÇO ÚNICO */}
           <Reveal delay={100}>
-            <div className="max-w-md mx-auto">
-              <div className="relative bg-surface rounded-2xl border border-primary/20 p-8 sm:p-10 shadow-[0_16px_48px_rgba(110,115,96,0.1),0_4px_12px_rgba(0,0,0,0.04)] overflow-hidden">
-                {/* Top gradient accent */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-
-                {/* Badge */}
-                <div className="flex justify-center mb-6">
-                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/15">
-                    <Sparkles size={12} />
-                    Profissional
-                  </span>
-                </div>
-
-                <div className="text-center mb-8">
-                  <div className="flex items-baseline justify-center gap-1 mb-2">
-                    <span className="text-sm text-text-muted font-medium">R$</span>
-                    <span className="text-5xl sm:text-6xl font-serif font-bold text-text tracking-tight">49</span>
-                    <span className="text-xl font-serif font-semibold text-text">,90</span>
-                  </div>
-                  <p className="text-sm text-text-muted">
-                    por mês · cancele quando quiser
-                  </p>
-                </div>
-
-                <div className="space-y-3.5 mb-8">
-                  {planFeatures.map((feat) => (
-                    <div key={feat} className="flex items-start gap-3">
-                      <div className="w-5 h-5 rounded-full bg-success/15 flex items-center justify-center shrink-0 mt-0.5">
-                        <CheckCircle2 size={13} className="text-success" />
-                      </div>
-                      <span className="text-sm text-text leading-snug">{feat}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <Link
-                  href="/login"
-                  className="group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_6px_24px_rgba(110,115,96,0.35)] text-[15px]"
-                >
-                  Começar Agora
-                  <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
-                </Link>
-
-                <p className="text-center text-xs text-text-muted mt-4">
-                  Sem fidelidade · Sem cartão para testar · Cancele a qualquer momento
-                </p>
+            <div className="max-w-lg mx-auto rounded-3xl bg-surface border-2 border-primary/40 shadow-xl p-8 sm:p-10 relative overflow-hidden">
+              {/* Badge de Destaque */}
+              <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-bl-2xl uppercase tracking-wider shadow-xs">
+                Acesso Completo
               </div>
+
+              <div className="text-center pb-6 border-b border-border/60">
+                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Plano Profissional Clínico</p>
+                <div className="mt-3 flex items-baseline justify-center gap-1">
+                  <span className="text-lg font-bold text-text">R$</span>
+                  <span className="text-5xl font-serif font-black text-text tracking-tight">49</span>
+                  <span className="text-2xl font-serif font-bold text-text">,90</span>
+                  <span className="text-sm text-text-muted font-medium">/mês</span>
+                </div>
+                <p className="text-xs text-text-muted mt-2">Sem taxa de adesão · Cancele quando quiser</p>
+              </div>
+
+              {/* Lista de Recursos Incluídos */}
+              <div className="py-6 space-y-3">
+                {[
+                  "Pacientes e Prontuários Ilimitados",
+                  "Os 5 Modelos Oficiais CFP (Res. 06/2019)",
+                  "Modo Privacidade com 1 Clique",
+                  "Criptografia AES-256 Ponta a Ponta",
+                  "Agenda com Sincronização iCal (Apple & Google)",
+                  "Controle Financeiro de Sessões & Recibos",
+                  "Diário de Bordo para Supervisão",
+                  "Timeout Automático e Segurança LGPD",
+                  "Suporte Clínico Dedicado",
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 text-xs sm:text-sm text-text font-medium">
+                    <div className="p-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">
+                      <Check size={14} strokeWidth={3} />
+                    </div>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Botão de Ação do Plano */}
+              <Link
+                href="/login"
+                className="w-full py-4 rounded-xl bg-primary text-white font-bold text-center block hover:bg-primary-dark shadow-md hover:shadow-lg transition-all text-sm group"
+              >
+                <span>Criar Conta e Começar Agora</span>
+                <ArrowRight size={16} className="inline ml-1.5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+
+              <p className="text-[11px] text-center text-text-muted mt-3">
+                Garantia de 7 dias ou seu dinheiro de volta.
+              </p>
             </div>
           </Reveal>
         </div>
       </section>
 
-      {/* ───────── FAQ ───────── */}
-      <section id="faq" className="py-24 sm:py-32 bg-surface scroll-mt-20">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ───────── SEÇÃO 7: FAQ (PERGUNTAS FREQUENTES) ───────── */}
+      <section className="py-20 sm:py-28 bg-surface border-t border-border/60" id="faq">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal>
             <div className="text-center mb-14">
-              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">FAQ</p>
-              <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-                Perguntas Frequentes
+              <span className="text-xs font-bold uppercase tracking-wider text-primary px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                Tire Suas Dúvidas
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-text mt-3">
+                Perguntas Frequentes de Psicólogos
               </h2>
             </div>
           </Reveal>
 
-          <div>
-            {faqItems.map((item, i) => (
-              <FAQItem key={item.question} question={item.question} answer={item.answer} index={i} />
-            ))}
+          <div className="space-y-3">
+            {faqItems.map((item, index) => {
+              const isOpen = openFaqIndex === index;
+              return (
+                <Reveal key={index} delay={index * 50}>
+                  <div className="rounded-2xl bg-background border border-border/80 overflow-hidden transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                      className="w-full p-5 text-left font-semibold text-text text-sm sm:text-base flex items-center justify-between gap-4 cursor-pointer"
+                    >
+                      <span>{item.question}</span>
+                      <ChevronDown
+                        size={18}
+                        className={`text-primary shrink-0 transition-transform duration-200 ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div className="px-5 pb-5 text-xs sm:text-sm text-text-muted leading-relaxed border-t border-border/40 pt-3">
+                        {item.answer}
+                      </div>
+                    )}
+                  </div>
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* ───────── CTA FINAL ───────── */}
-      <section className="py-24 sm:py-32 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-secondary/[0.05]" />
-        <div className="absolute top-10 left-[20%] w-2 h-2 rounded-full bg-primary/20 animate-[float_6s_ease-in-out_infinite]" />
-        <div className="absolute bottom-10 right-[20%] w-2.5 h-2.5 rounded-full bg-secondary/20 animate-[float_7s_ease-in-out_infinite_1.5s]" />
-
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      {/* ───────── SEÇÃO 8: CTA FINAL ───────── */}
+      <section className="py-20 sm:py-28 bg-gradient-to-b from-surface via-background to-background text-center relative">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <Reveal>
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-primary mb-6 border border-primary/10 shadow-[0_4px_16px_rgba(110,115,96,0.1)]">
-              <span className="text-2xl font-serif font-bold">Ψ</span>
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-serif font-bold text-2xl mx-auto mb-4 border border-primary/20 shadow-xs">
+              Ψ
             </div>
-          </Reveal>
-
-          <Reveal delay={80}>
-            <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text leading-tight">
-              Comece a transformar sua prática clínica hoje.
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-text leading-tight">
+              Pronto para transformar a gestão do seu consultório?
             </h2>
-          </Reveal>
-
-          <Reveal delay={160}>
-            <p className="mt-5 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
-              Junte-se a psicólogos que já escolheram um setting digital seguro, ético e acolhedor.
+            <p className="text-base sm:text-lg text-text-muted max-w-xl mx-auto mt-4">
+              Junte-se a psicólogos que já simplificaram prontuários, laudos e finanças com segurança ética absoluta.
             </p>
           </Reveal>
 
-          <Reveal delay={240}>
-            <div className="mt-8">
+          <Reveal delay={120}>
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/login"
-                className="group inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_8px_32px_rgba(110,115,96,0.35)] text-[15px]"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-md hover:shadow-lg transition-all text-base group"
               >
-                Criar Minha Conta
-                <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
+                <span>Cadastrar e Experimentar</span>
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
+            <p className="text-xs text-text-muted mt-3">
+              Configuração rápida em menos de 2 minutos.
+            </p>
           </Reveal>
         </div>
       </section>
 
       {/* ───────── FOOTER ───────── */}
-      <footer className="border-t border-border/30 py-12 bg-surface/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex flex-col items-center sm:items-start gap-3">
-              <PsiSettingBrand size="sm" showSubtitle={true} subtitleText="Gestão Clínica" />
-              <div className="flex items-center gap-2">
-                {[
-                  { icon: Shield, label: "LGPD" },
-                  { icon: Scale, label: "CFP" },
-                ].map(({ icon: Icon, label }) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/[0.06] text-primary text-[10px] font-bold border border-primary/10"
-                  >
-                    <Icon size={10} />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6 text-xs text-text-muted">
-              <a href="#" className="hover:text-text transition-colors">Termos de Uso</a>
-              <a href="#" className="hover:text-text transition-colors">Privacidade</a>
-              <a href="mailto:contato@psisetting.com.br" className="hover:text-text transition-colors">Contato</a>
-            </div>
+      <footer className="py-12 bg-surface border-t border-border/80">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <PsiSettingBrand size="sm" showSubtitle={true} subtitleText="Gestão Clínica Ética" />
           </div>
 
-          <div className="mt-8 pt-6 border-t border-border/20 text-center">
-            <p className="text-[11px] text-text-muted/70">
-              © {new Date().getFullYear()} PsiSetting. Todos os direitos reservados.
-            </p>
+          <div className="flex items-center gap-6 text-xs text-text-muted font-medium">
+            <a href="#demonstracao" className="hover:text-primary transition-colors">Simulador</a>
+            <a href="#modelos-cfp" className="hover:text-primary transition-colors">Modelos CFP</a>
+            <a href="#seguranca" className="hover:text-primary transition-colors">Segurança</a>
+            <a href="#preco" className="hover:text-primary transition-colors">Preço</a>
+            <Link href="/login" className="hover:text-primary transition-colors">Login</Link>
           </div>
+
+          <p className="text-xs text-text-muted">
+            © {new Date().getFullYear()} PsiSetting. Desenvolvido para Psicólogos Clínicos.
+          </p>
         </div>
       </footer>
-
-      {/* ───────── CUSTOM KEYFRAMES ───────── */}
-      <style jsx global>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-12px); }
-        }
-      `}</style>
     </>
   );
 }
