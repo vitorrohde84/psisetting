@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import {
   FileText,
@@ -26,6 +27,59 @@ import {
   Sparkles,
   Eye,
 } from "lucide-react";
+
+/* ──────────────────────────── SCROLL ANIMATION HOOK ──────────────────────────── */
+
+function useScrollReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isVisible };
+}
+
+function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const { ref, isVisible } = useScrollReveal();
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? "translateY(0)" : "translateY(28px)",
+        transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /* ──────────────────────────── JSON-LD ──────────────────────────── */
 
@@ -111,7 +165,7 @@ const jsonLdFAQ = {
   })),
 };
 
-/* ──────────────────────────── FEATURES ──────────────────────────── */
+/* ──────────────────────────── DATA ──────────────────────────── */
 
 const features = [
   {
@@ -119,63 +173,77 @@ const features = [
     title: "Prontuário Eletrônico",
     description:
       "Registro de evolução por sessão com Modo Privacidade — ocultação instantânea de dados sensíveis em tela com um clique.",
+    accent: "from-emerald-500/20 to-emerald-600/5",
+    iconBg: "bg-emerald-500/12",
+    iconColor: "text-emerald-700",
   },
   {
     icon: FileCheck,
-    title: "Laudos e Documentos Oficiais",
+    title: "Laudos Oficiais CFP",
     description:
       "5 modelos padronizados conforme Resolução CFP nº 06/2019 com preenchimento automático dos dados do profissional e paciente.",
+    accent: "from-amber-500/20 to-amber-600/5",
+    iconBg: "bg-amber-500/12",
+    iconColor: "text-amber-700",
   },
   {
     icon: Calendar,
     title: "Agenda Clínica",
     description:
       "Visualização semanal e mensal com sincronização automática via iCal — Google Calendar e Apple Calendar.",
+    accent: "from-sky-500/20 to-sky-600/5",
+    iconBg: "bg-sky-500/12",
+    iconColor: "text-sky-700",
   },
   {
     icon: Users,
     title: "Gestão de Pacientes",
     description:
       "Cadastro completo, histórico de sessões e documentos, busca rápida e prontuários vinculados por paciente.",
+    accent: "from-violet-500/20 to-violet-600/5",
+    iconBg: "bg-violet-500/12",
+    iconColor: "text-violet-700",
   },
   {
     icon: DollarSign,
     title: "Controle Financeiro",
     description:
       "Acompanhe recebimentos e pendências, relatórios mensais e status financeiro por sessão em tempo real.",
+    accent: "from-rose-500/20 to-rose-600/5",
+    iconBg: "bg-rose-500/12",
+    iconColor: "text-rose-700",
   },
   {
     icon: BookOpen,
     title: "Diário de Bordo",
     description:
       "Espaço privado para anotações pessoais do psicólogo — insights clínicos, supervisão e reflexões por sessão.",
+    accent: "from-teal-500/20 to-teal-600/5",
+    iconBg: "bg-teal-500/12",
+    iconColor: "text-teal-700",
   },
 ];
-
-/* ──────────────────────────── PAIN POINTS ──────────────────────────── */
 
 const painPoints = [
   {
     icon: ClipboardList,
     title: "Prontuários soltos por todo lado",
     description:
-      "Cadernos, planilhas, documentos no computador... informações clínicas espalhadas e sem padronização, difíceis de acessar quando você mais precisa.",
+      "Cadernos, planilhas, documentos no computador... informações clínicas espalhadas e sem padronização.",
   },
   {
     icon: Clock,
     title: "Horas perdidas com burocracia",
     description:
-      "Formatar laudos, declarações e atestados manualmente toda vez. Copiar e colar dados do paciente, ajustar margens, conferir normas do CFP...",
+      "Formatar laudos, declarações e atestados manualmente toda vez. Copiar dados, ajustar margens, conferir normas.",
   },
   {
     icon: ShieldAlert,
     title: "Receio constante com sigilo",
     description:
-      "O medo de que alguém veja a tela durante um atendimento. A preocupação com a fiscalização do CRP. A incerteza sobre a segurança dos seus registros digitais.",
+      "O medo de que alguém veja a tela. A preocupação com a fiscalização do CRP. A incerteza sobre a segurança digital.",
   },
 ];
-
-/* ──────────────────────────── SECURITY ITEMS ──────────────────────────── */
 
 const securityItems = [
   {
@@ -210,8 +278,6 @@ const securityItems = [
   },
 ];
 
-/* ──────────────────────────── PLAN FEATURES ──────────────────────────── */
-
 const planFeatures = [
   "Pacientes ilimitados",
   "Prontuários por sessão",
@@ -227,30 +293,31 @@ const planFeatures = [
 
 /* ──────────────────────────── FAQ ACCORDION ──────────────────────────── */
 
-function FAQItem({ question, answer }: { question: string; answer: string }) {
+function FAQItem({ question, answer, index }: { question: string; answer: string; index: number }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border-b border-border/60 last:border-b-0">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-5 px-1 text-left group cursor-pointer"
-        aria-expanded={open}
-      >
-        <span className="text-[15px] font-medium text-text group-hover:text-primary transition-colors pr-4">
-          {question}
-        </span>
-        <ChevronDown
-          size={18}
-          className={`shrink-0 text-text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${open ? "max-h-60 pb-5" : "max-h-0"}`}
-      >
-        <p className="text-sm text-text-muted leading-relaxed px-1">{answer}</p>
+    <Reveal delay={index * 60}>
+      <div className="border border-border/50 rounded-xl mb-3 overflow-hidden bg-surface/80 backdrop-blur-sm hover:border-primary/25 transition-all duration-300">
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-full flex items-center justify-between py-4.5 px-5 text-left group cursor-pointer"
+          aria-expanded={open}
+        >
+          <span className="text-[15px] font-medium text-text group-hover:text-primary transition-colors pr-4">
+            {question}
+          </span>
+          <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${open ? "bg-primary/15 rotate-180" : "bg-background"}`}>
+            <ChevronDown size={15} className={`transition-colors ${open ? "text-primary" : "text-text-muted"}`} />
+          </div>
+        </button>
+        <div
+          className={`overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? "max-h-60" : "max-h-0"}`}
+        >
+          <p className="text-sm text-text-muted leading-relaxed px-5 pb-5">{answer}</p>
+        </div>
       </div>
-    </div>
+    </Reveal>
   );
 }
 
@@ -258,6 +325,13 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <>
@@ -280,7 +354,13 @@ export default function LandingPage() {
       />
 
       {/* ───────── NAVBAR ───────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "bg-surface/85 backdrop-blur-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-b border-border/30"
+            : "bg-transparent"
+        }`}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/landing" className="shrink-0">
             <PsiSettingBrand size="md" />
@@ -288,21 +368,18 @@ export default function LandingPage() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-8">
-            <a href="#funcionalidades" className="text-sm text-text-muted hover:text-text transition-colors">
-              Funcionalidades
-            </a>
-            <a href="#seguranca" className="text-sm text-text-muted hover:text-text transition-colors">
-              Segurança
-            </a>
-            <a href="#preco" className="text-sm text-text-muted hover:text-text transition-colors">
-              Preço
-            </a>
-            <a href="#faq" className="text-sm text-text-muted hover:text-text transition-colors">
-              FAQ
-            </a>
+            {["Funcionalidades", "Segurança", "Preço", "FAQ"].map((label) => (
+              <a
+                key={label}
+                href={`#${label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`}
+                className="text-[13px] font-medium text-text-muted hover:text-text transition-colors relative after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[2px] after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 hover:after:scale-x-100 after:origin-left"
+              >
+                {label}
+              </a>
+            ))}
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-all shadow-sm"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark hover:shadow-md transition-all duration-200"
             >
               Começar Agora
             </Link>
@@ -318,250 +395,319 @@ export default function LandingPage() {
           </button>
         </div>
 
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-surface border-t border-border/40 shadow-lg">
-            <div className="px-4 py-4 flex flex-col gap-3">
+        {/* Mobile menu */}
+        <div
+          className={`md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            mobileMenuOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          <div className="bg-surface/95 backdrop-blur-2xl border-t border-border/30 px-4 py-4 flex flex-col gap-1">
+            {[
+              { label: "Funcionalidades", href: "#funcionalidades" },
+              { label: "Segurança", href: "#seguranca" },
+              { label: "Preço", href: "#preco" },
+              { label: "FAQ", href: "#faq" },
+            ].map((item) => (
               <a
-                href="#funcionalidades"
+                key={item.label}
+                href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-text-muted hover:text-text py-2 transition-colors"
+                className="text-sm text-text-muted hover:text-text hover:bg-background/60 rounded-lg py-2.5 px-3 transition-all"
               >
-                Funcionalidades
+                {item.label}
               </a>
-              <a
-                href="#seguranca"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-text-muted hover:text-text py-2 transition-colors"
-              >
-                Segurança
-              </a>
-              <a
-                href="#preco"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-text-muted hover:text-text py-2 transition-colors"
-              >
-                Preço
-              </a>
-              <a
-                href="#faq"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-text-muted hover:text-text py-2 transition-colors"
-              >
-                FAQ
-              </a>
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-all shadow-sm mt-1"
-              >
-                Começar Agora
-              </Link>
-            </div>
+            ))}
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-all mt-2"
+            >
+              Começar Agora
+            </Link>
           </div>
-        )}
+        </div>
       </nav>
 
       {/* ───────── HERO ───────── */}
-      <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden">
-        {/* Background decorations */}
+      <section className="relative pt-28 pb-8 sm:pt-32 lg:pt-36 overflow-hidden min-h-[90vh] flex items-center">
+        {/* Background elements */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          <div className="absolute top-20 right-0 w-[500px] h-[500px] rounded-full bg-primary/[0.04] blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full bg-secondary/[0.06] blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-gradient-radial from-primary/[0.07] via-transparent to-transparent rounded-full blur-3xl" />
+          <div className="absolute top-40 right-0 w-[300px] h-[300px] rounded-full bg-secondary/[0.08] blur-3xl" />
+          <div className="absolute bottom-0 left-10 w-[250px] h-[250px] rounded-full bg-primary/[0.05] blur-3xl" />
+          {/* Floating decorative shapes */}
+          <div className="absolute top-32 left-[8%] w-3 h-3 rounded-full bg-primary/20 animate-[float_6s_ease-in-out_infinite]" />
+          <div className="absolute top-48 right-[12%] w-2 h-2 rounded-full bg-secondary/30 animate-[float_8s_ease-in-out_infinite_1s]" />
+          <div className="absolute bottom-40 left-[15%] w-2.5 h-2.5 rounded-full bg-primary/15 animate-[float_7s_ease-in-out_infinite_2s]" />
+          <div className="absolute top-60 left-[25%] w-1.5 h-1.5 rounded-full bg-secondary/25 animate-[float_5s_ease-in-out_infinite_0.5s]" />
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6 border border-primary/15">
-              <Sparkles size={14} />
-              <span>Gestão Clínica para Psicólogos</span>
-            </div>
-
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-semibold text-text leading-tight tracking-tight">
-              O <em className="not-italic text-primary">setting</em> terapêutico do seu consultório,{" "}
-              <span className="whitespace-nowrap">agora também digital.</span>
-            </h1>
-
-            <p className="mt-6 text-base sm:text-lg text-text-muted leading-relaxed max-w-2xl mx-auto">
-              Prontuários, laudos, agenda e financeiro — tudo em um só lugar, seguro e em conformidade com o CFP.
-              Para que seu foco seja apenas a escuta.
-            </p>
-
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-md hover:shadow-lg text-sm sm:text-base"
-              >
-                Começar Agora
-                <ArrowRight size={18} />
-              </Link>
-              <a
-                href="#funcionalidades"
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-surface text-text font-semibold border border-border/60 hover:border-border hover:bg-background transition-all text-sm sm:text-base"
-              >
-                Conheça as Funcionalidades
-              </a>
-            </div>
-          </div>
-
-          {/* Dashboard Mockup Placeholder */}
-          <div className="mt-16 sm:mt-20 max-w-4xl mx-auto">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/10 border border-border/40 bg-surface">
-              {/* Browser chrome */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-background border-b border-border/40">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-danger/60" />
-                  <div className="w-3 h-3 rounded-full bg-secondary/60" />
-                  <div className="w-3 h-3 rounded-full bg-success/60" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+            {/* Left — Text */}
+            <div className="max-w-xl">
+              <Reveal>
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/[0.08] text-primary text-xs font-medium mb-6 border border-primary/[0.12] backdrop-blur-sm">
+                  <Sparkles size={13} />
+                  <span>Gestão Clínica para Psicólogos</span>
                 </div>
-                <div className="flex-1 flex justify-center">
-                  <div className="px-4 py-1 rounded-lg bg-surface text-xs text-text-muted border border-border/40 font-mono">
-                    app.psisetting.com.br
+              </Reveal>
+
+              <Reveal delay={80}>
+                <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-serif font-semibold text-text leading-[1.18] tracking-tight">
+                  O <em className="not-italic text-primary">setting</em> terapêutico{" "}
+                  do seu consultório, agora também digital.
+                </h1>
+              </Reveal>
+
+              <Reveal delay={160}>
+                <p className="mt-5 text-base sm:text-[17px] text-text-muted leading-relaxed">
+                  Prontuários, laudos, agenda e financeiro — tudo em um só lugar, seguro e em conformidade
+                  com o CFP. Para que seu foco seja apenas a escuta.
+                </p>
+              </Reveal>
+
+              <Reveal delay={240}>
+                <div className="mt-8 flex flex-col sm:flex-row items-start gap-3">
+                  <Link
+                    href="/login"
+                    className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_6px_24px_rgba(110,115,96,0.35)] text-[15px]"
+                  >
+                    Começar Agora
+                    <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <a
+                    href="#funcionalidades"
+                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-text font-semibold border border-border/70 hover:border-primary/30 hover:bg-surface/60 backdrop-blur-sm transition-all text-[15px]"
+                  >
+                    Ver Funcionalidades
+                  </a>
+                </div>
+              </Reveal>
+
+              <Reveal delay={320}>
+                <div className="mt-8 flex items-center gap-6 text-xs text-text-muted">
+                  <div className="flex items-center gap-1.5">
+                    <Shield size={13} className="text-primary" />
+                    <span>Conforme LGPD</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Lock size={13} className="text-primary" />
+                    <span>AES-256</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Scale size={13} className="text-primary" />
+                    <span>CFP 06/2019</span>
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+
+            {/* Right — Dashboard Mockup with 3D perspective */}
+            <Reveal delay={200} className="relative lg:pl-4">
+              <div className="relative">
+                {/* Glow behind mockup */}
+                <div className="absolute -inset-6 bg-gradient-to-br from-primary/[0.08] via-transparent to-secondary/[0.06] rounded-3xl blur-2xl" />
+
+                {/* 3D perspective container */}
+                <div
+                  className="relative rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.06)] border border-border/30 bg-surface"
+                  style={{
+                    transform: "perspective(1200px) rotateY(-6deg) rotateX(2deg)",
+                    transformOrigin: "center center",
+                  }}
+                >
+                  {/* Browser chrome */}
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F2F0EC] border-b border-border/30">
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
+                    </div>
+                    <div className="flex-1 flex justify-center">
+                      <div className="px-6 py-1 rounded-md bg-white/70 text-[11px] text-text-muted border border-border/30 font-mono">
+                        app.psisetting.com.br
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dashboard image */}
+                  <Image
+                    src="/dashboard-preview.jpg"
+                    alt="Dashboard do PsiSetting — Gestão clínica para psicólogos"
+                    width={800}
+                    height={533}
+                    className="w-full h-auto"
+                    priority
+                  />
+                </div>
+
+                {/* Floating accent cards */}
+                <div
+                  className="absolute -bottom-4 -left-6 bg-surface/90 backdrop-blur-xl rounded-xl shadow-lg border border-border/30 px-4 py-3 flex items-center gap-3"
+                  style={{ transform: "perspective(800px) rotateY(4deg)" }}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-success/15 flex items-center justify-center">
+                    <Lock size={16} className="text-success" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-text">Criptografia AES-256</p>
+                    <p className="text-[10px] text-text-muted">Dados protegidos</p>
+                  </div>
+                </div>
+
+                <div
+                  className="absolute -top-3 -right-4 bg-surface/90 backdrop-blur-xl rounded-xl shadow-lg border border-border/30 px-4 py-3 flex items-center gap-3"
+                  style={{ transform: "perspective(800px) rotateY(-4deg)" }}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Eye size={16} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-text">Modo Privacidade</p>
+                    <p className="text-[10px] text-text-muted">Sigilo em 1 clique</p>
                   </div>
                 </div>
               </div>
-              {/* Mock dashboard content */}
-              <div className="p-6 sm:p-8 min-h-[280px] sm:min-h-[360px] bg-background">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-                  {[
-                    { label: "Hoje", value: "4 sessões", color: "bg-primary/10 text-primary" },
-                    { label: "Próximos 7 dias", value: "18 sessões", color: "bg-primary/10 text-primary" },
-                    { label: "Recebido", value: "R$ 3.240", color: "bg-success/10 text-success" },
-                    { label: "Pendente", value: "R$ 780", color: "bg-secondary/20 text-secondary" },
-                  ].map((card) => (
-                    <div key={card.label} className="bg-surface rounded-xl p-4 border border-border/40 shadow-xs">
-                      <p className="text-[11px] text-text-muted font-medium uppercase tracking-wide">{card.label}</p>
-                      <p className={`text-lg sm:text-xl font-bold mt-1 ${card.color.split(" ")[1]}`}>{card.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Fake table rows */}
-                <div className="space-y-2.5">
-                  {[
-                    { name: "Antoniela A. R.", time: "08:00", status: "Confirmada" },
-                    { name: "Carlos M. S.", time: "09:00", status: "Confirmada" },
-                    { name: "Juliana P. L.", time: "10:30", status: "Pendente" },
-                    { name: "Roberto F. N.", time: "14:00", status: "Confirmada" },
-                  ].map((row) => (
-                    <div key={row.name} className="flex items-center justify-between bg-surface rounded-lg px-4 py-2.5 border border-border/30">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-primary">{row.name[0]}</span>
-                        </div>
-                        <span className="text-sm font-medium text-text">{row.name}</span>
-                      </div>
-                      <span className="text-xs text-text-muted">{row.time}</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${row.status === "Confirmada" ? "bg-success/10 text-success" : "bg-secondary/15 text-secondary"}`}>
-                        {row.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
       {/* ───────── DOR / PROBLEMA ───────── */}
-      <section className="py-20 sm:py-28 bg-surface">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              A dor que você conhece bem
-            </h2>
-            <p className="mt-3 text-text-muted max-w-xl mx-auto text-sm sm:text-base">
-              O trabalho clínico já exige presença total. A burocracia não deveria competir com a escuta.
-            </p>
-          </div>
+      <section className="py-24 sm:py-32 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-surface/50 to-surface" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center mb-16">
+              <p className="text-xs font-semibold text-secondary uppercase tracking-widest mb-3">O problema</p>
+              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
+                A dor que você conhece bem
+              </h2>
+              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
+                O trabalho clínico já exige presença total. A burocracia não deveria competir com a escuta.
+              </p>
+            </div>
+          </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {painPoints.map((item) => (
-              <div
-                key={item.title}
-                className="bg-background rounded-2xl p-6 border border-border/50 hover:border-primary/30 transition-all duration-300 group"
-              >
-                <div className="w-11 h-11 rounded-xl bg-secondary/15 flex items-center justify-center mb-4 group-hover:bg-secondary/25 transition-colors">
-                  <item.icon size={20} className="text-secondary" strokeWidth={1.8} />
+          <div className="grid md:grid-cols-3 gap-5">
+            {painPoints.map((item, i) => (
+              <Reveal key={item.title} delay={i * 100}>
+                <div className="bg-surface/80 backdrop-blur-sm rounded-2xl p-7 border border-border/40 hover:border-secondary/30 hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] transition-all duration-500 group h-full">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300">
+                    <item.icon size={22} className="text-secondary" strokeWidth={1.6} />
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-text mb-2.5">{item.title}</h3>
+                  <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
                 </div>
-                <h3 className="text-base font-semibold text-text mb-2">{item.title}</h3>
-                <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ───────── FUNCIONALIDADES ───────── */}
-      <section id="funcionalidades" className="py-20 sm:py-28 scroll-mt-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              Tudo que seu consultório precisa
-            </h2>
-            <p className="mt-3 text-text-muted max-w-xl mx-auto text-sm sm:text-base">
-              Do prontuário ao financeiro, cada módulo foi pensado por e para psicólogos.
-            </p>
-          </div>
+      <section id="funcionalidades" className="py-24 sm:py-32 bg-surface scroll-mt-20 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/[0.03] rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-secondary/[0.04] rounded-full blur-3xl" />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feat) => (
-              <div
-                key={feat.title}
-                className="bg-surface rounded-2xl p-6 border border-border/50 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/[0.04] transition-all duration-300 group"
-              >
-                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/15 transition-colors">
-                  <feat.icon size={20} className="text-primary" strokeWidth={1.8} />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center mb-16">
+              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Funcionalidades</p>
+              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
+                Tudo que seu consultório precisa
+              </h2>
+              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
+                Do prontuário ao financeiro, cada módulo foi pensado por e para psicólogos.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {features.map((feat, i) => (
+              <Reveal key={feat.title} delay={i * 80}>
+                <div className="relative bg-background/80 backdrop-blur-sm rounded-2xl p-7 border border-border/40 hover:border-primary/20 hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] transition-all duration-500 group h-full overflow-hidden">
+                  {/* Subtle gradient accent */}
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feat.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+
+                  <div className={`w-12 h-12 rounded-xl ${feat.iconBg} flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300`}>
+                    <feat.icon size={22} className={feat.iconColor} strokeWidth={1.6} />
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-text mb-2.5">{feat.title}</h3>
+                  <p className="text-sm text-text-muted leading-relaxed">{feat.description}</p>
                 </div>
-                <h3 className="text-base font-semibold text-text mb-2">{feat.title}</h3>
-                <p className="text-sm text-text-muted leading-relaxed">{feat.description}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ───────── SEGURANÇA ───────── */}
-      <section id="seguranca" className="py-20 sm:py-28 bg-surface scroll-mt-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              Segurança e conformidade que você pode confiar
-            </h2>
-            <p className="mt-3 text-text-muted max-w-xl mx-auto text-sm sm:text-base">
-              Seus dados clínicos protegidos com o mesmo rigor ético do setting presencial.
-            </p>
-          </div>
+      <section id="seguranca" className="py-24 sm:py-32 scroll-mt-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/[0.03]" />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {securityItems.map((item) => (
-              <div
-                key={item.title}
-                className="flex gap-4 p-5 rounded-xl bg-background border border-border/40 hover:border-primary/25 transition-all duration-300"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <item.icon size={18} className="text-primary" strokeWidth={1.8} />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left text */}
+            <div>
+              <Reveal>
+                <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Segurança</p>
+                <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text leading-tight">
+                  Segurança e conformidade que você pode confiar
+                </h2>
+                <p className="mt-4 text-text-muted text-[15px] leading-relaxed">
+                  Seus dados clínicos protegidos com o mesmo rigor ético do setting presencial.
+                  Cada camada de segurança foi projetada para que você atenda com tranquilidade.
+                </p>
+              </Reveal>
+
+              <Reveal delay={150}>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  {["LGPD", "CFP", "AES-256", "RLS"].map((badge) => (
+                    <span
+                      key={badge}
+                      className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-primary/[0.08] text-primary text-xs font-bold border border-primary/[0.12] tracking-wide"
+                    >
+                      {badge}
+                    </span>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-text mb-1">{item.title}</h3>
-                  <p className="text-xs text-text-muted leading-relaxed">{item.description}</p>
-                </div>
-              </div>
-            ))}
+              </Reveal>
+            </div>
+
+            {/* Right grid */}
+            <div className="grid grid-cols-2 gap-3.5">
+              {securityItems.map((item, i) => (
+                <Reveal key={item.title} delay={i * 70}>
+                  <div className="bg-surface/80 backdrop-blur-sm rounded-xl p-5 border border-border/40 hover:border-primary/20 hover:shadow-[0_8px_24px_rgba(0,0,0,0.05)] transition-all duration-400 group h-full">
+                    <div className="w-10 h-10 rounded-lg bg-primary/[0.08] flex items-center justify-center mb-3 group-hover:bg-primary/[0.12] transition-colors duration-300">
+                      <item.icon size={18} className="text-primary" strokeWidth={1.6} />
+                    </div>
+                    <h3 className="text-[13px] font-semibold text-text mb-1">{item.title}</h3>
+                    <p className="text-xs text-text-muted leading-relaxed">{item.description}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ───────── COMO FUNCIONA ───────── */}
-      <section className="py-20 sm:py-28 scroll-mt-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              Comece em 3 passos
-            </h2>
-          </div>
+      <section className="py-24 sm:py-32 bg-surface relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-3xl" />
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-3xl mx-auto">
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center mb-16">
+              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Como funciona</p>
+              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
+                Comece em 3 passos
+              </h2>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-3 gap-0">
             {[
               {
                 step: "1",
@@ -579,131 +725,174 @@ export default function LandingPage() {
                 description: "A escuta. O PsiSetting cuida do resto.",
               },
             ].map((item, i) => (
-              <div key={item.step} className="text-center relative">
-                {/* Connector line (desktop only) */}
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-8 left-[calc(50%+32px)] w-[calc(100%-64px)] h-px bg-border/60" />
-                )}
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4 mx-auto border border-primary/15">
-                  <span className="text-xl font-serif font-bold">{item.step}</span>
+              <Reveal key={item.step} delay={i * 120}>
+                <div className="text-center relative px-6 py-6">
+                  {/* Connector line */}
+                  {i < 2 && (
+                    <div className="hidden md:block absolute top-[52px] left-[calc(50%+40px)] w-[calc(100%-80px)] h-px bg-gradient-to-r from-primary/20 to-primary/5" />
+                  )}
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-primary mb-5 mx-auto border border-primary/10 shadow-[0_4px_16px_rgba(110,115,96,0.1)]">
+                    <span className="text-xl font-serif font-bold">{item.step}</span>
+                  </div>
+                  <h3 className="text-base font-semibold text-text mb-2">{item.title}</h3>
+                  <p className="text-sm text-text-muted leading-relaxed max-w-[220px] mx-auto">{item.description}</p>
                 </div>
-                <h3 className="text-base font-semibold text-text mb-2">{item.title}</h3>
-                <p className="text-sm text-text-muted leading-relaxed">{item.description}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ───────── PREÇO ───────── */}
-      <section id="preco" className="py-20 sm:py-28 bg-surface scroll-mt-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              Um plano. Tudo incluso.
-            </h2>
-            <p className="mt-3 text-text-muted max-w-xl mx-auto text-sm sm:text-base">
-              Sem surpresas, sem funcionalidades bloqueadas. Acesso completo a todas as ferramentas.
-            </p>
-          </div>
+      <section id="preco" className="py-24 sm:py-32 scroll-mt-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-primary/[0.03]" />
+        <div className="absolute top-20 right-[10%] w-2 h-2 rounded-full bg-primary/15 animate-[float_6s_ease-in-out_infinite]" />
+        <div className="absolute bottom-20 left-[15%] w-3 h-3 rounded-full bg-secondary/15 animate-[float_8s_ease-in-out_infinite_1s]" />
 
-          <div className="max-w-md mx-auto">
-            <div className="bg-background rounded-2xl border-2 border-primary/30 p-8 shadow-xl shadow-primary/[0.06] relative overflow-hidden">
-              {/* Popular badge */}
-              <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
-                Profissional
-              </div>
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="text-center mb-16">
+              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">Preço</p>
+              <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text">
+                Um plano. Tudo incluso.
+              </h2>
+              <p className="mt-4 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
+                Sem surpresas, sem funcionalidades bloqueadas. Acesso completo a todas as ferramentas.
+              </p>
+            </div>
+          </Reveal>
 
-              <div className="text-center mb-6">
-                <div className="flex items-baseline justify-center gap-1 mb-1">
-                  <span className="text-sm text-text-muted font-medium">R$</span>
-                  <span className="text-5xl font-serif font-bold text-text tracking-tight">49</span>
-                  <span className="text-xl font-serif font-semibold text-text">,90</span>
-                  <span className="text-sm text-text-muted font-medium">/mês</span>
+          <Reveal delay={100}>
+            <div className="max-w-md mx-auto">
+              <div className="relative bg-surface rounded-2xl border border-primary/20 p-8 sm:p-10 shadow-[0_16px_48px_rgba(110,115,96,0.1),0_4px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+                {/* Top gradient accent */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+
+                {/* Badge */}
+                <div className="flex justify-center mb-6">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/15">
+                    <Sparkles size={12} />
+                    Profissional
+                  </span>
                 </div>
-                <p className="text-xs text-text-muted">
-                  Cancele a qualquer momento. Sem fidelidade.
+
+                <div className="text-center mb-8">
+                  <div className="flex items-baseline justify-center gap-1 mb-2">
+                    <span className="text-sm text-text-muted font-medium">R$</span>
+                    <span className="text-5xl sm:text-6xl font-serif font-bold text-text tracking-tight">49</span>
+                    <span className="text-xl font-serif font-semibold text-text">,90</span>
+                  </div>
+                  <p className="text-sm text-text-muted">
+                    por mês · cancele quando quiser
+                  </p>
+                </div>
+
+                <div className="space-y-3.5 mb-8">
+                  {planFeatures.map((feat) => (
+                    <div key={feat} className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full bg-success/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <CheckCircle2 size={13} className="text-success" />
+                      </div>
+                      <span className="text-sm text-text leading-snug">{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Link
+                  href="/login"
+                  className="group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_6px_24px_rgba(110,115,96,0.35)] text-[15px]"
+                >
+                  Começar Agora
+                  <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
+                </Link>
+
+                <p className="text-center text-xs text-text-muted mt-4">
+                  Sem fidelidade · Sem cartão para testar · Cancele a qualquer momento
                 </p>
               </div>
-
-              <div className="space-y-3 mb-8">
-                {planFeatures.map((feat) => (
-                  <div key={feat} className="flex items-start gap-3">
-                    <CheckCircle2 size={16} className="text-success shrink-0 mt-0.5" />
-                    <span className="text-sm text-text">{feat}</span>
-                  </div>
-                ))}
-              </div>
-
-              <Link
-                href="/login"
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-sm text-sm sm:text-base"
-              >
-                Começar Agora
-                <ArrowRight size={18} />
-              </Link>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ───────── FAQ ───────── */}
-      <section id="faq" className="py-20 sm:py-28 scroll-mt-20">
+      <section id="faq" className="py-24 sm:py-32 bg-surface scroll-mt-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-              Perguntas Frequentes
-            </h2>
-          </div>
+          <Reveal>
+            <div className="text-center mb-14">
+              <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">FAQ</p>
+              <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
+                Perguntas Frequentes
+              </h2>
+            </div>
+          </Reveal>
 
-          <div className="bg-surface rounded-2xl border border-border/50 px-6 divide-y-0">
-            {faqItems.map((item) => (
-              <FAQItem key={item.question} question={item.question} answer={item.answer} />
+          <div>
+            {faqItems.map((item, i) => (
+              <FAQItem key={item.question} question={item.question} answer={item.answer} index={i} />
             ))}
           </div>
         </div>
       </section>
 
       {/* ───────── CTA FINAL ───────── */}
-      <section className="py-20 sm:py-28 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-secondary/[0.06]" />
+      <section className="py-24 sm:py-32 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.06] via-transparent to-secondary/[0.05]" />
+        <div className="absolute top-10 left-[20%] w-2 h-2 rounded-full bg-primary/20 animate-[float_6s_ease-in-out_infinite]" />
+        <div className="absolute bottom-10 right-[20%] w-2.5 h-2.5 rounded-full bg-secondary/20 animate-[float_7s_ease-in-out_infinite_1.5s]" />
+
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-6 border border-primary/15">
-            <span className="text-2xl font-serif font-bold">Ψ</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-serif font-semibold text-text">
-            Comece a transformar sua prática clínica hoje.
-          </h2>
-          <p className="mt-4 text-text-muted max-w-lg mx-auto text-sm sm:text-base leading-relaxed">
-            Junte-se a psicólogos que já escolheram um setting digital seguro, ético e acolhedor.
-          </p>
-          <div className="mt-8">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-md hover:shadow-lg text-sm sm:text-base"
-            >
-              Criar Minha Conta
-              <ArrowRight size={18} />
-            </Link>
-          </div>
+          <Reveal>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-primary mb-6 border border-primary/10 shadow-[0_4px_16px_rgba(110,115,96,0.1)]">
+              <span className="text-2xl font-serif font-bold">Ψ</span>
+            </div>
+          </Reveal>
+
+          <Reveal delay={80}>
+            <h2 className="text-2xl sm:text-3xl lg:text-[2.125rem] font-serif font-semibold text-text leading-tight">
+              Comece a transformar sua prática clínica hoje.
+            </h2>
+          </Reveal>
+
+          <Reveal delay={160}>
+            <p className="mt-5 text-text-muted max-w-lg mx-auto text-[15px] leading-relaxed">
+              Junte-se a psicólogos que já escolheram um setting digital seguro, ético e acolhedor.
+            </p>
+          </Reveal>
+
+          <Reveal delay={240}>
+            <div className="mt-8">
+              <Link
+                href="/login"
+                className="group inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-all shadow-[0_4px_16px_rgba(110,115,96,0.25)] hover:shadow-[0_8px_32px_rgba(110,115,96,0.35)] text-[15px]"
+              >
+                Criar Minha Conta
+                <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ───────── FOOTER ───────── */}
-      <footer className="border-t border-border/40 py-12 bg-surface">
+      <footer className="border-t border-border/30 py-12 bg-surface/80 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex flex-col items-center sm:items-start gap-2">
+            <div className="flex flex-col items-center sm:items-start gap-3">
               <PsiSettingBrand size="sm" showSubtitle={true} subtitleText="Gestão Clínica" />
-              <div className="flex items-center gap-2 mt-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-semibold border border-primary/15">
-                  <Shield size={11} />
-                  LGPD
-                </div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-semibold border border-primary/15">
-                  <Scale size={11} />
-                  CFP
-                </div>
+              <div className="flex items-center gap-2">
+                {[
+                  { icon: Shield, label: "LGPD" },
+                  { icon: Scale, label: "CFP" },
+                ].map(({ icon: Icon, label }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/[0.06] text-primary text-[10px] font-bold border border-primary/10"
+                  >
+                    <Icon size={10} />
+                    {label}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -714,13 +903,21 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-border/30 text-center">
-            <p className="text-xs text-text-muted">
+          <div className="mt-8 pt-6 border-t border-border/20 text-center">
+            <p className="text-[11px] text-text-muted/70">
               © {new Date().getFullYear()} PsiSetting. Todos os direitos reservados.
             </p>
           </div>
         </div>
       </footer>
+
+      {/* ───────── CUSTOM KEYFRAMES ───────── */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-12px); }
+        }
+      `}</style>
     </>
   );
 }
