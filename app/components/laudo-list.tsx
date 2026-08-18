@@ -68,13 +68,37 @@ export function LaudoList() {
     const { data } = await query;
     if (data && user) {
       const decrypted = await Promise.all(
-        data.map(async (l) => ({
-          ...l,
-          conteudo:
-            l.tipo_documento === "text"
-              ? await decryptClinicalData(l.conteudo, user.id)
-              : l.conteudo,
-        }))
+        data.map(async (l) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let pac: any = l.pacientes;
+          if (pac) {
+            if (Array.isArray(pac)) {
+              pac = await Promise.all(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                pac.map(async (p: any) => ({
+                  ...p,
+                  nome: p?.nome ? await decryptClinicalData(p.nome, user.id) : "",
+                  cpf: p?.cpf ? await decryptClinicalData(p.cpf, user.id) : "",
+                }))
+              );
+            } else {
+              pac = {
+                ...pac,
+                nome: pac?.nome ? await decryptClinicalData(pac.nome, user.id) : "",
+                cpf: pac?.cpf ? await decryptClinicalData(pac.cpf, user.id) : "",
+              };
+            }
+          }
+
+          return {
+            ...l,
+            pacientes: pac,
+            conteudo:
+              l.tipo_documento === "text"
+                ? await decryptClinicalData(l.conteudo, user.id)
+                : l.conteudo,
+          };
+        })
       );
       setLaudos(decrypted);
     } else {
@@ -85,11 +109,27 @@ export function LaudoList() {
 
   useEffect(() => {
     async function fetchOptions() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome")
         .order("nome", { ascending: true });
-      setPacientesOptions(data || []);
+
+      if (data && user) {
+        const dec = await Promise.all(
+          data.map(async (p) => ({
+            ...p,
+            nome: await decryptClinicalData(p.nome, user.id),
+          }))
+        );
+        dec.sort((a, b) => a.nome.localeCompare(b.nome));
+        setPacientesOptions(dec);
+      } else {
+        setPacientesOptions(data || []);
+      }
     }
     fetchOptions();
   }, []);

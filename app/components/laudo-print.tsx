@@ -4,15 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { 
-  ArrowLeft, 
-  Download, 
-  Share2, 
-  FileText, 
+import {
+  ArrowLeft,
+  Download,
+  Share2,
+  FileText,
   PenTool,
   ShieldCheck
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 
 interface LaudoPrintProps {
   pacienteNome: string;
@@ -54,6 +55,10 @@ export function LaudoPrint({
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
 
+  const [decryptedNome, setDecryptedNome] = useState(pacienteNome);
+  const [decryptedCpf, setDecryptedCpf] = useState(pacienteCpf);
+  const [decryptedConteudo, setDecryptedConteudo] = useState(conteudo);
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -61,6 +66,35 @@ export function LaudoPrint({
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       setCanShare(true);
     }
+
+    // Decodificar dados do paciente e conteúdo se estiverem criptografados
+    async function decryptInfo() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        if (pacienteNome && pacienteNome.startsWith("enc:v1:")) {
+          setDecryptedNome(await decryptClinicalData(pacienteNome, user.id));
+        } else {
+          setDecryptedNome(pacienteNome);
+        }
+
+        if (pacienteCpf && pacienteCpf.startsWith("enc:v1:")) {
+          setDecryptedCpf(await decryptClinicalData(pacienteCpf, user.id));
+        } else {
+          setDecryptedCpf(pacienteCpf);
+        }
+
+        if (conteudo && conteudo.startsWith("enc:v1:")) {
+          setDecryptedConteudo(await decryptClinicalData(conteudo, user.id));
+        } else {
+          setDecryptedConteudo(conteudo);
+        }
+      } catch (err) {
+        console.error("Erro ao decodificar dados do laudo:", err);
+      }
+    }
+    decryptInfo();
 
     // Carregar perfil do psicólogo logado caso não tenha sido passado via props
     async function loadProfile() {
@@ -81,18 +115,18 @@ export function LaudoPrint({
       }
     }
     loadProfile();
-  }, [propNome, propCrp]);
+  }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo]);
 
   const nomeProfissional = propNome || profile?.nome || "Psicólogo(a) Responsável";
   const crpProfissional = propCrp || profile?.crp || "CRP a definir";
   const telefoneProfissional = propTelefone || profile?.telefone || "";
-  const enderecoProfissional = propEndereco || "Consultório de Psicologia";
-  
+  const enderecoProfissional = propEndereco || "Santa Maria, RS.";
+
   const rawLogoUrl = propLogoUrl !== undefined ? propLogoUrl : profile?.logo_url;
   const logoSrc = rawLogoUrl
     ? (rawLogoUrl.startsWith("http") || rawLogoUrl.startsWith("data:")
-        ? rawLogoUrl
-        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${rawLogoUrl}`)
+      ? rawLogoUrl
+      : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${rawLogoUrl}`)
     : null;
 
   // Iniciais do profissional para monograma fallback
@@ -121,7 +155,7 @@ export function LaudoPrint({
       try {
         await navigator.share({
           title: titulo || "Laudo Psicológico",
-          text: `Laudo Psicológico - ${pacienteNome}\nEmitido por ${nomeProfissional} (${crpProfissional})`,
+          text: `Laudo Psicológico - ${decryptedNome}\nEmitido por ${nomeProfissional} (${crpProfissional})`,
         });
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
@@ -167,7 +201,7 @@ export function LaudoPrint({
                 </h3>
               </div>
               <p className="text-xs text-stone-500 truncate hidden sm:block">
-                Paciente: {pacienteNome || "Desconhecido"}
+                Paciente: {decryptedNome || "Desconhecido"}
               </p>
             </div>
           </div>
@@ -243,7 +277,7 @@ export function LaudoPrint({
                 {nomeProfissional}
               </h1>
               <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
-                Psicólogo(a) Clínico(a)
+                Psicóloga Clínica
               </p>
               <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
                 <p className="text-xs font-bold text-stone-600 tracking-wider">
@@ -272,7 +306,7 @@ export function LaudoPrint({
                     Nome Completo
                   </span>
                   <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
-                    {pacienteNome}
+                    {decryptedNome}
                   </span>
                 </div>
                 <div className="flex flex-col">
@@ -280,7 +314,7 @@ export function LaudoPrint({
                     Documento (CPF)
                   </span>
                   <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
-                    {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
+                    {decryptedCpf ? formatCPF(decryptedCpf) : "Não informado"}
                   </span>
                 </div>
               </div>
@@ -288,14 +322,14 @@ export function LaudoPrint({
 
             {/* Corpo do Laudo */}
             <div className="text-justify leading-[1.85] whitespace-pre-wrap mb-6 text-[11pt] text-stone-800 font-serif">
-              {conteudo}
+              {decryptedConteudo}
             </div>
           </div>
 
           {/* Encerramento, Assinatura e Rodapé */}
           <div className="mt-4 flex flex-col items-center justify-center pt-2 w-full">
             <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
-              {enderecoProfissional ? `${enderecoProfissional}. ` : ""}{dateStr}.
+              {enderecoProfissional ? `${enderecoProfissional} ` : "Santa Maria, RS. "}{dateStr}.
             </p>
 
             {incluirAssinatura && (
@@ -304,19 +338,16 @@ export function LaudoPrint({
                   {nomeProfissional}
                 </p>
                 <p className="text-xs text-stone-500 italic font-serif">
-                  Psicólogo(a) Clínico(a) - {crpProfissional}
+                  Psicóloga Clínica - {crpProfissional}
                 </p>
               </div>
             )}
 
-            {/* Rodapé Institucional com Contato e Sigilo */}
-            <div className="w-full pt-2.5 border-t border-stone-200 text-center flex flex-col sm:flex-row items-center justify-between text-stone-400 text-[8pt] font-sans gap-1">
-              <span className="flex items-center gap-1">
-                <ShieldCheck size={12} /> Documento confidencial para uso exclusivo profissional e do paciente
-              </span>
-              <span>
-                {telefoneProfissional ? `Contato: ${telefoneProfissional}` : ""}
-              </span>
+            {/* Rodapé Institucional com Endereço e Contato */}
+            <div className="w-full pt-2.5 border-t border-stone-200 text-center">
+              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
+                End: {enderecoProfissional || "Santa Maria - RS"} &nbsp;|&nbsp; Contato: {telefoneProfissional || "(55) 99654-7714"}
+              </p>
             </div>
           </div>
         </div>
