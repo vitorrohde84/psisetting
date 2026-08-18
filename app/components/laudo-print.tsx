@@ -160,22 +160,22 @@ export function LaudoPrint({
         <div
           ref={documentRef}
           id="print-section"
-          className="w-full max-w-[210mm] min-h-[275mm] bg-white text-stone-900 shadow-2xl rounded-sm p-8 sm:p-10 md:p-[14mm] font-serif relative flex flex-col justify-between"
+          className="w-full max-w-[210mm] min-h-[297mm] bg-white text-stone-900 shadow-2xl rounded-sm p-8 sm:p-10 md:p-[16mm] font-serif relative flex flex-col justify-between"
           style={{ boxSizing: "border-box" }}
         >
           {/* Topo / Cabeçalho da Psicóloga */}
           <div>
-            <div className="relative flex flex-col items-center justify-center text-center pb-5 mb-7 border-b border-stone-200">
+            <div className="relative flex flex-col items-center justify-center text-center pb-4 mb-6 border-b border-stone-200">
               <img
                 src={LOGO_BASE64}
                 alt="Logo Hellen Limberger"
-                className="h-20 sm:h-22 w-auto mb-2.5 object-contain"
+                className="h-18 sm:h-20 w-auto mb-2 object-contain"
               />
 
-              <h1 className="text-2xl sm:text-[25px] font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1 font-serif">
+              <h1 className="text-2xl sm:text-[24px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
                 Hellen Limberger
               </h1>
-              <p className="text-sm sm:text-base text-stone-500 italic mb-2.5 font-serif">
+              <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
                 Psicóloga Clínica
               </p>
               <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
@@ -186,33 +186,33 @@ export function LaudoPrint({
             </div>
 
             {/* Título do Documento */}
-            <div className="text-center mb-7">
-              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-1.5 px-8 sm:px-12 font-serif">
+            <div className="text-center mb-6">
+              <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-1 px-8 sm:px-12 font-serif">
                 {titulo || "Laudo Psicológico"}
               </h2>
             </div>
 
             {/* Identificação do Paciente */}
-            <div className="mb-7 bg-stone-50/70 p-4 sm:p-5 rounded-xl border border-stone-200">
-              <h3 className="text-[10.5px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3 flex items-center gap-2">
+            <div className="mb-6 bg-stone-50/70 p-4 sm:p-4.5 rounded-xl border border-stone-200">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-2.5 flex items-center gap-2">
                 <span className="w-5 h-px bg-stone-300" />
                 Identificação do Paciente
                 <span className="flex-1 h-px bg-stone-200" />
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-[10.5pt]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-5 text-[10pt]">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Nome Completo
                   </span>
-                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-1">
+                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
                     {pacienteNome}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
                     Documento (CPF)
                   </span>
-                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-1">
+                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
                     {pacienteCpf ? formatCPF(pacienteCpf) : "Não informado"}
                   </span>
                 </div>
@@ -220,31 +220,31 @@ export function LaudoPrint({
             </div>
 
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[1.9] sm:leading-[2.0] whitespace-pre-wrap mb-8 text-[11pt] sm:text-[11.5pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.85] whitespace-pre-wrap mb-6 text-[11pt] text-stone-800 font-serif">
               {conteudo}
             </div>
           </div>
 
           {/* Encerramento, Assinatura e Rodapé */}
-          <div className="mt-6 flex flex-col items-center justify-center pt-4 w-full">
-            <p className="text-center text-stone-600 text-[10.5pt] mb-8 italic font-serif">
+          <div className="mt-4 flex flex-col items-center justify-center pt-2 w-full">
+            <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
               Santa Maria, RS. {dateStr}.
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[300px] border-t border-stone-400 text-center pt-3 mb-8">
-                <p className="font-bold text-[11.5pt] sm:text-[12pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+              <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-6">
+                <p className="font-bold text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
                   Hellen Ketlyn Limberger Silva
                 </p>
-                <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
+                <p className="text-xs text-stone-500 italic font-serif">
                   Psicóloga Clínica - CRP 07/45016
                 </p>
               </div>
             )}
 
             {/* Rodapé Institucional com Endereço e Contato */}
-            <div className="w-full pt-3 border-t border-stone-200 text-center">
-              <p className="text-[9pt] text-stone-500 font-sans tracking-wide">
+            <div className="w-full pt-2.5 border-t border-stone-200 text-center">
+              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
                 End: Santa Maria - RS &nbsp;|&nbsp; Contato: (55) 99654-7714
               </p>
             </div>
@@ -257,7 +257,7 @@ export function LaudoPrint({
         __html: `
         @media print {
           @page {
-            margin: 12mm 16mm 10mm 16mm !important;
+            margin: 0 !important;
             size: A4 portrait;
           }
           
@@ -269,8 +269,8 @@ export function LaudoPrint({
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
+            width: 210mm !important;
+            height: 100% !important;
             background: #ffffff !important;
             color: #000000 !important;
             -webkit-print-color-adjust: exact !important;
@@ -284,21 +284,20 @@ export function LaudoPrint({
           #print-root {
             position: static !important;
             display: block !important;
-            width: 100% !important;
-            height: auto !important;
-            background: #ffffff !important;
+            width: 210mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: visible !important;
+            background: #ffffff !important;
           }
 
           #print-section {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: calc(297mm - 22mm) !important;
-            height: auto !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            min-height: 297mm !important;
+            height: 297mm !important;
+            max-height: 297mm !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 14mm 18mm 12mm 18mm !important;
             box-sizing: border-box !important;
             background: #ffffff !important;
             box-shadow: none !important;
@@ -306,10 +305,11 @@ export function LaudoPrint({
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            page-break-after: avoid !important;
-            break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            overflow: hidden !important;
           }
         }
       `}} />
