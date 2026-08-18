@@ -3,18 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { 
-  ArrowLeft, 
-  Download, 
-  Printer, 
-  Share2, 
-  Loader2, 
-  FileText, 
+import {
+  ArrowLeft,
+  Download,
+  Printer,
+  Share2,
+  Loader2,
+  FileText,
   CheckCircle2,
   AlertCircle,
   PenTool
 } from "lucide-react";
 import { downloadPdf, sharePdf } from "@/utils/pdf-export";
+import { LOGO_BASE64 } from "@/utils/logo-base64";
 
 interface LaudoPrintProps {
   pacienteNome: string;
@@ -110,12 +111,12 @@ export function LaudoPrint({
   }
 
   return (
-    <div 
-      id="print-wrapper" 
+    <div
+      id="print-wrapper"
       className="fixed inset-0 z-[100] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center"
     >
       {/* ===== BARRA SUPERIOR DE AÇÕES (Oculta na impressão) ===== */}
-      <nav 
+      <nav
         aria-label="Ações do documento"
         className="no-print sticky top-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 z-50 px-4 py-3 shadow-md"
       >
@@ -149,7 +150,7 @@ export function LaudoPrint({
           {/* Lado Direito: Opção de Assinatura & Botões de Ação */}
           <div className="flex items-center flex-wrap gap-2 shrink-0">
             {/* Toggle: Incluir Assinatura */}
-            <label 
+            <label
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-stone-100 hover:bg-stone-200/80 text-stone-700 cursor-pointer select-none transition-colors border border-stone-200"
               title="Ativar ou desativar a assinatura da profissional no documento"
             >
@@ -165,11 +166,10 @@ export function LaudoPrint({
 
             {/* Feedback message */}
             {feedback && (
-              <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${
-                feedback.type === "success" 
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+              <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg mr-2 animate-fadeIn ${feedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                   : "bg-red-50 text-red-700 border border-red-200"
-              }`}>
+                }`}>
                 {feedback.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                 <span>{feedback.message}</span>
               </div>
@@ -241,11 +241,11 @@ export function LaudoPrint({
           <div>
             <div className="relative flex flex-col items-center justify-center text-center pb-6 mb-8 border-b border-stone-200">
               <img
-                src="/logo1.png"
+                src={LOGO_BASE64}
                 alt="Logo Hellen Limberger"
                 className="h-20 sm:h-24 w-auto mb-3 object-contain"
               />
-              
+
               <h1 className="text-2xl sm:text-[26px] font-extrabold uppercase tracking-[0.18em] text-stone-800 mb-1 font-serif">
                 Hellen Limberger
               </h1>
@@ -308,7 +308,7 @@ export function LaudoPrint({
             {incluirAssinatura && (
               <div className="w-full max-w-[320px] border-t border-stone-400 text-center pt-3">
                 <p className="font-bold text-[12pt] sm:text-[13pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
-                  Hellen Limberger
+                  Hellen Ketlyn Limberger Silva
                 </p>
                 <p className="text-xs sm:text-sm text-stone-500 italic font-serif">
                   Psicóloga Clínica - CRP 07/45016
