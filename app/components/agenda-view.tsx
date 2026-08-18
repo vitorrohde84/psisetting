@@ -79,7 +79,55 @@ export function AgendaView() {
   const [prefillAgData, setPrefillAgData] = useState<any>(null);
   const [showIcsInfo, setShowIcsInfo] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [calendarToken, setCalendarToken] = useState<string | null>(null);
+  const [loadingToken, setLoadingToken] = useState(false);
+  const [syncTab, setSyncTab] = useState<"iphone" | "google">("iphone");
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const loadCalendarToken = useCallback(async () => {
+    setLoadingToken(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("calendar_token")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.calendar_token) {
+        setCalendarToken(profile.calendar_token);
+      } else {
+        const newToken = "cal_" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+
+        await supabase
+          .from("profiles")
+          .update({ calendar_token: newToken })
+          .eq("id", user.id);
+
+        setCalendarToken(newToken);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar token do calendário:", err);
+    } finally {
+      setLoadingToken(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCalendarToken();
+  }, [loadCalendarToken]);
+
+  function copyCalUrl() {
+    if (!calendarToken || typeof window === "undefined") return;
+    const url = `${window.location.origin}/calendario/${calendarToken}`;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2500);
+  }
 
   // Cross-module Modals
   const [showProntuarioModal, setShowProntuarioModal] = useState(false);
@@ -271,25 +319,6 @@ export function AgendaView() {
     setShowPagamentoModal(true);
   }
 
-  // iCal URL
-  const calToken = typeof window !== "undefined"
-    ? ""
-    : "";
-
-  function getWebcalUrl() {
-    if (typeof window === "undefined") return "";
-    const host = window.location.host;
-    const protocol = window.location.protocol === "https:" ? "webcal" : "http";
-    return `${protocol}://${host}/calendario/${process.env.NEXT_PUBLIC_CALENDAR_TOKEN || "TOKEN"}`;
-  }
-
-  async function copyCalUrl() {
-    const url = getWebcalUrl().replace("webcal://", "https://");
-    await navigator.clipboard.writeText(url);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
-  }
-
   // Selected date agendamentos
   const selectedAgs = selectedDate ? byDate[selectedDate] || [] : [];
 
@@ -306,13 +335,15 @@ export function AgendaView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowIcsInfo(!showIcsInfo)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl
-                       bg-background border border-border text-sm font-medium text-text-muted
-                       hover:border-primary/30 hover:text-text transition-all cursor-pointer"
-            title="Assinar no iPhone"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-all cursor-pointer shadow-xs ${
+              showIcsInfo
+                ? "bg-primary text-white border-primary"
+                : "bg-background border-border text-text-muted hover:border-primary/30 hover:text-text"
+            }`}
+            title="Sincronizar no iPhone, Mac ou Google Agenda"
           >
             <Smartphone size={16} />
-            <span className="hidden sm:inline">iPhone</span>
+            <span className="hidden sm:inline">Sincronizar Agenda</span>
           </button>
           <button
             onClick={handleNew}
@@ -327,58 +358,136 @@ export function AgendaView() {
         </div>
       </div>
 
-      {/* iPhone subscription card */}
+      {/* Sincronização de Calendário */}
       {showIcsInfo && (
-        <div className="bg-surface rounded-xl border border-border/60 p-5 mb-6">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <Smartphone size={18} className="text-primary" />
-              <h3 className="text-base font-serif font-medium text-text">
-                Assinar no iPhone
-              </h3>
+        <div className="bg-surface rounded-2xl border border-border shadow-md p-6 mb-6 animate-in fade-in zoom-in-98 duration-150">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-serif font-semibold text-text">
+                  Sincronização Automática da Agenda
+                </h3>
+                <p className="text-xs text-text-muted">
+                  Veja seus atendimentos em tempo real no iPhone, iPad, Mac ou Google Agenda
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setShowIcsInfo(false)}
-              className="p-1 rounded-lg text-text-muted hover:text-text hover:bg-background transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl text-text-muted hover:text-text hover:bg-background transition-colors cursor-pointer"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <div className="space-y-3 text-sm text-text-muted">
-            <p>
-              Para ver seus agendamentos no app <strong className="text-text">Calendário do iPhone</strong>, siga os passos:
-            </p>
-            <ol className="list-decimal list-inside space-y-1.5 pl-1">
-              <li>Abra <strong className="text-text">Ajustes</strong> no iPhone</li>
-              <li>Vá em <strong className="text-text">Calendário → Contas → Adicionar Conta → Outra</strong></li>
-              <li>Toque em <strong className="text-text">Adicionar Calendário Assinado</strong></li>
-              <li>Cole a URL abaixo e confirme</li>
-            </ol>
-
-            <div className="flex items-center gap-2 p-3 bg-background rounded-xl border border-border mt-2">
-              <code className="flex-1 text-xs text-text break-all font-mono">
-                {typeof window !== "undefined"
-                  ? `${window.location.protocol}//${window.location.host}/calendario/${process.env.NEXT_PUBLIC_CALENDAR_TOKEN || "SEU_TOKEN"}`
-                  : "/calendario/SEU_TOKEN"}
-              </code>
-              <button
-                onClick={copyCalUrl}
-                className="shrink-0 p-2 rounded-lg hover:bg-surface transition-colors cursor-pointer"
-                title="Copiar URL"
-              >
-                {copiedUrl ? (
-                  <Check size={16} className="text-success" />
-                ) : (
-                  <Copy size={16} className="text-text-muted" />
-                )}
-              </button>
-            </div>
-
-            <p className="text-xs text-text-muted/70 mt-2">
-              O calendário atualiza automaticamente. O intervalo é controlado pela Apple e pode levar algumas horas.
-            </p>
+          {/* Tabs de Instrução */}
+          <div className="flex bg-background rounded-xl p-1 mb-4 max-w-xs">
+            <button
+              type="button"
+              onClick={() => setSyncTab("iphone")}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                syncTab === "iphone"
+                  ? "bg-surface text-text shadow-xs font-semibold"
+                  : "text-text-muted hover:text-text"
+              }`}
+            >
+              📱 iPhone / Apple
+            </button>
+            <button
+              type="button"
+              onClick={() => setSyncTab("google")}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                syncTab === "google"
+                  ? "bg-surface text-text shadow-xs font-semibold"
+                  : "text-text-muted hover:text-text"
+              }`}
+            >
+              📅 Google Agenda
+            </button>
           </div>
+
+          {/* Passo a Passo */}
+          {syncTab === "iphone" ? (
+            <div className="space-y-2.5 text-sm text-text-muted mb-4 bg-background/50 p-4 rounded-xl border border-border/50">
+              <p className="font-semibold text-text text-xs uppercase tracking-wider">
+                Como ativar no seu iPhone / iPad:
+              </p>
+              <ol className="list-decimal list-inside space-y-1.5 text-xs text-text leading-relaxed">
+                <li>Copie o seu <strong>Link Pessoal</strong> no botão abaixo.</li>
+                <li>No seu iPhone, abra o app <strong>Ajustes</strong>.</li>
+                <li>Toque em <strong>Calendário</strong> → <strong>Contas</strong> → <strong>Adicionar Conta</strong>.</li>
+                <li>Selecione <strong>Outra</strong> e toque em <strong>Adicionar Calendário Assinado</strong>.</li>
+                <li>Cole o link copiado e toque em <strong>Seguinte / Salvar</strong>.</li>
+              </ol>
+            </div>
+          ) : (
+            <div className="space-y-2.5 text-sm text-text-muted mb-4 bg-background/50 p-4 rounded-xl border border-border/50">
+              <p className="font-semibold text-text text-xs uppercase tracking-wider">
+                Como ativar no Google Agenda (Android / Computador):
+              </p>
+              <ol className="list-decimal list-inside space-y-1.5 text-xs text-text leading-relaxed">
+                <li>Copie o seu <strong>Link Pessoal</strong> no botão abaixo.</li>
+                <li>Acesse <strong>calendar.google.com</strong> no seu navegador.</li>
+                <li>Na barra lateral esquerda, ao lado de <strong>Outras agendas</strong>, clique no <strong>+</strong>.</li>
+                <li>Selecione <strong>Do URL</strong>.</li>
+                <li>Cole o link copiado e clique em <strong>Adicionar agenda</strong>.</li>
+              </ol>
+            </div>
+          )}
+
+          {/* Campo com Link Pessoal Gerado */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Seu Link Exclusivo de Sincronização
+            </label>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex-1 px-3.5 py-2.5 rounded-xl bg-background border border-border text-xs text-text font-mono truncate select-all">
+                {loadingToken
+                  ? "Carregando seu link seguro..."
+                  : calendarToken && typeof window !== "undefined"
+                  ? `${window.location.origin}/calendario/${calendarToken}`
+                  : "Carregando..."}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={copyCalUrl}
+                  disabled={loadingToken || !calendarToken}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+                >
+                  {copiedUrl ? (
+                    <>
+                      <Check size={14} className="text-white" />
+                      <span>Link Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      <span>Copiar Link</span>
+                    </>
+                  )}
+                </button>
+
+                {calendarToken && (
+                  <a
+                    href={`webcal://${typeof window !== "undefined" ? window.location.host : ""}/calendario/${calendarToken}`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-background text-text text-xs font-medium hover:bg-surface active:scale-[0.98] transition-all cursor-pointer"
+                    title="Assinar automaticamente com 1 toque no iPhone ou Mac"
+                  >
+                    <span>Abrir no iPhone</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-text-muted/70 mt-3">
+            🔒 Este link é pessoal e intransferível. Somente os seus próprios agendamentos serão sincronizados.
+          </p>
         </div>
       )}
 
