@@ -312,41 +312,14 @@ export function LaudoPrint({
             </div>
 
             {/* Título do Documento */}
-            <div className="text-center mb-6">
+            <div className="text-center mb-8">
               <h2 className="inline-block text-lg sm:text-xl font-bold uppercase tracking-[0.2em] text-stone-800 border-b border-stone-300 pb-1 px-8 sm:px-12 font-serif">
                 {titulo || "Laudo Psicológico"}
               </h2>
             </div>
 
-            {/* Identificação do Paciente */}
-            <div className="mb-6 bg-stone-50/70 p-4 sm:p-4.5 rounded-xl border border-stone-200">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-2.5 flex items-center gap-2">
-                <span className="w-5 h-px bg-stone-300" />
-                Identificação do Paciente
-                <span className="flex-1 h-px bg-stone-200" />
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-5 text-[10pt]">
-                <div className="flex flex-col">
-                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
-                    Nome Completo
-                  </span>
-                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
-                    {decryptedNome}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">
-                    Documento (CPF)
-                  </span>
-                  <span className="text-stone-800 font-medium text-base border-b border-stone-200 pb-0.5">
-                    {decryptedCpf ? formatCPF(decryptedCpf) : "Não informado"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Corpo do Laudo */}
-            <div className="text-justify leading-[1.85] whitespace-pre-wrap mb-6 text-[11pt] text-stone-800 font-serif">
+            <div className="text-justify leading-[1.9] whitespace-pre-wrap mb-6 text-[11pt] text-stone-800 font-serif">
               {decryptedConteudo}
             </div>
           </div>

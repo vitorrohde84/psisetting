@@ -17,6 +17,15 @@ export interface LaudoTemplate {
   }) => string;
 }
 
+function formatCpf(cpf?: string): string {
+  if (!cpf) return "";
+  const cleaned = cpf.replace(/\D/g, "");
+  if (cleaned.length === 11) {
+    return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
+  return cpf;
+}
+
 export const CFP_TEMPLATES: LaudoTemplate[] = [
   {
     id: "decl-comparecimento",
@@ -26,7 +35,8 @@ export const CFP_TEMPLATES: LaudoTemplate[] = [
     descricao: "Para comprovar comparecimento e horário de sessão no trabalho/escola.",
     buildConteudo: ({ pacienteNome, pacienteCpf }) => {
       const nome = pacienteNome || "[Nome do Paciente]";
-      const doc = pacienteCpf ? `inscrito(a) no CPF sob o nº ${pacienteCpf}` : "documento nº [CPF/RG]";
+      const formattedCpf = formatCpf(pacienteCpf);
+      const doc = formattedCpf ? `inscrito(a) no CPF sob o nº ${formattedCpf}` : "documento nº [CPF/RG]";
       return `Declaro, para os devidos fins a que se fizerem necessários, que o(a) paciente ${nome}, ${doc}, compareceu a este consultório de psicologia na data de hoje, das [00:00] às [00:00], para realização de sessão de atendimento psicológico.
 
 Por ser a expressão da verdade, firmo a presente declaração.`;
@@ -40,7 +50,8 @@ Por ser a expressão da verdade, firmo a presente declaração.`;
     descricao: "Comprova que o paciente realiza processo psicoterapêutico ativo.",
     buildConteudo: ({ pacienteNome, pacienteCpf }) => {
       const nome = pacienteNome || "[Nome do Paciente]";
-      const doc = pacienteCpf ? `inscrito(a) no CPF sob o nº ${pacienteCpf}` : "documento nº [CPF/RG]";
+      const formattedCpf = formatCpf(pacienteCpf);
+      const doc = formattedCpf ? `inscrito(a) no CPF sob o nº ${formattedCpf}` : "documento nº [CPF/RG]";
       return `Declaro, para os devidos fins a que se fizerem necessários, que o(a) paciente ${nome}, ${doc}, encontra-se sob acompanhamento psicológico regular neste consultório, com frequência [semanal / quinzenal], desde [Mês/Ano de Início].
 
 Ressalta-se que a presente declaração tem como finalidade exclusiva comprovar o processo psicoterapêutico, em estrita conformidade com o Código de Ética Profissional do Psicólogo e a Resolução CFP nº 06/2019, não contendo dados diagnósticos ou sigilosos.`;
@@ -54,7 +65,7 @@ Ressalta-se que a presente declaração tem como finalidade exclusiva comprovar 
     descricao: "Para justificar faltas, solicitar afastamento ou atestar aptidão.",
     buildConteudo: ({ pacienteNome, pacienteCpf }) => {
       const nome = pacienteNome || "[Nome do Paciente]";
-      const doc = pacienteCpf || "[CPF do Paciente]";
+      const doc = formatCpf(pacienteCpf) || "[CPF do Paciente]";
       return `I. IDENTIFICAÇÃO DO PACIENTE
 Nome: ${nome}
 Documento: CPF ${doc}
@@ -77,7 +88,7 @@ Com base nos dados coletados e na avaliação clínica, atesto que o(a) paciente
     descricao: "Comunicação de evolução clínica ou encaminhamento multiprofissional.",
     buildConteudo: ({ pacienteNome, pacienteCpf, psicologoNome, psicologoCrp }) => {
       const nome = pacienteNome || "[Nome do Paciente]";
-      const doc = pacienteCpf || "[CPF do Paciente]";
+      const doc = formatCpf(pacienteCpf) || "[CPF do Paciente]";
       const psi = psicologoNome || "[Nome da Psicóloga]";
       const crp = psicologoCrp || "[Registro CRP]";
       return `I. IDENTIFICAÇÃO
@@ -107,7 +118,7 @@ Diante do exposto, sugere-se [recomendações, continuidade do acompanhamento ps
     descricao: "Estrutura formal de Avaliação Psicológica completa com testagem.",
     buildConteudo: ({ pacienteNome, pacienteCpf, psicologoNome, psicologoCrp }) => {
       const nome = pacienteNome || "[Nome do Paciente]";
-      const doc = pacienteCpf || "[CPF do Paciente]";
+      const doc = formatCpf(pacienteCpf) || "[CPF do Paciente]";
       const psi = psicologoNome || "[Nome da Psicóloga]";
       const crp = psicologoCrp || "[Registro CRP]";
       return `I. IDENTIFICAÇÃO
