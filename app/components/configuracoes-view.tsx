@@ -17,6 +17,8 @@ import {
   Phone,
   Award,
   Sparkles,
+  MapPin,
+  Building,
 } from "lucide-react";
 
 interface Profile {
@@ -25,6 +27,9 @@ interface Profile {
   email: string | null;
   crp: string | null;
   telefone: string | null;
+  genero?: string | null;
+  cidade?: string | null;
+  endereco?: string | null;
   logo_url: string | null;
   calendar_token: string | null;
 }
@@ -39,6 +44,9 @@ export function ConfiguracoesView() {
   const [nome, setNome] = useState("");
   const [crp, setCrp] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [genero, setGenero] = useState<"F" | "M" | "outro">("F");
+  const [cidade, setCidade] = useState("");
+  const [endereco, setEndereco] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{
@@ -64,7 +72,7 @@ export function ConfiguracoesView() {
 
     const { data } = await supabase
       .from("profiles")
-      .select("id, nome, email, crp, telefone, logo_url, calendar_token")
+      .select("id, nome, email, crp, telefone, genero, cidade, endereco, logo_url, calendar_token")
       .eq("id", user.id)
       .single();
 
@@ -73,6 +81,9 @@ export function ConfiguracoesView() {
       setNome(data.nome || "");
       setCrp(data.crp || "");
       setTelefone(data.telefone || "");
+      setGenero((data.genero as "F" | "M" | "outro") || "F");
+      setCidade(data.cidade || "");
+      setEndereco(data.endereco || "");
       if (data.logo_url) {
         const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
         setLogoPreview(url);
@@ -99,6 +110,9 @@ export function ConfiguracoesView() {
         nome: nome.trim(),
         crp: crp.trim() || null,
         telefone: telefone.trim() || null,
+        genero: genero || "F",
+        cidade: cidade.trim() || null,
+        endereco: endereco.trim() || null,
       })
       .eq("id", profile.id);
 
@@ -248,6 +262,48 @@ export function ConfiguracoesView() {
           </div>
 
           <form onSubmit={handleSaveProfile} className="p-5 space-y-4">
+            {/* Tratamento / Título Profissional */}
+            <div>
+              <label className="block text-sm font-medium text-text-muted mb-1.5">
+                Tratamento Profissional nos Documentos
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setGenero("F")}
+                  className={`py-2 px-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all text-center cursor-pointer ${
+                    genero === "F"
+                      ? "bg-primary text-white border-primary shadow-xs"
+                      : "bg-background border-border text-text hover:bg-surface"
+                  }`}
+                >
+                  Psicóloga Clínica
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenero("M")}
+                  className={`py-2 px-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all text-center cursor-pointer ${
+                    genero === "M"
+                      ? "bg-primary text-white border-primary shadow-xs"
+                      : "bg-background border-border text-text hover:bg-surface"
+                  }`}
+                >
+                  Psicólogo Clínico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenero("outro")}
+                  className={`py-2 px-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all text-center cursor-pointer ${
+                    genero === "outro"
+                      ? "bg-primary text-white border-primary shadow-xs"
+                      : "bg-background border-border text-text hover:bg-surface"
+                  }`}
+                >
+                  Psicólogo(a)
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-text-muted mb-1.5">
                 Nome Profissional Completo
@@ -257,7 +313,7 @@ export function ConfiguracoesView() {
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 required
-                placeholder="Ex: Dra. Ana Paula Silva"
+                placeholder="Ex: Dra. Hellen Ketlyn Limberger Silva"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                            focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
               />
@@ -272,7 +328,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={crp}
                   onChange={(e) => setCrp(e.target.value)}
-                  placeholder="Ex: CRP 06/123456"
+                  placeholder="Ex: CRP 07/45016"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -286,7 +342,37 @@ export function ConfiguracoesView() {
                   type="text"
                   value={telefone}
                   onChange={(e) => setTelefone(e.target.value)}
-                  placeholder="Ex: (11) 99999-9999"
+                  placeholder="Ex: (55) 99654-7714"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5 flex items-center gap-1.5">
+                  <MapPin size={14} /> Cidade que Atende
+                </label>
+                <input
+                  type="text"
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
+                  placeholder="Ex: Santa Maria, RS"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
+                             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-1.5 flex items-center gap-1.5">
+                  <Building size={14} /> Endereço do Rodapé dos Laudos
+                </label>
+                <input
+                  type="text"
+                  value={endereco}
+                  onChange={(e) => setEndereco(e.target.value)}
+                  placeholder="Ex: Rua General Osório, 0000 - Centro, Santa Maria - RS"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />

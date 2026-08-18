@@ -33,6 +33,8 @@ interface ProfileData {
   nome: string | null;
   crp: string | null;
   telefone: string | null;
+  genero?: string | null;
+  cidade?: string | null;
   endereco?: string | null;
   logo_url: string | null;
 }
@@ -98,13 +100,12 @@ export function LaudoPrint({
 
     // Carregar perfil do psicólogo logado caso não tenha sido passado via props
     async function loadProfile() {
-      if (propNome && propCrp) return;
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         const { data } = await supabase
           .from("profiles")
-          .select("nome, crp, telefone, logo_url")
+          .select("nome, crp, telefone, genero, cidade, endereco, logo_url")
           .eq("id", user.id)
           .single();
         if (data) {
@@ -117,10 +118,18 @@ export function LaudoPrint({
     loadProfile();
   }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo]);
 
-  const nomeProfissional = propNome || profile?.nome || "Psicólogo(a) Responsável";
-  const crpProfissional = propCrp || profile?.crp || "CRP a definir";
-  const telefoneProfissional = propTelefone || profile?.telefone || "";
-  const enderecoProfissional = propEndereco || "Santa Maria, RS.";
+  const nomeProfissional = propNome || profile?.nome || "Hellen Limberger";
+  const crpProfissional = propCrp || profile?.crp || "CRP 07/45016";
+  const telefoneProfissional = propTelefone || profile?.telefone || "(55) 99654-7714";
+  const cidadeProfissional = profile?.cidade || "Santa Maria, RS";
+  const enderecoProfissional = propEndereco || profile?.endereco || "Santa Maria - RS";
+
+  const tituloProfissional =
+    profile?.genero === "M"
+      ? "Psicólogo Clínico"
+      : profile?.genero === "outro"
+      ? "Psicólogo(a) Clínico(a)"
+      : "Psicóloga Clínica";
 
   const rawLogoUrl = propLogoUrl !== undefined ? propLogoUrl : profile?.logo_url;
   const logoSrc = rawLogoUrl
@@ -277,7 +286,7 @@ export function LaudoPrint({
                 {nomeProfissional}
               </h1>
               <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
-                Psicóloga Clínica
+                {tituloProfissional}
               </p>
               <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
                 <p className="text-xs font-bold text-stone-600 tracking-wider">
@@ -329,7 +338,7 @@ export function LaudoPrint({
           {/* Encerramento, Assinatura e Rodapé */}
           <div className="mt-4 flex flex-col items-center justify-center pt-2 w-full">
             <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
-              {enderecoProfissional ? `${enderecoProfissional} ` : "Santa Maria, RS. "}{dateStr}.
+              {cidadeProfissional ? `${cidadeProfissional}. ` : "Santa Maria, RS. "}{dateStr}.
             </p>
 
             {incluirAssinatura && (
@@ -338,7 +347,7 @@ export function LaudoPrint({
                   {nomeProfissional}
                 </p>
                 <p className="text-xs text-stone-500 italic font-serif">
-                  Psicóloga Clínica - {crpProfissional}
+                  {tituloProfissional} - {crpProfissional}
                 </p>
               </div>
             )}
@@ -346,7 +355,7 @@ export function LaudoPrint({
             {/* Rodapé Institucional com Endereço e Contato */}
             <div className="w-full pt-2.5 border-t border-stone-200 text-center">
               <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
-                End: {enderecoProfissional || "Santa Maria - RS"} &nbsp;|&nbsp; Contato: {telefoneProfissional || "(55) 99654-7714"}
+                End: {enderecoProfissional || cidadeProfissional || "Santa Maria - RS"} &nbsp;|&nbsp; Contato: {telefoneProfissional || "(55) 99654-7714"}
               </p>
             </div>
           </div>
