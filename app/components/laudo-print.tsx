@@ -331,11 +331,11 @@ export function LaudoPrint({
             </p>
 
             {incluirAssinatura && (
-              <div className="w-full max-w-[280px] border-t border-stone-400 text-center pt-2 mb-6">
-                <p className="font-bold text-[11.5pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif">
+              <div className="inline-flex flex-col items-center min-w-[280px] max-w-[450px] border-t border-stone-400 text-center pt-2 mb-6 px-4">
+                <p className="font-bold text-[11pt] text-stone-800 mb-0.5 tracking-wide uppercase font-serif whitespace-nowrap">
                   {nomeAssinatura}
                 </p>
-                <p className="text-xs text-stone-500 italic font-serif">
+                <p className="text-xs text-stone-500 italic font-serif whitespace-nowrap">
                   {tituloProfissional} - {crpProfissional}
                 </p>
               </div>
