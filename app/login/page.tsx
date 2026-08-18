@@ -398,7 +398,7 @@ export default function LoginPage() {
             <span className="text-2xl font-serif font-bold">Ψ</span>
           </div>
           <h1 className="text-2xl font-serif font-semibold text-text tracking-tight">
-            PsychoCare
+            PsiSetting
           </h1>
           <p className="mt-1 text-sm text-text-muted">
             Gestão Clínica e Prontuários para Psicólogos

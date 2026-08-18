@@ -15,9 +15,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "PsychoCare — Sistema de Gestão para Psicólogos",
+  title: "PsiSetting — Gestão Clínica para Psicólogos",
   description:
-    "Plataforma segura e completa de gestão clínica e prontuários para psicólogos.",
+    "Plataforma segura, ética e acolhedora de gestão clínica, prontuários, laudos e agenda para psicólogos.",
 };
 
 export default function RootLayout({
