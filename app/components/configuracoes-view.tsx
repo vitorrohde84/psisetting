@@ -574,14 +574,14 @@ export function ConfiguracoesView() {
 
           <div className="p-5 space-y-4">
             <p className="text-sm text-text-muted leading-relaxed">
-              O PsiSetting oferece pacientes e prontuários ilimitados, modelos oficiais CFP 06/2019 e sincronização de agenda sem fidelidade ou contratos de permanência.
+              O PsiSetting oferece pacientes e prontuários ilimitados, 5 modelos conforme a Resolução CFP 06/2019 e sincronização de agenda sem fidelidade ou contratos de permanência.
             </p>
 
             <div className="p-4 rounded-xl bg-background border border-border/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold text-text">Plano Profissional Completo</p>
+                <p className="text-xs font-bold text-text">Plano Único Profissional</p>
                 <p className="text-xs text-text-muted">
-                  Acesso ilimitado a todos os módulos clínicos, laudos e agenda.
+                  Acesso ilimitado a todos os módulos clínicos, documentos e agenda.
                 </p>
               </div>
 
@@ -595,6 +595,16 @@ export function ConfiguracoesView() {
             </div>
 
             <MercadoPagoBadge variant="card" />
+
+            <div className="pt-2 flex items-center justify-center gap-3 text-xs text-text-muted">
+              <a href="/termos" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
+                Termos de Uso
+              </a>
+              <span>·</span>
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
+                Política de Privacidade
+              </a>
+            </div>
           </div>
         </div>
       </div>

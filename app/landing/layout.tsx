@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "PsiSetting — Gestão Clínica para Psicólogos | Prontuários, Laudos e Agenda",
+  title: "PsiSetting — Seu setting clínico organizado, protegido e em um só lugar",
   description:
-    "Plataforma segura de gestão clínica para psicólogos. Prontuários eletrônicos, laudos CFP 06/2019, agenda com iCal, financeiro e Modo Privacidade. Conforme LGPD.",
+    "Um sistema que entende como uma sessão de psicoterapia realmente acontece. Prontuário protegido, gestão da clínica e documentos conforme a Resolução CFP nº 06/2019.",
   alternates: {
-    canonical: "https://psisetting.com.br/landing",
+    canonical: "https://psisetting.com.br",
   },
   openGraph: {
-    title: "PsiSetting — Seu setting terapêutico, agora também digital",
+    title: "PsiSetting — Seu setting clínico organizado, protegido e em um só lugar",
     description:
-      "Prontuários, laudos, agenda e financeiro em conformidade com o CFP. Foque na escuta.",
-    url: "https://psisetting.com.br/landing",
+      "Desenvolvido e validado em colaboração com psicóloga clínica atuante. Prontuário protegido, gestão da clínica e documentos psicológicos.",
+    url: "https://psisetting.com.br",
     siteName: "PsiSetting",
     locale: "pt_BR",
     type: "website",
@@ -26,13 +26,13 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "PsiSetting — Gestão Clínica para Psicólogos",
+    title: "PsiSetting — Seu setting clínico organizado, protegido e em um só lugar",
     description:
-      "Plataforma segura de gestão clínica. Prontuários, laudos CFP, agenda e financeiro. Conforme LGPD.",
+      "Desenvolvido e validado em colaboração com psicóloga clínica atuante. Prontuário protegido, gestão da clínica e documentos psicológicos.",
     images: ["/og-image.png"],
   },
   verification: {
-    google: "GOOGLE_SITE_VERIFICATION_CODE", // Substituir quando configurar o Search Console
+    google: "GOOGLE_SITE_VERIFICATION_CODE",
   },
 };
 

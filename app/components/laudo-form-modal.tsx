@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { X, Save, Loader2, Search, FileUp, FileText, Sparkles, Check } from "lucide-react";
+import { X, Save, Loader2, Search, FileUp, FileText, Sparkles, Check, AlertCircle } from "lucide-react";
 import { uploadLaudoPdf } from "@/utils/supabase/storage";
 import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 import { CFP_TEMPLATES, LaudoTemplate } from "@/utils/laudo-templates";
@@ -320,14 +320,14 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
 
           {mode === "text" ? (
             <div className="space-y-4">
-              {/* Seletor de Modelos Oficiais CFP (Res. 06/2019) */}
+              {/* Seletor de 5 Modelos conforme a Resolução CFP nº 06/2019 */}
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
                   <span className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles size={14} /> Modelos Oficiais CFP (Resolução 06/2019)
+                    <Sparkles size={14} /> 5 Modelos conforme a Resolução CFP nº 06/2019
                   </span>
                   <span className="text-[11px] text-text-muted">
-                    Clique em um modelo para carregar a estrutura pronta
+                    Clique em um modelo para carregar a estrutura recomendada
                   </span>
                 </div>
                 
@@ -352,6 +352,14 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
                       </p>
                     </button>
                   ))}
+                </div>
+
+                {/* Disclaimer Ético */}
+                <div className="mt-3 p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-950 flex items-start gap-2">
+                  <AlertCircle size={14} className="text-amber-800 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Aviso Ético:</strong> Os modelos disponibilizados são ferramentas de apoio estruturadas com base na Resolução CFP nº 06/2019. A revisão, adequação e utilização do documento são de responsabilidade do profissional, conforme seu conhecimento técnico e as normas vigentes.
+                  </span>
                 </div>
               </div>
 

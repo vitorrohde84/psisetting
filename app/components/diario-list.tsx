@@ -118,13 +118,13 @@ export function DiarioList() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-serif font-semibold text-text flex items-center gap-2">
-            <span>Notas Confidenciais (Diário de Bordo)</span>
+            <span>Diário de Bordo & Supervisão</span>
             <span className="text-xs font-sans px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1 font-normal">
-              <ShieldCheck size={12} /> Criptografia AES-256 Ativa
+              <ShieldCheck size={12} /> Criptografia AES-256
             </span>
           </h2>
           <p className="text-xs text-text-muted mt-0.5">
-            Suas anotações são armazenadas cifradas no banco de dados e legíveis apenas na sua sessão.
+            Espaço confidencial para elaboração clínica, hipóteses de manejo e anotações para supervisão.
           </p>
         </div>
         <button
@@ -144,6 +144,17 @@ export function DiarioList() {
           <Plus size={18} />
           Nova Anotação
         </button>
+      </div>
+
+      {/* Card de Identidade Clínica e Supervisão */}
+      <div className="mb-6 p-3.5 rounded-2xl bg-teal-50/70 border border-teal-200/80 flex items-start gap-3 text-xs text-teal-950">
+        <BookOpen size={16} className="text-teal-800 shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <p className="font-bold text-teal-900">Da Sessão à Supervisão Clínica</p>
+          <p className="text-[11px] text-teal-800 leading-relaxed">
+            Utilize este espaço para registrar contratransferências, reflexões teóricas e dúvidas para supervisão. Estas notas ficam protegidas com chave individual para apoiar a elaboração contínua do caso.
+          </p>
+        </div>
       </div>
 
       {/* Filters */}

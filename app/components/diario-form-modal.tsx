@@ -355,13 +355,13 @@ export function DiarioFormModal({
           {/* Conteúdo */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5 flex items-center justify-between">
-              <span>Notas da Sessão / Observações do Terapeuta *</span>
+              <span>Notas de Elaboração Clínica & Supervisão *</span>
               <span className="text-[10px] text-text-muted font-normal lowercase">Cifrado com AES-256</span>
             </label>
             <textarea
               required
               rows={8}
-              placeholder="Descreva as percepções clínicas, temas trazidos pelo paciente, hipóteses diagnósticas e pontos para a próxima sessão..."
+              placeholder="Descreva percepções contratransferenciais, reflexões teóricas, hipóteses de manejo e pontos para supervisão clínica..."
               value={form.conteudo}
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, conteudo: e.target.value }))
@@ -371,10 +371,10 @@ export function DiarioFormModal({
           </div>
 
           {/* Privacy Alert */}
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/10 text-xs text-text-muted">
-            <ShieldAlert size={16} className="text-primary shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-teal-50/80 border border-teal-200/80 text-xs text-teal-950">
+            <ShieldAlert size={16} className="text-teal-800 shrink-0 mt-0.5" />
             <p>
-              <strong>Sigilo Profissional:</strong> Esta anotação é criptografada e não pode ser impressa ou exportada em laudos públicos.
+              <strong>Espaço Reflexivo Confidencial:</strong> Esta anotação é protegida com criptografia e de uso exclusivo do terapeuta para supervisão e acompanhamento clínico, não sendo exportada em laudos ou documentos externos.
             </p>
           </div>
 

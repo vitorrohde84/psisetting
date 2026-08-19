@@ -66,6 +66,8 @@ export async function updateSession(request: NextRequest) {
   const isLoginPath = pathname.startsWith("/login");
   const isCalendarPath = pathname.startsWith("/calendario");
   const isLandingPath = pathname.startsWith("/landing");
+  const isTermosPath = pathname.startsWith("/termos");
+  const isPrivacidadePath = pathname.startsWith("/privacidade");
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isRegisterApi = pathname.startsWith("/api/auth/register");
   const isWebhookApi = pathname.startsWith("/api/webhooks");
@@ -74,6 +76,8 @@ export async function updateSession(request: NextRequest) {
     isLoginPath ||
     isCalendarPath ||
     isLandingPath ||
+    isTermosPath ||
+    isPrivacidadePath ||
     isAuthCallback ||
     isRegisterApi ||
     isWebhookApi;

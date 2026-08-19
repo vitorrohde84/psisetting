@@ -786,11 +786,12 @@ export default function LoginPage() {
                            transition-all duration-200 cursor-pointer shadow-sm"
               >
                 {loading ? (
-                  <span className="inline-flex items-center gap-2">
+                  <span className="flex items-center justify-center gap-2">
                     <svg
-                      className="animate-spin h-4 w-4"
-                      viewBox="0 0 24 24"
+                      className="animate-spin h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
                       fill="none"
+                      viewBox="0 0 24 24"
                     >
                       <circle
                         className="opacity-25"
@@ -812,14 +813,36 @@ export default function LoginPage() {
                   "Criar Conta Profissional"
                 )}
               </button>
+
+              <p className="text-[11px] text-text-muted text-center pt-2 leading-relaxed">
+                Ao criar uma conta, você declara ciência e concordância com os{" "}
+                <a href="/termos" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  Termos de Uso
+                </a>{" "}
+                e com a{" "}
+                <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  Política de Privacidade
+                </a>.
+              </p>
             </form>
           )}
         </div>
 
         {/* Footer com Selo de Segurança e Sigilo */}
-        <div className="mt-8 text-center flex items-center justify-center gap-1.5 text-xs text-text-muted/70">
-          <ShieldCheck size={14} className="text-primary" />
-          <span>Plataforma Segura · Criptografia AES-256 · Conforme LGPD & CFP</span>
+        <div className="mt-8 text-center flex flex-col items-center justify-center gap-2 text-xs text-text-muted/70">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck size={14} className="text-primary" />
+            <span>Plataforma Segura · Criptografia AES-256 · Privacidade & Proteção de Dados</span>
+          </div>
+          <div className="flex items-center gap-3 text-[11px]">
+            <a href="/termos" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
+              Termos de Uso
+            </a>
+            <span>·</span>
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
+              Política de Privacidade
+            </a>
+          </div>
         </div>
       </div>
     </main>

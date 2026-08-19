@@ -241,7 +241,7 @@ export function SubscriptionModal() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-text">
                 {[
                   { icon: Users, text: "Pacientes e Prontuários ilimitados" },
-                  { icon: FileCheck2, text: "5 Modelos Oficiais CFP (Res. 06/2019)" },
+                  { icon: FileCheck2, text: "5 Modelos conforme a Res. CFP 06/2019" },
                   { icon: Calendar, text: "Agenda com Sincronização iCal" },
                   { icon: DollarSign, text: "Controle Financeiro de Sessões" },
                   { icon: BookOpen, text: "Diário de Bordo para Supervisão" },
