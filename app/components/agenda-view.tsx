@@ -194,8 +194,14 @@ export function AgendaView() {
           );
         }
 
+        let observacoesDecrypted = ag.observacoes;
+        if (user && ag.observacoes && ag.observacoes.startsWith("enc:v1:")) {
+          observacoesDecrypted = await decryptClinicalData(ag.observacoes, user.id);
+        }
+
         return {
           ...ag,
+          observacoes: observacoesDecrypted,
           pacientes: {
             nome: pacienteNome,
           },

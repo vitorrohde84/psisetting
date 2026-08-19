@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { decryptClinicalData } from "@/utils/crypto";
+import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 import { X, Save, Loader2, Search } from "lucide-react";
 import type { Agendamento } from "./agenda-view";
 
@@ -95,13 +95,17 @@ export function AgendamentoFormModal({
         );
         list.sort((a, b) => a.nome.localeCompare(b.nome));
       }
-      setPacientes(list);
-
       // If editing or duplicating, find patient name
       const targetId = agendamento?.paciente_id || prefillData?.paciente_id;
       if (targetId && list.length > 0) {
         const found = list.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
+      }
+
+      // Decrypt observacoes if editing
+      if (agendamento?.observacoes && user) {
+        const decryptedObs = await decryptClinicalData(agendamento.observacoes, user.id);
+        setForm((prev) => ({ ...prev, observacoes: decryptedObs }));
       }
     }
     fetchPacientes();
@@ -172,6 +176,20 @@ export function AgendamentoFormModal({
 
     setSaving(true);
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Sessão expirada. Faça login novamente.");
+      setSaving(false);
+      return;
+    }
+
+    const encryptedObs = form.observacoes.trim()
+      ? await encryptClinicalData(form.observacoes.trim(), user.id)
+      : null;
+
     const payload = {
       paciente_id: form.paciente_id,
       data: form.data,
@@ -179,7 +197,7 @@ export function AgendamentoFormModal({
       duracao_minutos: form.duracao_minutos,
       modalidade: form.modalidade || null,
       status: form.status,
-      observacoes: form.observacoes.trim() || null,
+      observacoes: encryptedObs,
     };
 
     let result;
@@ -190,23 +208,13 @@ export function AgendamentoFormModal({
         .eq("id", agendamento.id)
         .select();
     } else {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError("Sessão expirada. Faça login novamente.");
-        setSaving(false);
-        return;
-      }
-
       let payloads = [];
       if (isRecurring && recurrenceCount > 0) {
         for (let i = 0; i <= recurrenceCount; i++) {
           payloads.push({
             ...payload,
             data: addRecurrence(payload.data, recurrenceFrequency, i),
-            psicologo_id: user.id
+            psicologo_id: user.id,
           });
         }
       } else {

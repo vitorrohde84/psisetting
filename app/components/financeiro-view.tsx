@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle, TrendingUp, CalendarDays } from "lucide-react";
 import { PagamentoFormModal } from "./pagamento-form-modal";
@@ -42,13 +43,39 @@ export function FinanceiroView() {
 
   const fetchPagamentos = useCallback(async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
     // Busca tudo para poder gerar os gráficos anuais com facilidade
     const { data } = await supabase
       .from("pagamentos")
       .select("id, valor, data_vencimento, status, forma_pagamento, receita_saude, created_at, paciente_id, agendamento_id, pacientes(nome, cpf)")
       .order("data_vencimento", { ascending: false });
 
-    if (data) {
+    if (data && user) {
+      const decryptedPagamentos = await Promise.all(
+        data.map(async (p) => {
+          let pacNome = (p.pacientes as any)?.nome || "Paciente";
+          let pacCpf = (p.pacientes as any)?.cpf || "";
+
+          if (pacNome && pacNome.startsWith("enc:v1:")) {
+            pacNome = await decryptClinicalData(pacNome, user.id);
+          }
+          if (pacCpf && pacCpf.startsWith("enc:v1:")) {
+            pacCpf = await decryptClinicalData(pacCpf, user.id);
+          }
+
+          return {
+            ...p,
+            pacientes: {
+              ...(p.pacientes as any),
+              nome: pacNome,
+              cpf: pacCpf,
+            },
+          };
+        })
+      );
+      setTodosPagamentos(decryptedPagamentos);
+    } else if (data) {
       setTodosPagamentos(data);
     }
     setLoading(false);

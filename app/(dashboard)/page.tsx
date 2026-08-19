@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { decryptClinicalData } from "@/utils/crypto";
 import {
   Calendar,
   Clock,
@@ -37,6 +38,7 @@ function formatCurrency(value: number) {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Get current date in Brasilia timezone
   const now = new Date();
@@ -56,7 +58,7 @@ export default async function DashboardPage() {
   sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
   const sevenDaysStr = sevenDaysLater.toISOString().split("T")[0];
 
-  const { data: proximasSessoes } = await supabase
+  const { data: rawSessoes } = await supabase
     .from("agendamentos")
     .select("id, data, horario, modalidade, status, pacientes(nome)")
     .gte("data", todayStr)
@@ -65,6 +67,21 @@ export default async function DashboardPage() {
     .order("data", { ascending: true })
     .order("horario", { ascending: true })
     .limit(8);
+
+  const proximasSessoes = await Promise.all(
+    (rawSessoes || []).map(async (sessao) => {
+      let nome = (sessao.pacientes as any)?.nome || "Paciente";
+      if (user && nome && nome.startsWith("enc:v1:")) {
+        nome = await decryptClinicalData(nome, user.id);
+      }
+      return {
+        ...sessao,
+        pacientes: {
+          nome,
+        },
+      };
+    })
+  );
 
   // Query 2: Pagamentos recebidos do mês
   const { data: pagamentosRecebidos } = await supabase
@@ -79,13 +96,28 @@ export default async function DashboardPage() {
   const qtdRecebidos = pagamentosRecebidos?.length || 0;
 
   // Query 3: Pagamentos pendentes do mês
-  const { data: pagamentosPendentes } = await supabase
+  const { data: rawPendentes } = await supabase
     .from("pagamentos")
     .select("id, valor, data_vencimento, pacientes(nome)")
     .gte("data_vencimento", firstDayOfMonth)
     .lte("data_vencimento", lastDayOfMonth)
     .eq("status", "pendente")
     .order("data_vencimento", { ascending: true });
+
+  const pagamentosPendentes = await Promise.all(
+    (rawPendentes || []).map(async (p) => {
+      let nome = (p.pacientes as any)?.nome || "Paciente";
+      if (user && nome && nome.startsWith("enc:v1:")) {
+        nome = await decryptClinicalData(nome, user.id);
+      }
+      return {
+        ...p,
+        pacientes: {
+          nome,
+        },
+      };
+    })
+  );
 
   const totalPendente =
     pagamentosPendentes?.reduce((sum, p) => sum + (p.valor || 0), 0) || 0;

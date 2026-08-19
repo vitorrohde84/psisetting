@@ -35,12 +35,23 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPath = request.nextUrl.pathname.startsWith("/login");
-  const isCalendarPath = request.nextUrl.pathname.startsWith("/calendario");
-  const isLandingPath = request.nextUrl.pathname.startsWith("/landing");
-  const isPublicPath = isLoginPath || isCalendarPath || isLandingPath;
+  const pathname = request.nextUrl.pathname;
+  const isLoginPath = pathname.startsWith("/login");
+  const isCalendarPath = pathname.startsWith("/calendario");
+  const isLandingPath = pathname.startsWith("/landing");
+  const isAuthCallback = pathname.startsWith("/auth/callback");
+  const isRegisterApi = pathname.startsWith("/api/auth/register");
+  const isWebhookApi = pathname.startsWith("/api/webhooks");
 
-  // Implement 30-minute inactivity timeout
+  const isPublicPath =
+    isLoginPath ||
+    isCalendarPath ||
+    isLandingPath ||
+    isAuthCallback ||
+    isRegisterApi ||
+    isWebhookApi;
+
+  // Implement 30-minute inactivity timeout for clinical data protection (CFP / LGPD)
   const lastActivity = request.cookies.get("last_activity")?.value;
   const now = Date.now();
   const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -64,11 +75,19 @@ export async function updateSession(request: NextRequest) {
       path: "/",
       maxAge: 30 * 60, // 30 minutes
       sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     });
   }
 
-  // If user is not authenticated and trying to access a private route, redirect to /login
+  // If user is not authenticated and trying to access an API route (that is not public), return 401 JSON
   if (!user && !isPublicPath) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Não autorizado. Faça login para continuar." },
+        { status: 401 }
+      );
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
