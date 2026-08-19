@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useSubscription } from "@/utils/subscription-context";
+import { MercadoPagoBadge } from "./mercadopago-badge";
 import { useRouter } from "next/navigation";
 import {
   User,
@@ -38,6 +40,7 @@ interface Profile {
 export function ConfiguracoesView() {
   const supabase = createClient();
   const router = useRouter();
+  const { openSubscriptionModal } = useSubscription();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile state
@@ -584,20 +587,14 @@ export function ConfiguracoesView() {
 
               <button
                 type="button"
-                onClick={() => {
-                  fetch("/api/subscription/checkout", { method: "POST" })
-                    .then((r) => r.json())
-                    .then((d) => {
-                      if (d.init_point) window.location.href = d.init_point;
-                      else alert(d.error || "Erro ao conectar com Mercado Pago.");
-                    })
-                    .catch(() => alert("Erro ao processar assinatura."));
-                }}
+                onClick={openSubscriptionModal}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
               >
-                <span>Assinar no Mercado Pago</span>
+                <span>Assinar / Ver Opções</span>
               </button>
             </div>
+
+            <MercadoPagoBadge variant="card" />
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
+import { MercadoPagoBadge } from "@/app/components/mercadopago-badge";
 import {
   FileText,
   FileCheck,
@@ -1167,9 +1168,11 @@ export default function LandingPage() {
                 <ArrowRight size={16} className="inline ml-1.5 group-hover:translate-x-1 transition-transform" />
               </Link>
 
-              <p className="text-[11px] text-center text-text-muted mt-3">
+              <p className="text-[11px] text-center text-text-muted mt-3 mb-4">
                 Sem necessidade de cartão de crédito para iniciar o teste.
               </p>
+
+              <MercadoPagoBadge variant="compact" className="w-full justify-center" />
             </div>
           </Reveal>
         </div>

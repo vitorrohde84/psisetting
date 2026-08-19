@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSubscription } from "@/utils/subscription-context";
 import { MercadoPagoBrick } from "./mercadopago-brick";
+import { MercadoPagoBadge } from "./mercadopago-badge";
 import {
   X,
   Sparkles,
@@ -431,11 +432,10 @@ export function SubscriptionModal() {
           </div>
         )}
 
-        {/* Rodapé com Selo de Segurança */}
-        <p className="text-[11px] text-center text-text-muted mt-5 pt-4 border-t border-border/60 flex items-center justify-center gap-1.5">
-          <Lock size={11} className="text-emerald-600" />
-          <span>Processamento seguro Mercado Pago · Cancele quando quiser</span>
-        </p>
+        {/* Selo Oficial de Segurança Mercado Pago */}
+        <div className="mt-5 pt-4 border-t border-border/60">
+          <MercadoPagoBadge variant="full" />
+        </div>
       </div>
     </div>
   );
