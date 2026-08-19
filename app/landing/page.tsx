@@ -152,7 +152,7 @@ const faqItems = [
   {
     question: "Preciso instalar algum programa no computador?",
     answer:
-      "Não. O PsiSetting é 100% web e baseado em nuvem. Funciona diretamente no navegador do seu notebook, computador do consultório, iPad, tablet ou smartphone, com sincronização em tempo real.",
+      "Não. O PsiSetting é 100% web e baseado em nuvem. Funciona diretamente no navegador do seu notebook, computador, iPad, tablet ou celular, com sincronização em tempo real para atendimentos presenciais e online.",
   },
   {
     question: "Existe fidelidade ou contrato de permanência?",
@@ -225,7 +225,7 @@ const cfpModels = [
     preview: {
       title: "DECLARAÇÃO DE ACOMPANHAMENTO",
       subtitle: "Conforme Resolução CFP nº 06/2019",
-      body: "Declaro que o(a) paciente acima qualificado(a) realiza acompanhamento psicológico regular neste consultório clínico, com frequência de sessões semanais, desde fevereiro de 2026 até a presente data.",
+      body: "Declaro que o(a) paciente acima qualificado(a) realiza acompanhamento psicológico regular sob meus cuidados profissionais, com frequência de sessões semanais, desde fevereiro de 2026 até a presente data.",
       sections: ["Declaração de Vínculo Clínico", "Frequência dos Atendimentos", "Finalidade sem Quebra de Sigilo", "Assinatura do Profissional"],
     },
   },
@@ -313,7 +313,7 @@ const features = [
 
 const comparisonItems = [
   {
-    before: "Cadernos de anotações, folhas soltas e pastas físicas acumulando poeira no consultório.",
+    before: "Cadernos de anotações, folhas soltas e arquivos espalhados no computador sem centralização.",
     after: "Prontuário digital centralizado, seguro e acessível de qualquer dispositivo com 1 clique.",
   },
   {
@@ -329,7 +329,7 @@ const comparisonItems = [
     after: "Painel financeiro transparente: saiba exatamente o que foi recebido e o que está pendente no mês.",
   },
   {
-    before: "Agenda do consultório desconectada do calendário pessoal do celular.",
+    before: "Horários de atendimentos desconectados da agenda do celular.",
     after: "Feed iCal sincronizado com iPhone e Google Agenda, preservando a confidencialidade do paciente.",
   },
 ];
@@ -408,11 +408,10 @@ export default function LandingPage() {
 
       {/* ───────── NAVBAR ───────── */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
             ? "bg-surface/90 backdrop-blur-xl shadow-xs border-b border-border/60"
             : "bg-transparent"
-        }`}
+          }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/landing" className="shrink-0 flex items-center gap-2">
@@ -525,7 +524,7 @@ export default function LandingPage() {
               href="/login"
               className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark mt-2"
             >
-              Acessar Consultório
+              Acessar Plataforma
             </Link>
           </div>
         )}
@@ -547,20 +546,20 @@ export default function LandingPage() {
               <Reveal>
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-wide shadow-2xs">
                   <Sparkles size={14} className="text-secondary" />
-                  <span>SaaS de Gestão Clínica Ética</span>
+                  <span>Desenvolvido e validado com psicóloga clínica</span>
                 </div>
               </Reveal>
 
               <Reveal delay={80}>
                 <h1 className="text-3xl sm:text-4xl lg:text-[2.85rem] font-serif font-bold text-text leading-[1.18] tracking-tight">
-                  O <span className="text-primary font-serif italic">setting</span> terapêutico do seu consultório, agora{" "}
-                  <span className="text-secondary underline decoration-secondary/40 underline-offset-8">seguro e digital.</span>
+                  O <span className="text-primary font-serif italic">setting</span> terapêutico para seus atendimentos,{" "}
+                  <span className="text-secondary underline decoration-secondary/40 underline-offset-8">seguro e estruturado.</span>
                 </h1>
               </Reveal>
 
               <Reveal delay={160}>
                 <p className="text-base sm:text-lg text-text-muted leading-relaxed max-w-xl">
-                  Prontuários protegidos por criptografia, <strong>5 modelos oficiais CFP (Res. 06/2019)</strong>, agenda com sincronização iCal e controle financeiro. Elimine a burocracia para que seu foco seja 100% a escuta.
+                  Prontuários com criptografia de ponta a ponta, <strong>5 modelos oficiais CFP (Res. 06/2019)</strong>, agenda integrada e controle financeiro. Tudo centralizado em um só lugar para tornar a gestão da sua prática clínica (presencial ou online) mais estruturada, segura e prática.
                 </p>
               </Reveal>
 
@@ -589,7 +588,7 @@ export default function LandingPage() {
                     <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
                       <Check size={13} strokeWidth={2.5} />
                     </div>
-                    <span>Sincronização iPhone & Google</span>
+                    <span>Sincronização iPhone & Android</span>
                   </div>
                 </div>
               </Reveal>
@@ -673,8 +672,8 @@ export default function LandingPage() {
                         Evolução Clínica da Sessão
                       </p>
                       <p className={`transition-all duration-300 leading-relaxed ${isPrivacyActive ? "blur-[7px] opacity-25 select-none pointer-events-none" : ""}`}>
-                        &ldquo;Paciente relata avanço no manejo das crises noturnas após técnicas de ancoragem. 
-                        Discutida a relação com a figura materna e estabelecimento de limites assertivos. 
+                        &ldquo;Paciente relata avanço no manejo das crises noturnas após técnicas de ancoragem.
+                        Discutida a relação com a figura materna e estabelecimento de limites assertivos.
                         Humor eutímico, com boa adesão terapêutica.&rdquo;
                       </p>
                       {isPrivacyActive && (
@@ -691,9 +690,8 @@ export default function LandingPage() {
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <span className="text-text-muted">Status do Sigilo em Tela:</span>
                       <span
-                        className={`inline-flex items-center gap-1 font-semibold ${
-                          isPrivacyActive ? "text-emerald-700" : "text-amber-700"
-                        }`}
+                        className={`inline-flex items-center gap-1 font-semibold ${isPrivacyActive ? "text-emerald-700" : "text-amber-700"
+                          }`}
                       >
                         {isPrivacyActive ? (
                           <>
@@ -725,11 +723,10 @@ export default function LandingPage() {
                     <button
                       type="button"
                       onClick={() => setIsPrivacyActive(!isPrivacyActive)}
-                      className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 ${
-                        isPrivacyActive
+                      className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 ${isPrivacyActive
                           ? "bg-emerald-700 text-white hover:bg-emerald-800 ring-2 ring-emerald-400/40"
                           : "bg-primary text-white hover:bg-primary-dark ring-2 ring-primary/30"
-                      }`}
+                        }`}
                     >
                       {isPrivacyActive ? (
                         <>
@@ -761,7 +758,7 @@ export default function LandingPage() {
                     </div>
                     <div className="flex items-center gap-1.5 text-text">
                       <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                      <span>Backup Automático em Nuvem</span>
+                      <span>Atendimento Presencial & Online</span>
                     </div>
                   </div>
                 </div>
@@ -771,8 +768,35 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ───────── FAIXA DE CO-CRIAÇÃO E VALIDAÇÃO CLÍNICA ───────── */}
+      <section className="py-8 bg-surface/70 border-y border-border/60 relative">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-primary/10 via-surface to-secondary/10 border border-primary/20 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shrink-0 font-serif font-bold text-xl shadow-xs">
+                Ψ
+              </div>
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary bg-primary/15 px-2 py-0.5 rounded border border-primary/20">
+                    Pensado por quem atende
+                  </span>
+                  <span className="text-[11px] font-semibold text-text-muted">Presencial & Home Office</span>
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-text">
+                  Desenvolvido e validado em colaboração com psicóloga clínica atuante
+                </h3>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Cada fluxo de atendimento, modelo de laudo CFP e botão de privacidade foi desenhado a partir da vivência real da clínica — respeitando o tempo, o sigilo ético e a rotina de quem atende pacientes de verdade.
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ───────── SEÇÃO 2: COMPARATIVO ANTES vs. DEPOIS ───────── */}
-      <section className="py-20 sm:py-28 bg-surface border-y border-border/60">
+      <section className="py-20 sm:py-28 bg-surface border-b border-border/60">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal>
             <div className="text-center max-w-2xl mx-auto mb-14">
@@ -783,7 +807,7 @@ export default function LandingPage() {
                 Sua prática clínica: Como é hoje vs. Com o PsiSetting
               </h2>
               <p className="text-sm sm:text-base text-text-muted mt-2">
-                A psicologia exige entrega emocional. A burocracia não deveria consumir suas noites e fins de semana.
+                A prática clínica exige rigor no registro e atenção contínua. O PsiSetting ajuda você a centralizar e organizar cada etapa sem retrabalho e com total respaldo ético.
               </p>
             </div>
           </Reveal>
@@ -798,7 +822,7 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-rose-950">A Rotina Sem o PsiSetting</h3>
-                    <p className="text-xs text-rose-700">Atrito burocrático e insegurança ética</p>
+                    <p className="text-xs text-rose-700">Informações dispersas e retrabalho manual</p>
                   </div>
                 </div>
 
@@ -826,7 +850,7 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-emerald-950">Com o PsiSetting</h3>
-                    <p className="text-xs text-emerald-700 font-medium">Tranquilidade ética e foco na escuta</p>
+                    <p className="text-xs text-emerald-700 font-medium">Organização centralizada e respaldo ético</p>
                   </div>
                 </div>
 
@@ -856,7 +880,7 @@ export default function LandingPage() {
                 Os 5 Documentos Oficiais Prontos para Emitir
               </h2>
               <p className="text-sm sm:text-base text-text-muted mt-2">
-                Nunca mais perca tempo formatando margens ou temendo fiscalizações. Todos os modelos oficiais estruturados conforme a legislação ética do CFP.
+                Modelos e termos estruturados e revisados sob conferência clínica conforme a legislação ética do CFP. Sem retrabalho de formatação.
               </p>
             </div>
           </Reveal>
@@ -871,11 +895,10 @@ export default function LandingPage() {
                     key={model.id}
                     type="button"
                     onClick={() => setActiveCfpTab(model.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      isActive
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isActive
                         ? "bg-primary text-white shadow-xs"
                         : "text-text-muted hover:text-text hover:bg-background"
-                    }`}
+                      }`}
                   >
                     <span>{model.name}</span>
                   </button>
@@ -1022,7 +1045,7 @@ export default function LandingPage() {
 
               <Reveal delay={80}>
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold leading-tight">
-                  Seus prontuários protegidos com o mesmo rigor ético do consultório.
+                  Seus prontuários protegidos com o rigor ético que a psicologia exige.
                 </h2>
               </Reveal>
 
@@ -1085,7 +1108,7 @@ export default function LandingPage() {
                 Apenas um plano. Tudo incluso, sem taxas ocultas.
               </h2>
               <p className="text-sm sm:text-base text-text-muted mt-2">
-                Menos que o valor de meia sessão terapêutica para manter seu consultório 100% organizado e ético.
+                Menos que o valor de meia sessão para manter toda a sua prática clínica organizada e segura.
               </p>
             </div>
           </Reveal>
@@ -1180,9 +1203,8 @@ export default function LandingPage() {
                       <span>{item.question}</span>
                       <ChevronDown
                         size={18}
-                        className={`text-primary shrink-0 transition-transform duration-200 ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
+                        className={`text-primary shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+                          }`}
                       />
                     </button>
                     {isOpen && (
@@ -1206,10 +1228,10 @@ export default function LandingPage() {
               Ψ
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-text leading-tight">
-              Pronto para transformar a gestão do seu consultório?
+              Pronto para estruturar a organização da sua prática clínica?
             </h2>
             <p className="text-base sm:text-lg text-text-muted max-w-xl mx-auto mt-4">
-              Junte-se a psicólogos que já simplificaram prontuários, laudos e finanças com segurança ética absoluta.
+              Junte-se a psicólogos que já centralizaram prontuários, laudos e finanças com segurança ética e praticidade.
             </p>
           </Reveal>
 
@@ -1246,7 +1268,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-xs text-text-muted">
-            © {new Date().getFullYear()} PsiSetting. Desenvolvido para Psicólogos Clínicos.
+            © {new Date().getFullYear()} PsiSetting. Desenvolvido para atendimentos presenciais e online.
           </p>
         </div>
       </footer>

@@ -11,8 +11,8 @@
 * **Nome Oficial:** **PsiSetting**
 * **Origem do Nome:** Fusão de **Psi** (referência direta à Psicologia / $\Psi$) com **Setting** (o conceito clínico fundamental do *setting terapêutico* — o espaço seguro, estruturado, ético e confidencial onde a psicoterapia acontece).
 * **Definição:** SaaS / Web App de gestão clínica exclusivo para psicólogos clínicos autônomos, psicoterapeutas e pequenas clínicas de saúde mental.
-* **Proposta de Valor:** Eliminar o atrito burocrático e a sobrecarga mental do profissional (prontuários, laudos, finanças e agendamentos) para que o foco total permaneça na escuta clínica e no acolhimento do paciente.
-* **Conformidade & Ética:** Alinhado às normas do **Conselho Federal de Psicologia (CFP)** (Resoluções CFP nº 001/2009, 004/2020, 006/2019) e à **LGPD** (Lei 13.709/2018).
+* **Proposta de Valor:** Centralizar, organizar e conferir segurança ética a toda a rotina da prática clínica (prontuários sigilosos, laudos oficiais CFP 06/2019, agenda sincronizada e finanças) para atendimentos presenciais e online.
+* **Conformidade & Ética:** Desenvolvido e validado em colaboração com psicóloga clínica. Alinhado às normas do **Conselho Federal de Psicologia (CFP)** (Resoluções CFP nº 001/2009, 004/2020, 006/2019) e à **LGPD** (Lei 13.709/2018).
 
 ---
 
@@ -20,7 +20,7 @@
 
 1. **Prontuário Eletrônico & Evoluções:**
    * Registro confidencial e cronológico por sessão.
-   * **Modo Privacidade:** Botão de ativação rápida na barra superior e atalhos para ocultação visual instantânea de nomes, diagnósticos e valores em tela (ideal para consultórios ou locais públicos).
+   * **Modo Privacidade:** Botão de ativação rápida na barra superior e atalhos para ocultação visual instantânea de nomes, diagnósticos e valores em tela (ideal para atendimentos online, presenciais ou locais com circulação).
    * Criptografia ponta a ponta na camada de aplicação (AES-256 GCM).
 
 2. **Emissão de Laudos & Documentos (Resolução CFP nº 06/2019):**
