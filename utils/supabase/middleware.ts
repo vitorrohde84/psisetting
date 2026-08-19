@@ -36,6 +36,33 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const host = request.headers.get("host") || "";
+  const isAppSubdomain = host.startsWith("app.") || host.includes("app.psisetting.com.br");
+  const isLandingHost =
+    host === "psisetting.com.br" ||
+    host === "www.psisetting.com.br" ||
+    (host.startsWith("www.") && !host.includes("localhost"));
+
+  // 1. ROTEAMENTO PARA O DOMÍNIO DA LANDING PAGE (www.psisetting.com.br / psisetting.com.br)
+  if (isLandingHost) {
+    // Se acessou a raiz '/', exibe a landing page
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/landing", request.url));
+    }
+    // Se clicou para logar a partir da landing, redireciona para o app
+    if (pathname.startsWith("/login")) {
+      return NextResponse.redirect(new URL("https://app.psisetting.com.br/login"));
+    }
+  }
+
+  // 2. ROTEAMENTO PARA O SUBDOMÍNIO DO APLICATIVO (app.psisetting.com.br)
+  if (isAppSubdomain) {
+    // Se tentar acessar /landing no subdomínio app, redireciona para a landing oficial
+    if (pathname.startsWith("/landing")) {
+      return NextResponse.redirect(new URL("https://www.psisetting.com.br"));
+    }
+  }
+
   const isLoginPath = pathname.startsWith("/login");
   const isCalendarPath = pathname.startsWith("/calendario");
   const isLandingPath = pathname.startsWith("/landing");
