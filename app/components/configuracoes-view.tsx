@@ -554,6 +554,52 @@ export function ConfiguracoesView() {
             )}
           </div>
         </div>
+
+        {/* ─── Plano & Assinatura (Mercado Pago & Cupons) ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck size={18} className="text-primary" />
+              <h3 className="text-base font-serif font-medium text-text">
+                Plano & Assinatura
+              </h3>
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
+              R$ 29,90/mês
+            </span>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-text-muted leading-relaxed">
+              O PsiSetting oferece pacientes e prontuários ilimitados, modelos oficiais CFP 06/2019 e sincronização de agenda sem fidelidade ou contratos de permanência.
+            </p>
+
+            <div className="p-4 rounded-xl bg-background border border-border/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-text">Plano Profissional Completo</p>
+                <p className="text-xs text-text-muted">
+                  Acesso ilimitado a todos os módulos clínicos, laudos e agenda.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetch("/api/subscription/checkout", { method: "POST" })
+                    .then((r) => r.json())
+                    .then((d) => {
+                      if (d.init_point) window.location.href = d.init_point;
+                      else alert(d.error || "Erro ao conectar com Mercado Pago.");
+                    })
+                    .catch(() => alert("Erro ao processar assinatura."));
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
+              >
+                <span>Assinar no Mercado Pago</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

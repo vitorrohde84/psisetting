@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
+import { useSubscription } from "@/utils/subscription-context";
 import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { PacienteFormModal } from "./paciente-form-modal";
@@ -53,6 +54,7 @@ export function PacienteList() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
 
   const fetchPacientes = useCallback(async () => {
     setLoading(true);
@@ -119,6 +121,10 @@ export function PacienteList() {
   }
 
   function handleNew() {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setEditingPaciente(null);
     setShowModal(true);
   }

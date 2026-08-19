@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useSubscription } from "@/utils/subscription-context";
 import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle, TrendingUp, CalendarDays } from "lucide-react";
 import { PagamentoFormModal } from "./pagamento-form-modal";
 
@@ -26,6 +27,7 @@ const MESES = [
 
 export function FinanceiroView() {
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
   const [todosPagamentos, setTodosPagamentos] = useState<Pagamento[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -155,6 +157,10 @@ export function FinanceiroView() {
         </div>
         <button
           onClick={() => {
+            if (isReadOnly) {
+              openSubscriptionModal();
+              return;
+            }
             setEditingPagamento(null);
             setShowModal(true);
           }}

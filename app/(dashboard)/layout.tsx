@@ -3,6 +3,9 @@ import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/app/components/sidebar";
 import { SessionMonitor } from "@/app/components/session-monitor";
 import { PrivacyToggle } from "@/app/components/privacy-toggle";
+import { SubscriptionProvider } from "@/utils/subscription-context";
+import { SubscriptionBanner } from "@/app/components/subscription-banner";
+import { SubscriptionModal } from "@/app/components/subscription-modal";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
 
@@ -37,49 +40,57 @@ export default async function DashboardLayout({
     : null;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar userName={userName} userEmail={userEmail} logoUrl={logoUrl} />
+    <SubscriptionProvider>
+      <div className="flex min-h-screen bg-background">
+        <Sidebar userName={userName} userEmail={userEmail} logoUrl={logoUrl} />
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Spacer for mobile top bar */}
-        <div className="lg:hidden h-14 shrink-0" />
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Spacer for mobile top bar */}
+          <div className="lg:hidden h-14 shrink-0" />
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:py-8 lg:pb-8">
-          <div className="max-w-6xl mx-auto space-y-6">
-            {/* Onboarding Banner sutil se o perfil estiver incompleto */}
-            {isProfileIncomplete && (
-              <div className="no-print bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2.5 text-text">
-                  <div className="p-2 rounded-xl bg-primary/15 text-primary shrink-0">
-                    <Sparkles size={18} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-text">
-                      Configure seu perfil profissional (CRP e Logotipo)
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      Seus laudos e recibos serão gerados automaticamente com seus dados profissionais.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/configuracoes"
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all cursor-pointer shadow-xs"
-                >
-                  <span>Completar Perfil</span>
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
-            )}
-
-            {children}
+          {/* Banner de Assinatura / Modo Somente Leitura */}
+          <div className="no-print">
+            <SubscriptionBanner />
           </div>
-        </main>
-      </div>
 
-      <PrivacyToggle />
-      <SessionMonitor />
-    </div>
+          <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:py-8 lg:pb-8">
+            <div className="max-w-6xl mx-auto space-y-6">
+              {/* Onboarding Banner sutil se o perfil estiver incompleto */}
+              {isProfileIncomplete && (
+                <div className="no-print bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2.5 text-text">
+                    <div className="p-2 rounded-xl bg-primary/15 text-primary shrink-0">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-text">
+                        Configure seu perfil profissional (CRP e Logotipo)
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        Seus laudos e recibos serão gerados automaticamente com seus dados profissionais.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/configuracoes"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all cursor-pointer shadow-xs"
+                  >
+                    <span>Completar Perfil</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              )}
+
+              {children}
+            </div>
+          </main>
+        </div>
+
+        <PrivacyToggle />
+        <SessionMonitor />
+        <SubscriptionModal />
+      </div>
+    </SubscriptionProvider>
   );
 }

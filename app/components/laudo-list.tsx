@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
 import { LaudoFormModal } from "./laudo-form-modal";
 import { LaudoPrint } from "./laudo-print";
@@ -27,6 +28,7 @@ interface PacienteOption {
 
 export function LaudoList() {
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
   const [laudos, setLaudos] = useState<Laudo[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -196,7 +198,13 @@ export function LaudoList() {
           </button>
 
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              if (isReadOnly) {
+                openSubscriptionModal();
+                return;
+              }
+              setShowModal(true);
+            }}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
                        bg-primary text-white text-sm font-medium
                        hover:bg-primary-dark active:scale-[0.98]

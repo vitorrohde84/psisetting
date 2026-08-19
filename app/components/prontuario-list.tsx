@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
 import { downloadPdf } from "@/utils/pdf-export";
@@ -29,6 +30,7 @@ interface PacienteResumo {
 
 export function ProntuarioList() {
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
   
   // Lista de Pacientes
   const [pacientes, setPacientes] = useState<PacienteResumo[]>([]);
@@ -116,6 +118,10 @@ export function ProntuarioList() {
   }, [fetchResumoPacientes, fetchProntuariosDoPaciente, selectedPacienteId]);
 
   function handleNovaEvolucao() {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setEditingProntuario(null);
     setPrefillData(selectedPacienteId ? { paciente_id: selectedPacienteId } : undefined);
     setShowModal(true);

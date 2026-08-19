@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
+import { useSubscription } from "@/utils/subscription-context";
 import {
   Calendar,
   List,
@@ -69,6 +70,7 @@ function formatTime(t: string) {
 
 export function AgendaView() {
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -266,6 +268,10 @@ export function AgendaView() {
   }
 
   function handleNewOnDate(dateStr: string) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setPrefillDate(dateStr);
     setPrefillAgData(null);
     setEditingAg(null);
@@ -273,6 +279,10 @@ export function AgendaView() {
   }
 
   function handleNew() {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setPrefillDate(null);
     setPrefillAgData(null);
     setEditingAg(null);
@@ -287,6 +297,10 @@ export function AgendaView() {
   }
 
   function handleReplicate(ag: Agendamento) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setEditingAg(null);
     setPrefillDate(null);
     
@@ -328,11 +342,19 @@ export function AgendaView() {
   }
 
   function handleEvoluirProntuario(ag: Agendamento) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setActionPrefillData({ paciente_id: ag.paciente_id, data: ag.data });
     setShowProntuarioModal(true);
   }
 
   function handleAdicionarPagamento(ag: Agendamento) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
     setActionPrefillData({ paciente_id: ag.paciente_id, data_vencimento: ag.data });
     setShowPagamentoModal(true);
   }

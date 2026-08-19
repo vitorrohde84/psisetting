@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, Filter, FileText, Pencil, Calendar, Loader2, BookOpen, ShieldCheck } from "lucide-react";
 import { DiarioFormModal } from "./diario-form-modal";
 import { decryptClinicalData } from "@/utils/crypto";
@@ -24,6 +25,7 @@ interface PacienteOption {
 
 export function DiarioList() {
   const supabase = createClient();
+  const { isReadOnly, openSubscriptionModal } = useSubscription();
   const [diarios, setDiarios] = useState<Diario[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -127,6 +129,10 @@ export function DiarioList() {
         </div>
         <button
           onClick={() => {
+            if (isReadOnly) {
+              openSubscriptionModal();
+              return;
+            }
             setEditingDiario(null);
             setShowModal(true);
           }}
