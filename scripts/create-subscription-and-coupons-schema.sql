@@ -95,12 +95,10 @@ WHERE trial_ends_at IS NULL;
 UPDATE public.profiles 
 SET is_vip = true,
     subscription_status = 'vip'
-WHERE email ILIKE '%psihellenlimberger%' OR email ILIKE '%hellen%';
+WHERE email ILIKE '%hellen%' OR email ILIKE '%psihellenlimberger%' OR email ILIKE '%psicologa.com%';
 
--- 7. INSERIR CUPONS INICIAIS DE TESTE (Ex: PSI30 e BETA30 liberam 30 dias)
-INSERT INTO public.coupons (code, trial_days, active)
-VALUES 
-  ('PSI30', 30, true),
-  ('BETA30', 30, true),
-  ('AMIGO30', 30, true)
-ON CONFLICT (code) DO NOTHING;
+-- 7. EXEMPLO DE COMO CRIAR CUPONS PERSONALIZADOS (Execute apenas quando quiser liberar um cupom):
+-- Exemplo: Criar cupom para 1 único uso com 30 dias de teste:
+-- INSERT INTO public.coupons (code, trial_days, max_uses, active)
+-- VALUES ('MEU-CUPOM-EXCLUSIVO', 30, 1, true);
+

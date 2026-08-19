@@ -197,7 +197,7 @@ export function SubscriptionModal() {
           <form onSubmit={handleApplyCoupon} className="flex gap-2">
             <input
               type="text"
-              placeholder="Digite o código (ex: PSI30)"
+              placeholder="Digite seu código de cupom"
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               className="flex-1 px-3.5 py-2 rounded-xl bg-background border border-border/80 text-xs text-text placeholder:text-text-muted uppercase font-mono tracking-wider focus:outline-hidden focus:border-primary"

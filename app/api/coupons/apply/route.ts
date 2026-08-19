@@ -92,16 +92,11 @@ export async function POST(request: Request) {
       });
     }
 
+    // 3. Definir nova data de expiração para exatamente o limite do cupom (ex: 30 dias a partir de agora)
     const now = new Date();
-    const currentTrialEnd = profile?.trial_ends_at
-      ? new Date(profile.trial_ends_at)
-      : now;
-
-    // Se o trial já expirou, conta a partir de agora; se ainda está ativo, soma a partir de agora ou da data atual
-    const baseDate = currentTrialEnd > now ? currentTrialEnd : now;
-    const daysToAdd = coupon.trial_days || 30;
+    const targetDays = coupon.trial_days || 30;
     const newTrialEndsAt = new Date(
-      baseDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000
+      now.getTime() + targetDays * 24 * 60 * 60 * 1000
     );
 
     // 4. Registrar o resgate do cupom
@@ -146,9 +141,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       code: cleanCode,
-      trial_days_added: daysToAdd,
+      trial_days: targetDays,
       trial_ends_at: newTrialEndsAt.toISOString(),
-      message: `Cupom ${cleanCode} aplicado com sucesso! Seu período de teste foi estendido para ${daysToAdd} dias.`,
+      message: `Cupom ${cleanCode} aplicado com sucesso! Seu período de teste foi ajustado para ${targetDays} dias.`,
     });
   } catch (error: any) {
     console.error("Erro ao aplicar cupom:", error);
