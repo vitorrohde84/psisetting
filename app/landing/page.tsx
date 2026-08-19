@@ -183,7 +183,7 @@ const cfpModels = [
     preview: {
       title: "ATESTADO PSICOLÓGICO",
       subtitle: "Estrutura conforme a Resolução CFP nº 06/2019",
-      body: "Atesto, para os devidos fins a pedido da interessada, que a Sra. M. S. R., sob meus cuidados profissionais em psicoterapia, encontra-se em acompanhamento clínico regular. Recomenda-se o afastamento de suas atividades por período de 05 (cinco) dias a contar desta data.",
+      body: "Atesto, para os devidos fins a pedido do(a) interessado(a), que o(a) Paciente 1, sob meus cuidados profissionais em psicoterapia, encontra-se em acompanhamento clínico regular. Recomenda-se o afastamento de suas atividades por período de 05 (cinco) dias a contar desta data.",
       sections: ["Identificação Profissional & CRP", "Descrição Sintética do Estado", "Prazo ou Finalidade Recomendada", "Indicação de Guarda por 5 Anos"],
     },
   },
@@ -196,7 +196,7 @@ const cfpModels = [
     preview: {
       title: "RELATÓRIO PSICOLÓGICO",
       subtitle: "Estrutura conforme a Resolução CFP nº 06/2019",
-      body: "O presente relatório tem por objetivo prestar informações acerca do processo terapêutico desenvolvido com a paciente. Foram realizadas 16 sessões semanais de abordagem cognitivo-comportamental, com foco no manejo de sintomas ansiosos e reestruturação cognitiva.",
+      body: "O presente relatório tem por objetivo prestar informações acerca do processo terapêutico desenvolvido com o(a) Paciente 1. Foram realizadas 16 sessões semanais com foco no acolhimento, escuta clínica e desenvolvimento de recursos para manejo das demandas apresentadas.",
       sections: ["1. Identificação do Solicitante e Paciente", "2. Descrição da Demanda Clínica", "3. Procedimentos & Técnicas Empregadas", "4. Análise e Encaminhamentos Finais"],
     },
   },
@@ -209,7 +209,7 @@ const cfpModels = [
     preview: {
       title: "DECLARAÇÃO DE COMPARECIMENTO",
       subtitle: "Estrutura conforme a Resolução CFP nº 06/2019",
-      body: "Declaro, para os devidos fins de comprovação, que Mariana S. R. compareceu ao atendimento psicológico no dia 18/08/2026, no horário das 14:00 às 15:00 horas, sob meus cuidados profissionais.",
+      body: "Declaro, para os devidos fins de comprovação, que Paciente 1 compareceu ao atendimento psicológico no dia 18/08/2026, no horário das 14:00 às 15:00 horas, sob meus cuidados profissionais.",
       sections: ["Identificação do Paciente", "Data e Horário de Início e Término", "Identificação com Nome e CRP", "Local e Data de Emissão"],
     },
   },
@@ -222,7 +222,7 @@ const cfpModels = [
     preview: {
       title: "DECLARAÇÃO DE ACOMPANHAMENTO",
       subtitle: "Estrutura conforme a Resolução CFP nº 06/2019",
-      body: "Declaro que o(a) paciente acima qualificado(a) realiza acompanhamento psicológico regular sob meus cuidados profissionais, com frequência de sessões semanais, desde fevereiro de 2026 até a presente data.",
+      body: "Declaro que o(a) Paciente 1 realiza acompanhamento psicológico regular sob meus cuidados profissionais, com frequência de sessões semanais, desde fevereiro de 2026 até a presente data.",
       sections: ["Declaração de Vínculo Clínico", "Frequência dos Atendimentos", "Finalidade sem Quebra de Sigilo", "Assinatura do Profissional"],
     },
   },
@@ -624,7 +624,7 @@ export default function LandingPage() {
                             isPrivacyActive ? "blur-[3px] opacity-50" : ""
                           }`}
                         >
-                          MR
+                          P1
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -633,7 +633,7 @@ export default function LandingPage() {
                                 isPrivacyActive ? "blur-[6px] opacity-30 select-none pointer-events-none" : ""
                               }`}
                             >
-                              Mariana R. S. (28 anos)
+                              Paciente 1
                             </span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary font-medium">
                               Sessão #14
@@ -644,7 +644,7 @@ export default function LandingPage() {
                               isPrivacyActive ? "blur-[5px] opacity-30 select-none pointer-events-none" : ""
                             }`}
                           >
-                            Demanda: Ansiedade Generalizada & Conflito Familiar
+                            Demanda: Acompanhamento Psicoterapêutico Regular
                           </p>
                         </div>
                       </div>
@@ -660,9 +660,7 @@ export default function LandingPage() {
                           isPrivacyActive ? "blur-[7px] opacity-25 select-none pointer-events-none" : ""
                         }`}
                       >
-                        &ldquo;Paciente relata avanço no manejo das crises noturnas após técnicas de ancoragem.
-                        Discutida a relação com a figura materna e estabelecimento de limites assertivos.
-                        Humor eutímico, com boa adesão terapêutica.&rdquo;
+                        &ldquo;Sessão dedicada à escuta e elaboração das questões trazidas sobre a rotina e relações interpessoais. Paciente participativo(a), demonstrando reflexão sobre os temas abordados. Alinhados os pontos de continuidade para o processo terapêutico.&rdquo;
                       </p>
                       {isPrivacyActive && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -938,7 +936,7 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                      Caso: Mariana R. S.
+                      Caso: Paciente 1
                     </span>
                   </div>
 
@@ -946,14 +944,14 @@ export default function LandingPage() {
                     <div className="p-3 rounded-xl bg-background border border-border/60 space-y-1">
                       <span className="text-[10px] font-bold text-teal-800 uppercase">💡 Ponto para Supervisão:</span>
                       <p className="text-text-muted leading-relaxed text-[11px]">
-                        &ldquo;Observar repetição de padrão de evitação de conflito quando o tema maternidade surge. Levar para discussão na supervisão de quinta-feira.&rdquo;
+                        &ldquo;Refletir sobre a dinâmica dos encontros recentes e aprofundar na elaboração das queixas trazidas na sessão.&rdquo;
                       </p>
                     </div>
 
                     <div className="p-3 rounded-xl bg-background border border-border/60 space-y-1">
                       <span className="text-[10px] font-bold text-primary uppercase">📌 Hipótese de Manejo:</span>
                       <p className="text-text-muted leading-relaxed text-[11px]">
-                        &ldquo;Introduzir psicoeducação sobre regulação emocional antes de aprofundar na reestruturação de crenças centrais.&rdquo;
+                        &ldquo;Aprofundar na compreensão dos afetos e na aliança terapêutica antes de novas intervenções.&rdquo;
                       </p>
                     </div>
                   </div>
