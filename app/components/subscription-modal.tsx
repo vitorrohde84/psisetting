@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSubscription } from "@/utils/subscription-context";
+import { MercadoPagoBrick } from "./mercadopago-brick";
 import {
   X,
   Sparkles,
@@ -375,32 +376,22 @@ export function SubscriptionModal() {
           </div>
         )}
 
-        {/* ───────── CONTEÚDO DA ABA 2: CARTÃO DE CRÉDITO ───────── */}
+        {/* ───────── CONTEÚDO DA ABA 2: CARTÃO DE CRÉDITO (EMBUTIDO / TRANSPARENTE) ───────── */}
         {activeTab === "cartao" && (
-          <div className="space-y-4 text-center py-2">
-            <p className="text-xs text-text-muted leading-relaxed">
-              Você será direcionado para o checkout de cartão com segurança criptografada do Mercado Pago.
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-text-muted text-center">
+              Preencha os dados do seu cartão com segurança criptografada do Mercado Pago:
             </p>
 
-            <button
-              type="button"
-              onClick={handleCheckoutCard}
-              disabled={checkoutLoading}
-              className="w-full py-3.5 px-5 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg cursor-pointer disabled:opacity-60"
-            >
-              {checkoutLoading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Abrindo Checkout de Cartão...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard size={17} />
-                  <span>Pagar com Cartão (R$ 29,90/mês)</span>
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </button>
+            <MercadoPagoBrick
+              amount={29.9}
+              onSuccess={async () => {
+                await refreshSubscription();
+                setTimeout(() => {
+                  closeSubscriptionModal();
+                }, 3000);
+              }}
+            />
           </div>
         )}
 
