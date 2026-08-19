@@ -25,6 +25,7 @@ import {
   DollarSign,
   BookOpen,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
 
 export function SubscriptionModal() {
@@ -362,7 +363,17 @@ export function SubscriptionModal() {
 
             {/* ───────── CONTEÚDO DA ABA 1: PIX INSTANTÂNEO ───────── */}
             {activeTab === "pix" && (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2 text-xs">
+                  <QrCode size={14} className="text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-emerald-950 text-[11px]">Pagamento Avulso (30 Dias)</p>
+                    <p className="text-[10px] text-emerald-800 leading-tight">
+                      Acesso completo por 30 dias. Não há débito automático.
+                    </p>
+                  </div>
+                </div>
+
                 {pixApproved ? (
                   <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-300 text-center space-y-2 animate-in zoom-in-95">
                     <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-sm">
@@ -425,7 +436,7 @@ export function SubscriptionModal() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 text-center py-2">
+                  <div className="space-y-3 text-center py-1">
                     <p className="text-xs text-text-muted leading-relaxed">
                       Gere o <strong>QR Code Pix de R$ 29,90</strong>. A liberação do seu plano é instantânea.
                     </p>
@@ -456,9 +467,15 @@ export function SubscriptionModal() {
             {/* ───────── CONTEÚDO DA ABA 2: CARTÃO DE CRÉDITO (EMBUTIDO) ───────── */}
             {activeTab === "cartao" && (
               <div className="space-y-2 py-0.5">
-                <p className="text-[11px] text-text-muted text-center">
-                  Preencha os dados do cartão com segurança Mercado Pago:
-                </p>
+                <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 flex items-start gap-2 text-xs">
+                  <RefreshCw size={14} className="text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-text text-[11px]">Assinatura Mensal Recorrente Automática</p>
+                    <p className="text-[10px] text-text-muted leading-tight">
+                      Cobrança automática de <strong>R$ 29,90/mês</strong> a cada 30 dias na sua fatura. Cancele quando quiser sem multas ou fidelidade.
+                    </p>
+                  </div>
+                </div>
 
                 <MercadoPagoBrick
                   amount={29.9}

@@ -66,14 +66,16 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
             customization: {
               paymentMethods: {
                 creditCard: "all",
-                debitCard: "all",
-                bankTransfer: "all",
+                maxInstallments: 1,
               },
               visual: {
                 style: {
                   theme: "bootstrap",
                 },
                 hideFormTitle: true,
+                texts: {
+                  customButtonText: "Confirmar Assinatura (R$ 29,90/mês)",
+                },
               },
             },
             callbacks: {
