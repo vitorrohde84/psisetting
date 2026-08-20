@@ -37,6 +37,7 @@ export async function POST(request: Request) {
         ...formData,
         transaction_amount: Number(formData.transaction_amount) || 29.9,
         description: "PsiSetting — Plano Profissional (Mensal)",
+        statement_descriptor: "PSISETTING",
         external_reference: user.id,
         notification_url: `${baseUrl}/api/webhooks/mercadopago`,
       },

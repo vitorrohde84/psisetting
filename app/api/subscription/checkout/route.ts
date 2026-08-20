@@ -89,6 +89,7 @@ export async function POST(request: Request) {
             name: profile?.nome || undefined,
           },
           external_reference: user.id,
+          statement_descriptor: "PSISETTING",
           back_urls: {
             success: `${baseUrl}/configuracoes?status=assinatura_sucesso`,
             pending: `${baseUrl}/configuracoes?status=assinatura_pendente`,
