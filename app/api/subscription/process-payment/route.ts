@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const host = request.headers.get("host") || "hellen-sistema.vercel.app";
+    const host = request.headers.get("host") || "app.psisetting.com.br";
     const protocol = host.includes("localhost") ? "http" : "https";
     const baseUrl = `${protocol}://${host}`;
 
