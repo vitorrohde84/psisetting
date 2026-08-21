@@ -3,16 +3,16 @@
 /* ===== Design Tokens (SPEC.md §3) ===== */
 @theme inline {
   /* Palette */
-  --color-background: #F9F8F5; /* Creme claro da imagem de fundo */
+  --color-background: #FAF6F0; /* Linho e creme acolhedor e quente */
   --color-surface: #FFFFFF;
-  --color-primary: #6E7360; /* Verde Oliva do ícone */
-  --color-primary-dark: #5A5E4F; /* Verde Oliva escuro */
-  --color-secondary: #DEBEA7; /* Pêssego / Rose gold do ícone */
-  --color-text: #3D3935;
-  --color-text-muted: #807B75;
-  --color-border: #E8E3DB;
+  --color-primary: #5C6753; /* Verde Oliva Sálvia da haste do P */
+  --color-primary-dark: #495342; /* Verde Oliva Sálvia escuro */
+  --color-secondary: #C8B39B; /* Bege e linho acolhedor da poltrona */
+  --color-text: #2C1E17; /* Marrom escuro café nobre */
+  --color-text-muted: #786C64; /* Marrom suave / taupe neutro */
+  --color-border: #E8E0D5; /* Borda linho suave */
   --color-danger: #C06159;
-  --color-success: #759B70;
+  --color-success: #6A8E66;
 
   /* Typography */
   --font-sans: var(--font-inter);
