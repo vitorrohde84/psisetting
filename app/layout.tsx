@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   title: "PsiSetting — Gestão Clínica para Psicólogos",
   description:
     "Plataforma segura, ética e acolhedora de gestão clínica, prontuários, laudos e agenda para psicólogos.",
+  icons: {
+    icon: [
+      { url: "/logo.png" },
+      { url: "/icon.png" },
+    ],
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

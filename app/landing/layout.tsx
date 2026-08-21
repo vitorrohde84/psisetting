@@ -31,6 +31,14 @@ export const metadata: Metadata = {
       "Desenvolvido e validado em colaboração com psicóloga clínica atuante. Prontuário protegido, gestão da clínica e documentos psicológicos.",
     images: ["/og-image.png"],
   },
+  icons: {
+    icon: [
+      { url: "/logo.png" },
+      { url: "/icon.png" },
+    ],
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   verification: {
     google: "GOOGLE_SITE_VERIFICATION_CODE",
   },
