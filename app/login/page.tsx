@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 import {
   Lock,
@@ -393,14 +394,19 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Header com Identidade Neutra / Símbolo Psi */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-4 shadow-xs border border-primary/20">
-            <span className="text-2xl font-serif font-bold">Ψ</span>
+        {/* Header com Identidade Visual Oficial */}
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-border/60 mb-3 bg-surface p-1">
+            <Image
+              src="/logo.png"
+              alt="PsiSetting"
+              width={64}
+              height={64}
+              className="w-full h-full object-cover rounded-xl"
+              priority
+            />
           </div>
-          <div className="flex justify-center">
-            <PsiSettingBrand size="lg" showSubtitle={true} subtitleText="Gestão Clínica e Prontuários para Psicólogos" />
-          </div>
+          <PsiSettingBrand size="lg" showIcon={false} showSubtitle={true} subtitleText="Gestão Clínica e Prontuários para Psicólogos" />
         </div>
 
         {/* Card Principal */}

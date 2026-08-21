@@ -77,10 +77,7 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-surface/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4">
         {/* Lado Esquerdo: Branding do Sistema */}
         <Link href="/" className="flex items-center gap-2.5 min-w-0">
-          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-            <span className="text-base font-serif font-bold leading-none">Ψ</span>
-          </div>
-          <PsiSettingBrand size="sm" showSubtitle={false} />
+          <PsiSettingBrand size="sm" showIcon={true} showSubtitle={false} />
         </Link>
 
         {/* Lado Direito: Botão Privacidade + Botão Hambúrguer */}
@@ -121,10 +118,7 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
         {/* Topo da Sidebar: Branding Oficial do PsiSetting */}
         <div className="p-5 pb-4 border-b border-border/60 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 min-w-0 group">
-            <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-xs group-hover:bg-primary/15 transition-all shrink-0">
-              <span className="text-xl font-serif font-bold leading-none">Ψ</span>
-            </div>
-            <PsiSettingBrand size="md" showSubtitle={true} subtitleText="Gestão Clínica" />
+            <PsiSettingBrand size="md" showIcon={true} showSubtitle={true} subtitleText="Gestão Clínica" />
           </Link>
 
           {/* Botão Fechar no celular */}

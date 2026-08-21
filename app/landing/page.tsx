@@ -600,8 +600,9 @@ export default function LandingPage() {
                   {/* Top Bar do Card Interativo */}
                   <div className="flex items-center justify-between pb-4 border-b border-border/60">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-serif font-bold text-sm">
-                        Ψ
+                      <div className="w-9 h-9 rounded-xl overflow-hidden shadow-2xs border border-border/40 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/logo.png" alt="PsiSetting" className="w-full h-full object-cover" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-text">Setting Clínico Digital</h3>
@@ -1278,8 +1279,9 @@ export default function LandingPage() {
       <section className="py-20 sm:py-28 bg-gradient-to-b from-surface via-background to-background text-center relative">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <Reveal>
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-serif font-bold text-2xl mx-auto mb-4 border border-primary/20 shadow-xs">
-              Ψ
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-border/60 mx-auto mb-4 bg-surface p-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="PsiSetting" className="w-full h-full object-cover rounded-xl" />
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-text leading-tight">
               Seu setting clínico organizado e protegido.
