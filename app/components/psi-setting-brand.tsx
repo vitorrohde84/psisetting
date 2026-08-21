@@ -56,8 +56,9 @@ export function PsiSettingBrand({
       )}
       <div className="inline-flex flex-col">
         <span className={`font-serif font-medium tracking-normal select-none ${sizeClasses[size]}`}>
-          <span className="text-text">Psi</span>
-          <span className="text-primary">Setting</span>
+          <span className="text-brand-psi">Psi</span>
+          {" "}
+          <span className="text-brand-setting">Setting</span>
         </span>
         {showSubtitle && (
           <span className="text-[10.5px] text-text-muted font-sans font-normal tracking-wide mt-0.5">
