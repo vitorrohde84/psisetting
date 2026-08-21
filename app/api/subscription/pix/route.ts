@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     // Gerar pagamento Pix instantâneo via Mercado Pago API
     const payment = await paymentClient.create({
       body: {
-        transaction_amount: 29.9,
+        transaction_amount: 34.9,
         description: "PsiSetting — Assinatura Mensal de Gestão Clínica",
         payment_method_id: "pix",
         payer: {
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       qr_code: qrCode,
       qr_code_base64: qrCodeBase64,
       ticket_url: ticketUrl,
-      amount: 29.9,
+      amount: 34.9,
       status: payment.status,
       date_of_expiration: payment.date_of_expiration,
     });

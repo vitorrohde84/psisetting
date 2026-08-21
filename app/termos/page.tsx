@@ -98,7 +98,7 @@ export default function TermosPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
               <li>Caso o profissional opte por não assinar, a conta passará para o <strong>Modo Somente Leitura</strong>, assegurando que nenhum dado anteriormente inserido seja apagado ou fique inacessível para consulta e exportação, em respeito à exigência de guarda documental de 5 anos pelo CFP.</li>
-              <li>A assinatura do <strong>Plano Único Profissional</strong> (R$ 29,90/mês) não possui fidelidade ou contratos de permanência mínima, podendo ser cancelada a qualquer momento nas configurações da conta.</li>
+              <li>A assinatura do <strong>Plano Único Profissional</strong> (R$ 34,90/mês) não possui fidelidade ou contratos de permanência mínima, podendo ser cancelada a qualquer momento nas configurações da conta.</li>
             </ul>
           </section>
 

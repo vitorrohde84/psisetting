@@ -120,7 +120,7 @@ export function SubscriptionModal() {
         payment_id: data.payment_id,
         qr_code: data.qr_code,
         qr_code_base64: data.qr_code_base64,
-        amount: data.amount || 29.9,
+        amount: data.amount || 34.9,
         expires_at: data.date_of_expiration,
       });
     } catch (err) {
@@ -219,7 +219,7 @@ export function SubscriptionModal() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Assinatura Mensal</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-xs font-bold text-text">R$</span>
-                  <span className="text-2xl sm:text-3xl font-serif font-black text-text">29</span>
+                  <span className="text-2xl sm:text-3xl font-serif font-black text-text">34</span>
                   <span className="text-base font-serif font-bold text-text">,90</span>
                   <span className="text-xs text-text-muted">/mês</span>
                 </div>
@@ -267,7 +267,7 @@ export function SubscriptionModal() {
                 }}
                 className="w-full py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg cursor-pointer"
               >
-                <span>Assinar Plano Ilimitado (R$ 29,90/mês)</span>
+                <span>Assinar Plano Ilimitado (R$ 34,90/mês)</span>
                 <ArrowRight size={15} />
               </button>
 
@@ -315,7 +315,7 @@ export function SubscriptionModal() {
                 Escolha a forma de pagamento
               </h2>
               <p className="text-xs text-text-muted">
-                Plano Ilimitado · <strong>R$ 29,90/mês</strong>
+                Plano Ilimitado · <strong>R$ 34,90/mês</strong>
               </p>
             </div>
 
@@ -438,7 +438,7 @@ export function SubscriptionModal() {
                 ) : (
                   <div className="space-y-3 text-center py-1">
                     <p className="text-xs text-text-muted leading-relaxed">
-                      Gere o <strong>QR Code Pix de R$ 29,90</strong>. A liberação do seu plano é instantânea.
+                      Gere o <strong>QR Code Pix de R$ 34,90</strong>. A liberação do seu plano é instantânea.
                     </p>
 
                     <button
@@ -455,7 +455,7 @@ export function SubscriptionModal() {
                       ) : (
                         <>
                           <QrCode size={15} />
-                          <span>Gerar QR Code Pix (R$ 29,90)</span>
+                          <span>Gerar QR Code Pix (R$ 34,90)</span>
                         </>
                       )}
                     </button>
@@ -472,13 +472,13 @@ export function SubscriptionModal() {
                   <div>
                     <p className="font-bold text-text text-[11px]">Assinatura Mensal Recorrente Automática</p>
                     <p className="text-[10px] text-text-muted leading-tight">
-                      Cobrança automática de <strong>R$ 29,90/mês</strong> a cada 30 dias na sua fatura. Cancele quando quiser sem multas ou fidelidade.
+                      Cobrança automática de <strong>R$ 34,90/mês</strong> a cada 30 dias na sua fatura. Cancele quando quiser sem multas ou fidelidade.
                     </p>
                   </div>
                 </div>
 
                 <MercadoPagoBrick
-                  amount={29.9}
+                  amount={34.9}
                   onSuccess={async () => {
                     await refreshSubscription();
                     setTimeout(() => {

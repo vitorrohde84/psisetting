@@ -57,7 +57,7 @@ export async function POST(request: Request) {
           auto_recurring: {
             frequency: 1,
             frequency_type: "months",
-            transaction_amount: 29.9,
+            transaction_amount: 34.9,
             currency_id: "BRL",
           },
           back_url: `${baseUrl}/configuracoes?status=assinatura_sucesso`,
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
               title: "PsiSetting — Plano Profissional (Mensal)",
               description: "Assinatura mensal de gestão clínica",
               quantity: 1,
-              unit_price: 29.9,
+              unit_price: 34.9,
               currency_id: "BRL",
             },
           ],

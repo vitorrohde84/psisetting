@@ -109,7 +109,7 @@ const jsonLdSoftwareApp = {
     "Sistema de apoio e gestão para psicólogos clínicos com prontuários protegidos, 5 modelos conforme a Resolução CFP 06/2019, agenda, financeiro e diário de bordo.",
   offers: {
     "@type": "Offer",
-    price: "29.90",
+    price: "34.90",
     priceCurrency: "BRL",
     priceValidUntil: "2027-12-31",
     availability: "https://schema.org/InStock",
@@ -154,7 +154,7 @@ const faqItems = [
   {
     question: "Existe fidelidade ou contrato de permanência?",
     answer:
-      "Nenhuma fidelidade. Você tem 7 dias de teste gratuitos para experimentar todas as funcionalidades. Após o período, a assinatura do Plano Único é de apenas R$ 29,90/mês e você pode cancelar a qualquer momento nas configurações da sua conta.",
+      "Nenhuma fidelidade. Você tem 7 dias de teste gratuitos para experimentar todas as funcionalidades. Após o período, a assinatura do Plano Único é de apenas R$ 34,90/mês e você pode cancelar a qualquer momento nas configurações da sua conta.",
   },
 ];
 
@@ -588,7 +588,7 @@ export default function LandingPage() {
                 </div>
                 <p className="text-xs text-text-muted pt-2 flex items-center gap-1.5">
                   <Sparkles size={13} className="text-amber-600 shrink-0" />
-                  <span>7 dias de teste grátis · Sem cartão de crédito · Plano Único de R$ 29,90/mês</span>
+                  <span>7 dias de teste grátis · Sem cartão de crédito · Plano Único de R$ 34,90/mês</span>
                 </p>
               </Reveal>
             </div>
@@ -1183,7 +1183,7 @@ export default function LandingPage() {
                 <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Plano Único Profissional Clínico</p>
                 <div className="mt-3 flex items-baseline justify-center gap-1">
                   <span className="text-lg font-bold text-text">R$</span>
-                  <span className="text-5xl font-serif font-black text-text tracking-tight">29</span>
+                  <span className="text-5xl font-serif font-black text-text tracking-tight">34</span>
                   <span className="text-2xl font-serif font-bold text-text">,90</span>
                   <span className="text-sm text-text-muted font-medium">/mês</span>
                 </div>
@@ -1302,7 +1302,7 @@ export default function LandingPage() {
               </Link>
             </div>
             <p className="text-xs text-text-muted mt-3">
-              Sem cartão de crédito para testar · Apenas R$ 29,90/mês após os 7 dias.
+              Sem cartão de crédito para testar · Apenas R$ 34,90/mês após os 7 dias.
             </p>
           </Reveal>
         </div>

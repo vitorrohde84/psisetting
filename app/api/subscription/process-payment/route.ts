@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const payment = await paymentClient.create({
       body: {
         ...formData,
-        transaction_amount: Number(formData.transaction_amount) || 29.9,
+        transaction_amount: Number(formData.transaction_amount) || 34.9,
         description: "PsiSetting — Plano Profissional (Mensal)",
         statement_descriptor: "PSISETTING",
         external_reference: user.id,

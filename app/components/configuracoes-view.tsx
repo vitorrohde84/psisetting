@@ -568,7 +568,7 @@ export function ConfiguracoesView() {
               </h3>
             </div>
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
-              R$ 29,90/mês
+              R$ 34,90/mês
             </span>
           </div>
 

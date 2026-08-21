@@ -37,7 +37,7 @@ export function SubscriptionBanner() {
               onClick={openSubscriptionModal}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-white font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-2xs"
             >
-              <span>Assinar (R$ 29,90/mês)</span>
+              <span>Assinar (R$ 34,90/mês)</span>
               <ArrowRight size={13} />
             </button>
             <button

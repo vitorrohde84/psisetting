@@ -74,7 +74,7 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
                 },
                 hideFormTitle: true,
                 texts: {
-                  customButtonText: "Confirmar Assinatura (R$ 29,90/mês)",
+                  customButtonText: "Confirmar Assinatura (R$ 34,90/mês)",
                 },
               },
             },
@@ -148,7 +148,7 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
           Pagamento Aprovado com Sucesso!
         </h3>
         <p className="text-xs text-emerald-800">
-          Sua assinatura profissional de R$ 29,90/mês foi ativada.
+          Sua assinatura profissional de R$ 34,90/mês foi ativada.
         </p>
       </div>
     );
