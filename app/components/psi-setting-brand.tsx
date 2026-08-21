@@ -43,13 +43,13 @@ export function PsiSettingBrand({
   return (
     <div className={`inline-flex items-center gap-2.5 leading-tight ${className}`}>
       {showIcon && (
-        <div className={`relative shrink-0 overflow-hidden shadow-xs border border-border/40 ${currentIcon.className}`}>
+        <div className={`relative shrink-0 overflow-hidden bg-transparent ${currentIcon.className}`}>
           <Image
             src="/logo.png"
             alt="PsiSetting Logo"
             width={currentIcon.size}
             height={currentIcon.size}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             priority
           />
         </div>

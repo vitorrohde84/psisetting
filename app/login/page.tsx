@@ -396,13 +396,13 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Header com Identidade Visual Oficial */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-border/60 mb-3 bg-surface p-1">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden mb-3 bg-transparent">
             <Image
               src="/logo.png"
               alt="PsiSetting"
               width={64}
               height={64}
-              className="w-full h-full object-cover rounded-xl"
+              className="w-full h-full object-contain"
               priority
             />
           </div>
