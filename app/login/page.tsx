@@ -85,7 +85,12 @@ export default function LoginPage() {
 
       // Check auth callback error
       if (params.get("error") === "auth_callback_failed") {
-        setError("Falha na autenticação. Por favor, tente novamente.");
+        const details = params.get("details");
+        setError(
+          details && details !== "missing_code"
+            ? `Falha na autenticação com Google: ${details}`
+            : "Falha na autenticação. Por favor, tente novamente."
+        );
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 

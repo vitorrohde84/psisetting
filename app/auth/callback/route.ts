@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/utils/supabase/server";
 
 /**
  * GET /auth/callback
@@ -13,36 +13,40 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const next = requestUrl.searchParams.get("next") || "/";
 
+  // Obter o host e protocolo corretos (considerando proxy reverso da Vercel / domínios customizados)
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
+  const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+  const origin = `${proto}://${host}`;
+
   if (code) {
-    const response = NextResponse.redirect(new URL(next, requestUrl.origin));
+    try {
+      const supabase = await createClient();
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
+      if (!error) {
+        return NextResponse.redirect(new URL(next, origin));
       }
-    );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return response;
+      console.error("Erro na troca de código de autenticação Supabase:", error);
+      return NextResponse.redirect(
+        new URL(
+          `/login?error=auth_callback_failed&details=${encodeURIComponent(error.message)}`,
+          origin
+        )
+      );
+    } catch (err: any) {
+      console.error("Exceção no auth callback:", err);
+      return NextResponse.redirect(
+        new URL(
+          `/login?error=auth_callback_failed&details=${encodeURIComponent(err?.message || "Erro de conexão")}`,
+          origin
+        )
+      );
     }
-
-    console.error("Erro na troca de código de autenticação:", error);
   }
 
-  // Redireciona de volta para o login em caso de erro
+  // Redireciona de volta para o login caso não tenha recebido o code
   return NextResponse.redirect(
-    new URL("/login?error=auth_callback_failed", requestUrl.origin)
+    new URL("/login?error=auth_callback_failed&details=missing_code", origin)
   );
 }
