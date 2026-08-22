@@ -4,9 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
-import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2 } from "lucide-react";
+import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { PacienteFormModal } from "./paciente-form-modal";
+import dynamic from "next/dynamic";
+
+const PacienteFormModal = dynamic(
+  () => import("./paciente-form-modal").then((m) => m.PacienteFormModal),
+  { ssr: false }
+);
 
 export interface Paciente {
   id: string;
@@ -213,20 +218,40 @@ export function PacienteList() {
             </div>
           </div>
         ) : filteredPacientes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-            <Search size={32} className="text-border mb-3" />
-            <p className="text-sm text-text-muted">
-              {search
-                ? `Nenhum paciente encontrado para "${search}"`
-                : "Nenhum paciente cadastrado ainda"}
-            </p>
-            {!search && (
-              <button
-                onClick={handleNew}
-                className="mt-3 text-sm text-primary hover:text-primary-dark font-medium transition-colors cursor-pointer"
-              >
-                Cadastrar primeiro paciente
-              </button>
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6 max-w-md mx-auto space-y-4">
+            {search ? (
+              <>
+                <Search size={32} className="text-border mb-1" />
+                <p className="text-sm text-text-muted">
+                  Nenhum paciente encontrado para &ldquo;{search}&rdquo;
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-3xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-2xs">
+                  <UserPlus size={28} />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-serif font-bold text-text">
+                    Boas-vindas ao seu consultório digital!
+                  </h3>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    Dê o primeiro passo cadastrando seu primeiro paciente. Seus registros contam com criptografia clínica individual e conformidade CFP.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-md hover:shadow-lg"
+                >
+                  <UserPlus size={15} />
+                  <span>Cadastrar Primeiro Paciente</span>
+                </button>
+                <div className="inline-flex items-center gap-1.5 text-[11px] text-text-muted/70 pt-1">
+                  <ShieldCheck size={13} className="text-primary" />
+                  <span>Conformidade com a Resolução CFP nº 06/2019</span>
+                </div>
+              </>
             )}
           </div>
         ) : (

@@ -24,9 +24,20 @@ import {
   DollarSign,
   CheckCircle2,
 } from "lucide-react";
-import { AgendamentoFormModal } from "./agendamento-form-modal";
-import { ProntuarioFormModal } from "./prontuario-form-modal";
-import { PagamentoFormModal } from "./pagamento-form-modal";
+import dynamic from "next/dynamic";
+
+const AgendamentoFormModal = dynamic(
+  () => import("./agendamento-form-modal").then((m) => m.AgendamentoFormModal),
+  { ssr: false }
+);
+const ProntuarioFormModal = dynamic(
+  () => import("./prontuario-form-modal").then((m) => m.ProntuarioFormModal),
+  { ssr: false }
+);
+const PagamentoFormModal = dynamic(
+  () => import("./pagamento-form-modal").then((m) => m.PagamentoFormModal),
+  { ssr: false }
+);
 
 export interface Agendamento {
   id: string;

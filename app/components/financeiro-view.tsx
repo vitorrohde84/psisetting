@@ -5,7 +5,12 @@ import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle, TrendingUp, CalendarDays } from "lucide-react";
-import { PagamentoFormModal } from "./pagamento-form-modal";
+import dynamic from "next/dynamic";
+
+const PagamentoFormModal = dynamic(
+  () => import("./pagamento-form-modal").then((m) => m.PagamentoFormModal),
+  { ssr: false }
+);
 
 interface Pagamento {
   id: string;

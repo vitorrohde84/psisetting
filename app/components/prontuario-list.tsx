@@ -3,8 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
-import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download } from "lucide-react";
-import { ProntuarioFormModal } from "./prontuario-form-modal";
+import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download, ShieldCheck } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const ProntuarioFormModal = dynamic(
+  () => import("./prontuario-form-modal").then((m) => m.ProntuarioFormModal),
+  { ssr: false }
+);
 import { downloadPdf } from "@/utils/pdf-export";
 import { decryptClinicalData } from "@/utils/crypto";
 
@@ -206,12 +211,40 @@ export function ProntuarioList() {
               <p className="text-sm text-text-muted">Carregando pacientes...</p>
             </div>
           ) : filteredPacientes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-              <Users size={36} className="text-border mb-3" />
-              <h3 className="text-base font-medium text-text mb-1">Nenhum prontuário encontrado</h3>
-              <p className="text-sm text-text-muted">
-                {search ? "Nenhum paciente corresponde à busca." : "Você ainda não registrou nenhuma evolução clínica."}
-              </p>
+            <div className="flex flex-col items-center justify-center py-16 text-center px-6 max-w-md mx-auto space-y-4">
+              {search ? (
+                <>
+                  <Users size={32} className="text-border mb-1" />
+                  <h3 className="text-base font-medium text-text">Nenhum prontuário encontrado</h3>
+                  <p className="text-xs text-text-muted">Nenhum paciente corresponde à busca &ldquo;{search}&rdquo;.</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-3xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-2xs">
+                    <FileText size={28} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-base font-serif font-bold text-text">
+                      Evoluções Clínicas Organizadas & Seguras
+                    </h3>
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      Registre as anotações de cada sessão com rapidez. Seus prontuários ficam estruturados em ordem cronológica e protegidos por criptografia individual.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleNovaEvolucao}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-md hover:shadow-lg"
+                  >
+                    <Plus size={15} />
+                    <span>Registrar Primeiro Prontuário</span>
+                  </button>
+                  <div className="inline-flex items-center gap-1.5 text-[11px] text-text-muted/70 pt-1">
+                    <ShieldCheck size={13} className="text-primary" />
+                    <span>Resolução CFP nº 06/2019 — Prontuário Eletrônico do Psicólogo</span>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 p-4 gap-4">

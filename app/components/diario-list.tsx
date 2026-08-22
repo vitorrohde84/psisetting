@@ -4,7 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, Filter, FileText, Pencil, Calendar, Loader2, BookOpen, ShieldCheck } from "lucide-react";
-import { DiarioFormModal } from "./diario-form-modal";
+import dynamic from "next/dynamic";
+
+const DiarioFormModal = dynamic(
+  () => import("./diario-form-modal").then((m) => m.DiarioFormModal),
+  { ssr: false }
+);
 import { decryptClinicalData } from "@/utils/crypto";
 
 interface Diario {

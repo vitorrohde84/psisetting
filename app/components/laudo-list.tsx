@@ -4,9 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
-import { LaudoFormModal } from "./laudo-form-modal";
+import dynamic from "next/dynamic";
+
+const LaudoFormModal = dynamic(
+  () => import("./laudo-form-modal").then((m) => m.LaudoFormModal),
+  { ssr: false }
+);
+const LaudoConfigModal = dynamic(
+  () => import("./laudo-config-modal").then((m) => m.LaudoConfigModal),
+  { ssr: false }
+);
 import { LaudoPrint } from "./laudo-print";
-import { LaudoConfigModal } from "./laudo-config-modal";
 import { getLaudoSignedUrl } from "@/utils/supabase/storage";
 import { decryptClinicalData } from "@/utils/crypto";
 
