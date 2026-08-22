@@ -6,6 +6,8 @@ import { PrivacyToggle } from "@/app/components/privacy-toggle";
 import { SubscriptionProvider } from "@/utils/subscription-context";
 import { SubscriptionBanner } from "@/app/components/subscription-banner";
 import { SubscriptionModal } from "@/app/components/subscription-modal";
+import { AnnouncementBanner } from "@/app/components/announcement-banner";
+import { isEmailAdmin } from "@/utils/admin-auth";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
 
@@ -23,16 +25,17 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Fetch profile with logo_url and crp
+  // Fetch profile with logo_url, crp, and is_admin
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nome, crp, logo_url")
+    .select("nome, crp, logo_url, is_admin")
     .eq("id", user.id)
     .single();
 
   const userName = profile?.nome || user.email?.split("@")[0] || "Profissional";
   const userEmail = user.email || "";
   const isProfileIncomplete = !profile?.crp || !profile?.nome;
+  const isAdmin = Boolean(profile?.is_admin) || isEmailAdmin(user.email);
 
   // Construct public logo URL if available
   const logoUrl = profile?.logo_url
@@ -42,12 +45,17 @@ export default async function DashboardLayout({
   return (
     <SubscriptionProvider>
       <div className="flex min-h-screen bg-background">
-        <Sidebar userName={userName} userEmail={userEmail} logoUrl={logoUrl} />
+        <Sidebar userName={userName} userEmail={userEmail} logoUrl={logoUrl} isAdmin={isAdmin} />
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Spacer for mobile top bar */}
           <div className="lg:hidden h-14 shrink-0" />
+
+          {/* Comunicado Global do Administrador (Broadcast) */}
+          <div className="no-print">
+            <AnnouncementBanner />
+          </div>
 
           {/* Banner de Assinatura / Modo Somente Leitura */}
           <div className="no-print">

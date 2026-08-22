@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LogoutButton } from "@/app/components/logout-button";
 import { PrivacyToggle } from "@/app/components/privacy-toggle";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
+import { FeedbackModal } from "@/app/components/feedback-modal";
 import {
   LayoutDashboard,
   Users,
@@ -18,6 +19,8 @@ import {
   Menu,
   X,
   ChevronRight,
+  Lightbulb,
+  ShieldAlert,
 } from "lucide-react";
 
 const navItems = [
@@ -35,11 +38,13 @@ interface SidebarProps {
   userName: string;
   userEmail: string;
   logoUrl: string | null;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
+export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -159,6 +164,53 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
               </Link>
             );
           })}
+
+          {/* Botão de Feedback & Sugestões */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                setFeedbackOpen(true);
+              }}
+              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-900 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 transition-all cursor-pointer shadow-2xs group"
+            >
+              <div className="flex items-center gap-2.5">
+                <Lightbulb size={16} className="text-amber-700 group-hover:scale-110 transition-transform" />
+                <span>Sugestões & Feedbacks</span>
+              </div>
+              <span className="text-[10px] bg-amber-600/20 text-amber-950 px-1.5 py-0.5 rounded-md font-bold">
+                Novo
+              </span>
+            </button>
+          </div>
+
+          {/* Link Exclusivo para Administradores */}
+          {isAdmin && (
+            <div className="pt-1">
+              <Link
+                href="/admin"
+                onClick={() => setMobileOpen(false)}
+                className={`
+                  w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold
+                  transition-all shadow-2xs
+                  ${
+                    pathname.startsWith("/admin")
+                      ? "bg-stone-900 text-white shadow-md"
+                      : "text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-300"
+                  }
+                `}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShieldAlert size={15} className={pathname.startsWith("/admin") ? "text-amber-400" : "text-stone-800"} />
+                  <span>Painel Admin SaaS</span>
+                </div>
+                <span className="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-sm font-black">
+                  Admin
+                </span>
+              </Link>
+            </div>
+          )}
         </nav>
 
         {/* Rodapé da Sidebar: Perfil Personalizado do Usuário + Logout */}
@@ -190,6 +242,9 @@ export function Sidebar({ userName, userEmail, logoUrl }: SidebarProps) {
           <LogoutButton />
         </div>
       </aside>
+
+      {/* Modal de Feedbacks */}
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       {/* ===== BARRA INFERIOR MOBILE (Tab Bar) ===== */}
       <nav 
