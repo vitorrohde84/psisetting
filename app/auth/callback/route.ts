@@ -1,33 +1,54 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 
 /**
  * GET /auth/callback
  * 
- * Rota de callback do Supabase Auth para OAuth (Google, etc.) e Magic Links.
- * Troca o código 'code' recebido por uma sessão autenticada persistida
- * nos cookies HTTP seguros da aplicação Next.js.
+ * Rota oficial de callback do Supabase Auth para OAuth (Google) e Magic Links.
+ * Troca o código 'code' recebido por uma sessão persistida diretamente nos cookies
+ * da resposta HTTP enviada ao navegador.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const next = requestUrl.searchParams.get("next") || "/";
 
-  // Obter o host e protocolo corretos (considerando proxy reverso da Vercel / domínios customizados)
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || requestUrl.host;
+  // Obter a URL de origem real respeitando proxies da Vercel
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host") || requestUrl.host;
   const proto = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   const origin = `${proto}://${host}`;
 
   if (code) {
+    // Cria a resposta de redirecionamento para mutar os cookies diretamente nela
+    const response = NextResponse.redirect(new URL(next, origin));
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
     try {
-      const supabase = await createClient();
       const { error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (!error) {
-        return NextResponse.redirect(new URL(next, origin));
+        return response;
       }
 
-      console.error("Erro na troca de código de autenticação Supabase:", error);
+      console.error("Erro no exchangeCodeForSession:", error);
       return NextResponse.redirect(
         new URL(
           `/login?error=auth_callback_failed&details=${encodeURIComponent(error.message)}`,
@@ -38,14 +59,14 @@ export async function GET(request: NextRequest) {
       console.error("Exceção no auth callback:", err);
       return NextResponse.redirect(
         new URL(
-          `/login?error=auth_callback_failed&details=${encodeURIComponent(err?.message || "Erro de conexão")}`,
+          `/login?error=auth_callback_failed&details=${encodeURIComponent(err?.message || "Erro inesperado")}`,
           origin
         )
       );
     }
   }
 
-  // Redireciona de volta para o login caso não tenha recebido o code
+  // Redireciona de volta para o login caso não haja code
   return NextResponse.redirect(
     new URL("/login?error=auth_callback_failed&details=missing_code", origin)
   );

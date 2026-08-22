@@ -1,6 +1,6 @@
 -- ==============================================================================
--- CORREÇÃO DO TRIGGER DE CRIAÇÃO DE USUÁRIO (Supabase Auth 500 Fix)
--- Execute este script no Supabase SQL Editor
+-- CORREÇÃO DO TRIGGER DE CRIAÇÃO DE USUÁRIO (Supabase Auth Fix)
+-- Execute este script no Supabase SQL Editor para garantir criação perfeita de contas
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -10,7 +10,15 @@ SECURITY DEFINER
 SET search_path = public, extensions, auth
 AS $$
 BEGIN
-  INSERT INTO public.profiles (id, nome, email, calendar_token)
+  INSERT INTO public.profiles (
+    id, 
+    nome, 
+    email, 
+    calendar_token,
+    trial_ends_at,
+    subscription_status,
+    is_vip
+  )
   VALUES (
     NEW.id,
     COALESCE(
@@ -20,7 +28,10 @@ BEGIN
       split_part(NEW.email, '@', 1)
     ),
     NEW.email,
-    'cal_' || md5(random()::text || clock_timestamp()::text)
+    'cal_' || md5(random()::text || clock_timestamp()::text),
+    NOW() + INTERVAL '30 days',
+    'trialing',
+    false
   )
   ON CONFLICT (id) DO UPDATE
   SET email = EXCLUDED.email,
