@@ -41,16 +41,120 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+  const [gisLoaded, setGisLoaded] = useState(false);
+
   // Register fields
   const [nome, setNome] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  // Google OAuth Login handler (Fluxo Oficial e Robusto do Supabase)
+
+  // Handle Google Credential Response directly on client (GIS Native Token)
+  const handleGoogleCredentialResponse = useCallback(
+    async (response: { credential?: string }) => {
+      if (!response?.credential) return;
+      setError(null);
+      setGoogleLoading(true);
+
+      try {
+        const { error: authError } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: response.credential,
+        });
+
+        if (authError) {
+          console.error("Erro no signInWithIdToken:", authError);
+          // Fallback para OAuth padrão se necessário
+          const { error: oAuthError } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback`,
+            },
+          });
+          if (oAuthError) {
+            setError(`Erro ao autenticar com Google: ${oAuthError.message || "Tente novamente."}`);
+            setGoogleLoading(false);
+          }
+          return;
+        }
+
+        router.push("/");
+        router.refresh();
+      } catch (err: unknown) {
+        console.error("Erro inesperado no Google Sign-in:", err);
+        setError("Erro ao processar login com Google.");
+        setGoogleLoading(false);
+      }
+    },
+    [supabase, router]
+  );
+
+  // Initialize Google Identity Services (GIS)
+  useEffect(() => {
+    const googleClientId =
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+      "196841692254-1c82nvlr1qrq2a44tjq1mk0q7nt45hte.apps.googleusercontent.com";
+
+    // Load Google Identity Services script
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.google?.accounts?.id) {
+        setGisLoaded(true);
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+
+        // Render native Google button in container
+        if (googleBtnRef.current) {
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            type: "standard",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            shape: "rectangular",
+            logo_alignment: "left",
+            width: googleBtnRef.current.offsetWidth || 340,
+            locale: "pt-BR",
+          });
+        }
+      }
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, [handleGoogleCredentialResponse]);
+
+  // Google OAuth Login trigger caso o GIS demore
   async function handleGoogleLogin() {
     setError(null);
     setGoogleLoading(true);
+
+    if (gisLoaded && window.google?.accounts?.id) {
+      window.google.accounts.id.prompt((notification: { isNotDisplayed: () => boolean; isSkippedMoment: () => boolean }) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback`,
+            },
+          });
+        }
+      });
+      setGoogleLoading(false);
+      return;
+    }
 
     try {
       const { error: oAuthError } = await supabase.auth.signInWithOAuth({
@@ -331,43 +435,51 @@ export default function LoginPage() {
         {/* Card Principal */}
         <div className="bg-surface rounded-2xl shadow-[0_4px_32px_rgba(0,0,0,0.06)] border border-border/60 p-8">
           
-          {/* Botão Oficial do Google (OAuth Supabase) */}
+          {/* Botão Oficial do Google (Google Identity Services com Popup Limpo) */}
           <div className="mb-5 flex flex-col items-center">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={googleLoading || loading}
-              className="w-full py-2.5 px-4 rounded-xl border border-border bg-background hover:bg-surface text-text font-medium text-sm
-                         flex items-center justify-center gap-3 shadow-xs hover:border-text-muted/40 active:scale-[0.98]
-                         transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {googleLoading ? (
-                <svg className="animate-spin h-4 w-4 text-text" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-              )}
-              <span>Continuar com o Google</span>
-            </button>
+            <div
+              id="google-signin-btn-container"
+              ref={googleBtnRef}
+              className="w-full flex justify-center min-h-[40px]"
+            />
+
+            {!gisLoaded && (
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={googleLoading || loading}
+                className="w-full py-2.5 px-4 rounded-xl border border-border bg-background hover:bg-surface text-text font-medium text-sm
+                           flex items-center justify-center gap-3 shadow-xs hover:border-text-muted/40 active:scale-[0.98]
+                           transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {googleLoading ? (
+                  <svg className="animate-spin h-4 w-4 text-text" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                )}
+                <span>Continuar com o Google</span>
+              </button>
+            )}
           </div>
 
           {/* Divisor */}
