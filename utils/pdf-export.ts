@@ -1,6 +1,3 @@
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
-
 export interface GeneratePdfOptions {
   filename?: string;
   title?: string;
@@ -10,7 +7,13 @@ export interface GeneratePdfOptions {
 export async function generatePdfBlob(
   element: HTMLElement,
   options: GeneratePdfOptions = {}
-): Promise<{ blob: Blob; pdf: jsPDF }> {
+): Promise<{ blob: Blob; pdf: any }> {
+  // Carregamento dinâmico sob demanda (Lazy dynamic import) para manter o bundle ultra leve
+  const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
+
   // Ensure all images are fully loaded before rendering
   const images = Array.from(element.querySelectorAll("img"));
   await Promise.all(
@@ -98,31 +101,29 @@ export async function downloadPdf(
 export async function sharePdf(
   element: HTMLElement,
   filename: string,
-  title: string = "Documento"
+  title: string = "Documento Psicológico"
 ): Promise<boolean> {
-  try {
-    const { blob } = await generatePdfBlob(element, { filename, title });
-    
-    if (typeof navigator !== "undefined" && navigator.share) {
-      const file = new File([blob], filename, { type: "application/pdf" });
-      
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title,
-          files: [file],
-        });
-        return true;
-      }
-    }
-  } catch (err: unknown) {
-    // If user cancelled the share sheet (AbortError), don't treat as error
-    if (err instanceof Error && err.name === "AbortError") {
-      return true;
-    }
-    console.warn("Web Share API failed, fallback to download", err);
+  if (typeof navigator === "undefined" || !navigator.share) {
+    return false;
   }
 
-  // Fallback to download if sharing failed or not supported
-  await downloadPdf(element, filename);
+  try {
+    const { blob } = await generatePdfBlob(element, { filename, title });
+    const file = new File([blob], filename, { type: "application/pdf" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title,
+        text: `Documento clínico gerado via PsiSetting.`,
+        files: [file],
+      });
+      return true;
+    }
+  } catch (err: any) {
+    if (err.name !== "AbortError") {
+      console.error("Erro ao compartilhar PDF:", err);
+    }
+  }
+
   return false;
 }
