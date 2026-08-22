@@ -95,10 +95,17 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
         {/* Conteúdo com Scroll */}
         <div className="flex-1 p-5 space-y-5 overflow-y-auto">
           {/* Status Badge Principal */}
-          <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between ${currentBadge.bg}`}>
-            <span>{currentBadge.label}</span>
-            {user.is_vip && <Crown size={14} className="text-purple-700" />}
-          </div>
+          {user.is_admin || user.email === "vitorrohde84@gmail.com" ? (
+            <div className="p-3 rounded-xl border border-primary/20 bg-primary/10 text-primary text-xs font-bold flex items-center justify-between">
+              <span>Administrador & Desenvolvedor do SaaS</span>
+              <ShieldCheck size={16} />
+            </div>
+          ) : (
+            <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between ${currentBadge.bg}`}>
+              <span>{currentBadge.label}</span>
+              {user.is_vip && <Crown size={14} className="text-purple-700" />}
+            </div>
+          )}
 
           {/* Dados de Contato Direto */}
           <div className="space-y-2">

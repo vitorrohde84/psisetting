@@ -592,9 +592,15 @@ export default function AdminDashboardPage() {
                             </p>
                           </div>
 
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${currentBadge.bg}`}>
-                            {currentBadge.label}
-                          </span>
+                          {u.is_admin || u.email === "vitorrohde84@gmail.com" ? (
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-primary/20 bg-primary/10 text-primary">
+                              Administrador
+                            </span>
+                          ) : (
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${currentBadge.bg}`}>
+                              {currentBadge.label}
+                            </span>
+                          )}
 
                           <ChevronRight size={14} className="text-text-muted group-hover:translate-x-1 transition-transform" />
                         </div>

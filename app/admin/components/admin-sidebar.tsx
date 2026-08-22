@@ -176,8 +176,8 @@ export function AdminSidebar({ activeTab, onSelectTab, counts }: AdminSidebarPro
                 <ArrowLeft size={14} />
               </div>
               <div className="text-left">
-                <p className="font-bold text-xs text-text group-hover:text-primary">Modo Consultório</p>
-                <p className="text-[10px] text-text-muted">Voltar para a área clínica</p>
+                <p className="font-bold text-xs text-text group-hover:text-primary">Acessar o Sistema</p>
+                <p className="text-[10px] text-text-muted">Voltar para o aplicativo</p>
               </div>
             </div>
             <ChevronRight size={14} className="text-text-muted group-hover:translate-x-0.5 transition-transform" />

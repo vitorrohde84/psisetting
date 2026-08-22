@@ -173,15 +173,10 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
                 setMobileOpen(false);
                 setFeedbackOpen(true);
               }}
-              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-900 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 transition-all cursor-pointer shadow-2xs group"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text hover:bg-background border border-transparent hover:border-border/60 transition-all cursor-pointer group"
             >
-              <div className="flex items-center gap-2.5">
-                <Lightbulb size={16} className="text-amber-700 group-hover:scale-110 transition-transform" />
-                <span>Sugestões & Feedbacks</span>
-              </div>
-              <span className="text-[10px] bg-amber-600/20 text-amber-950 px-1.5 py-0.5 rounded-md font-bold">
-                Novo
-              </span>
+              <Lightbulb size={17} className="text-amber-600 group-hover:scale-110 transition-transform" />
+              <span>Sugestões & Feedbacks</span>
             </button>
           </div>
 
@@ -192,22 +187,17 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
                 href="/admin"
                 onClick={() => setMobileOpen(false)}
                 className={`
-                  w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold
-                  transition-all shadow-2xs
+                  w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold
+                  transition-all
                   ${
                     pathname.startsWith("/admin")
-                      ? "bg-stone-900 text-white shadow-md"
-                      : "text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-300"
+                      ? "bg-primary/10 text-primary font-bold shadow-2xs"
+                      : "text-text-muted hover:text-text hover:bg-background border border-transparent hover:border-border/60"
                   }
                 `}
               >
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert size={15} className={pathname.startsWith("/admin") ? "text-amber-400" : "text-stone-800"} />
-                  <span>Painel Admin SaaS</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-sm font-black">
-                  Admin
-                </span>
+                <ShieldAlert size={17} className={pathname.startsWith("/admin") ? "text-primary" : "text-text-muted"} />
+                <span>Painel Admin SaaS</span>
               </Link>
             </div>
           )}

@@ -13,6 +13,7 @@ export async function GET() {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const BASE_PRICE = 34.9;
 
     // 1. Buscar todos os perfis com campos essenciais
     const { data: profiles, error: pErr } = await adminClient
@@ -25,10 +26,33 @@ export async function GET() {
       return NextResponse.json({ error: "Erro ao buscar métricas de usuários." }, { status: 500 });
     }
 
+    // 2. Buscar resgates de cupons para aplicar descontos reais no MRR
+    let userCouponDiscountMap: Record<string, number> = {};
+    try {
+      const { data: redemptions } = await adminClient
+        .from("coupon_redemptions")
+        .select("profile_id, coupons (discount_type, discount_value)");
+
+      (redemptions || []).forEach((r: any) => {
+        if (r.profile_id && r.coupons) {
+          const type = r.coupons.discount_type;
+          const val = Number(r.coupons.discount_value) || 0;
+          if (type === "percent" && val > 0) {
+            const discount = (BASE_PRICE * val) / 100;
+            userCouponDiscountMap[r.profile_id] = Math.max(1, BASE_PRICE - discount);
+          } else if (type === "fixed" && val > 0) {
+            userCouponDiscountMap[r.profile_id] = Math.max(1, BASE_PRICE - val);
+          }
+        }
+      });
+    } catch {
+      // Ignora se não houver resgates
+    }
+
     const allProfiles = profiles || [];
     const totalUsers = allProfiles.length;
 
-    // Categorização dos usuários
+    // Categorização dos usuários e soma real do MRR
     let activeSubscribers = 0;
     let activeTrials = 0;
     let expiredTrials = 0;
@@ -36,6 +60,7 @@ export async function GET() {
     let pastDue = 0;
     let newUsersLast7Days = 0;
     let newUsersLast30Days = 0;
+    let calculatedMrr = 0;
 
     allProfiles.forEach((p) => {
       const createdAt = p.created_at ? new Date(p.created_at) : null;
@@ -46,6 +71,9 @@ export async function GET() {
         vips++;
       } else if (p.subscription_status === "active") {
         activeSubscribers++;
+        // Se o usuário possui cupom de desconto resgatado, usa o preço real dele
+        const userPrice = userCouponDiscountMap[p.id] || (p as any).subscription_price || BASE_PRICE;
+        calculatedMrr += Number(userPrice);
       } else if (p.subscription_status === "past_due") {
         pastDue++;
       } else {
@@ -59,10 +87,8 @@ export async function GET() {
       }
     });
 
-    // 2. Cálculos Financeiros (R$ 34,90/mês)
-    const TICKET_PRICE = 34.9;
-    const mrr = activeSubscribers * TICKET_PRICE;
-    const arr = mrr * 12;
+    calculatedMrr = Number(calculatedMrr.toFixed(2));
+    const arr = Number((calculatedMrr * 12).toFixed(2));
     const conversionRate = totalUsers > 0 ? (activeSubscribers / totalUsers) * 100 : 0;
 
     // 3. Contagem global de engajamento clínico (com fallback seguro caso tabelas estejam vazias)
@@ -78,7 +104,7 @@ export async function GET() {
       adminClient.from("agendamentos").select("*", { count: "exact", head: true }),
     ]);
 
-    // 4. Feedbacks pendentes (com fallback seguro caso a tabela esteja sendo criada)
+    // 4. Feedbacks pendentes
     let pendingFeedbacks = 0;
     try {
       const { count } = await adminClient
@@ -104,9 +130,9 @@ export async function GET() {
 
     return NextResponse.json({
       finance: {
-        mrr,
+        mrr: calculatedMrr,
         arr,
-        ticketPrice: TICKET_PRICE,
+        ticketPrice: BASE_PRICE,
         activeSubscribers,
         pastDue,
       },
