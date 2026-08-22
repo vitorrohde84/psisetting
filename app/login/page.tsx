@@ -238,6 +238,13 @@ export default function LoginPage() {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim()) || email.trim().endsWith(".coom")) {
+      setError("Por favor, informe um endereço de e-mail válido (exemplo: @gmail.com).");
+      return;
+    }
+
     setLoading(true);
 
     // If invite code is provided, use the invite validation endpoint
@@ -286,21 +293,21 @@ export default function LoginPage() {
       });
 
       if (signUpError) {
-        const msg =
-          typeof signUpError.message === "string" &&
-          signUpError.message !== "{}" &&
-          signUpError.message.trim().length > 0
-            ? signUpError.message
-            : "Erro ao processar o cadastro. Tente novamente.";
+        console.error("Supabase SignUp Error:", signUpError);
+        const msg = String(signUpError.message || "");
 
         if (
           msg.includes("already registered") ||
           msg.includes("already exists") ||
           msg.includes("User already registered")
         ) {
-          setError("Este e-mail já está cadastrado no sistema.");
+          setError("Este e-mail já está cadastrado no sistema. Faça login.");
+        } else if (msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("over_email_send_rate_limit")) {
+          setError("Limite temporário de envio de e-mails atingido. Aguarde alguns minutos ou entre com o Google.");
+        } else if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("email address")) {
+          setError("Endereço de e-mail inválido ou não aceito.");
         } else {
-          setError(msg);
+          setError(msg || "Erro ao processar o cadastro. Tente novamente.");
         }
         setLoading(false);
         return;
@@ -313,8 +320,9 @@ export default function LoginPage() {
         setRegisterSuccess(true);
       }
       setLoading(false);
-    } catch {
-      setError("Erro ao criar conta. Tente novamente.");
+    } catch (err: any) {
+      console.error("Erro inesperado no cadastro:", err);
+      setError(err?.message || "Erro ao criar conta. Tente novamente.");
       setLoading(false);
     }
   }
