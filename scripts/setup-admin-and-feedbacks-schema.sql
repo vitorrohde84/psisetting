@@ -3,8 +3,10 @@
 -- PsiSetting — Gestão Clínica para Psicólogos
 -- ==============================================================================
 
--- 1. ADICIONAR COLUNA is_admin NA TABELA profiles
+-- 1. ADICIONAR COLUNA is_admin NA TABELA profiles E COLUNAS DE DESCONTO EM coupons
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'trial_days'; -- 'trial_days', 'percent', 'fixed', 'vip'
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS discount_value NUMERIC DEFAULT 30;
 
 -- 2. TABELA DE FEEDBACKS & SUGESTÕES DE USUÁRIOS
 CREATE TABLE IF NOT EXISTS public.user_feedbacks (

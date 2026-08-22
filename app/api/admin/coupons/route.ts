@@ -35,14 +35,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { code, trial_days, max_uses, expires_at } = body;
+    const { code, discount_type, discount_value, trial_days, max_uses, expires_at } = body;
 
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "Código do cupom é obrigatório." }, { status: 400 });
     }
 
     const cleanCode = code.trim().toUpperCase();
-    const trialDays = Number(trial_days) > 0 ? Number(trial_days) : 30;
+    const type = discount_type || "trial_days"; // 'trial_days', 'percent', 'fixed', 'vip'
+    const value = Number(discount_value) || (type === "trial_days" ? Number(trial_days) || 30 : 0);
+    const trialDays = type === "trial_days" ? value : 30;
     const maxUses = max_uses ? Number(max_uses) : null;
     const expiresAt = expires_at ? new Date(expires_at).toISOString() : null;
 
@@ -63,6 +65,8 @@ export async function POST(request: Request) {
       .from("coupons")
       .insert({
         code: cleanCode,
+        discount_type: type,
+        discount_value: value,
         trial_days: trialDays,
         max_uses: maxUses,
         uses_count: 0,
@@ -92,7 +96,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, active, max_uses, trial_days, expires_at } = body;
+    const { id, active, max_uses, trial_days, discount_type, discount_value, expires_at } = body;
 
     if (!id) {
       return NextResponse.json({ error: "ID do cupom é obrigatório." }, { status: 400 });
@@ -104,6 +108,8 @@ export async function PATCH(request: Request) {
     if (typeof active === "boolean") updates.active = active;
     if (max_uses !== undefined) updates.max_uses = max_uses ? Number(max_uses) : null;
     if (trial_days !== undefined) updates.trial_days = Number(trial_days);
+    if (discount_type !== undefined) updates.discount_type = discount_type;
+    if (discount_value !== undefined) updates.discount_value = Number(discount_value);
     if (expires_at !== undefined) updates.expires_at = expires_at ? new Date(expires_at).toISOString() : null;
 
     const { data: updatedCoupon, error: updateError } = await adminClient

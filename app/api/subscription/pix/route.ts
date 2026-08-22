@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { paymentClient } from "@/utils/mercadopago";
 
+const BASE_PRICE = 34.9;
+
 export async function POST(request: Request) {
   try {
     const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
@@ -28,6 +30,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Ler corpo da requisição para verificar cupom opcional
+    let couponCode: string | null = null;
+    try {
+      const body = await request.json();
+      if (body?.coupon_code) couponCode = String(body.coupon_code).trim().toUpperCase();
+    } catch {
+      // Nenhum body enviado, prossegue normalmente
+    }
+
     // Obter perfil do psicólogo
     const { data: profile } = await supabase
       .from("profiles")
@@ -42,6 +53,32 @@ export async function POST(request: Request) {
       });
     }
 
+    // Calcular valor final com cupom (se fornecido)
+    let finalAmount = BASE_PRICE;
+
+    if (couponCode) {
+      const { data: coupon } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", couponCode)
+        .eq("active", true)
+        .single();
+
+      if (coupon) {
+        const discountType = coupon.discount_type || "trial_days";
+        const discountVal = Number(coupon.discount_value) || 0;
+
+        if (discountType === "percent" && discountVal > 0) {
+          const discount = (BASE_PRICE * discountVal) / 100;
+          finalAmount = Math.max(1, BASE_PRICE - discount);
+        } else if (discountType === "fixed" && discountVal > 0) {
+          finalAmount = Math.max(1, BASE_PRICE - discountVal);
+        }
+      }
+    }
+
+    finalAmount = Number(finalAmount.toFixed(2));
+
     const host = request.headers.get("host") || "app.psisetting.com.br";
     const protocol = host.includes("localhost") ? "http" : "https";
     const baseUrl = `${protocol}://${host}`;
@@ -49,8 +86,8 @@ export async function POST(request: Request) {
     // Gerar pagamento Pix instantâneo via Mercado Pago API
     const payment = await paymentClient.create({
       body: {
-        transaction_amount: 34.9,
-        description: "PsiSetting — Assinatura Mensal de Gestão Clínica",
+        transaction_amount: finalAmount,
+        description: `PsiSetting — Assinatura Mensal (${couponCode ? `Cupom ${couponCode}` : "Plano Único"})`,
         payment_method_id: "pix",
         payer: {
           email: user.email || profile?.email || "contato@psisetting.com.br",
@@ -78,7 +115,7 @@ export async function POST(request: Request) {
       qr_code: qrCode,
       qr_code_base64: qrCodeBase64,
       ticket_url: ticketUrl,
-      amount: 34.9,
+      amount: finalAmount,
       status: payment.status,
       date_of_expiration: payment.date_of_expiration,
     });
@@ -88,7 +125,7 @@ export async function POST(request: Request) {
       {
         error:
           error?.message ||
-          "Erro ao gerar cobrança Pix. Verifique suas chaves do Mercado Pago.",
+          "Erro ao comunicar com Mercado Pago para gerar Pix. Tente novamente em instantes.",
       },
       { status: 500 }
     );

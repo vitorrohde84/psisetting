@@ -628,19 +628,31 @@ export default function AdminDashboardPage() {
                 {coupons.length === 0 ? (
                   <p className="py-12 text-center text-xs text-text-muted">Nenhum cupom cadastrado ainda.</p>
                 ) : (
-                  coupons.map((c) => (
-                    <div key={c.id} className="py-3.5 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-3 py-1 rounded-xl border border-primary/20">
-                          {c.code}
-                        </span>
-                        <div>
-                          <p className="font-semibold text-xs text-text">+{c.trial_days} dias grátis de teste</p>
-                          <p className="text-[11px] text-text-muted">
-                            {c.uses_count || 0} resgatados {c.max_uses ? `de ${c.max_uses} disponíveis` : "(Ilimitado)"}
-                          </p>
+                  coupons.map((c) => {
+                    let benefitText = `+${c.trial_days || c.discount_value || 30} dias grátis de teste`;
+                    if (c.discount_type === "percent") {
+                      const finalPrice = Math.max(1, 34.9 - (34.9 * Number(c.discount_value)) / 100).toFixed(2).replace(".", ",");
+                      benefitText = `${c.discount_value}% OFF (R$ ${finalPrice}/mês)`;
+                    } else if (c.discount_type === "fixed") {
+                      const finalPrice = Math.max(1, 34.9 - Number(c.discount_value)).toFixed(2).replace(".", ",");
+                      benefitText = `R$ ${Number(c.discount_value).toFixed(2).replace(".", ",")} OFF (R$ ${finalPrice}/mês)`;
+                    } else if (c.discount_type === "vip") {
+                      benefitText = "Acesso VIP Vitalício (100% Grátis)";
+                    }
+
+                    return (
+                      <div key={c.id} className="py-3.5 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-3 py-1 rounded-xl border border-primary/20">
+                            {c.code}
+                          </span>
+                          <div>
+                            <p className="font-semibold text-xs text-text">{benefitText}</p>
+                            <p className="text-[11px] text-text-muted">
+                              {c.uses_count || 0} resgatados {c.max_uses ? `de ${c.max_uses} disponíveis` : "(Ilimitado)"}
+                            </p>
+                          </div>
                         </div>
-                      </div>
 
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.active ? "bg-emerald-50 text-emerald-900 border border-emerald-200" : "bg-stone-100 text-stone-700"}`}>
@@ -665,7 +677,8 @@ export default function AdminDashboardPage() {
                         </button>
                       </div>
                     </div>
-                  ))
+                  );
+                  })
                 )}
               </div>
             </div>

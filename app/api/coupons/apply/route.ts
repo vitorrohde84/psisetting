@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+const BASE_PRICE = 34.9;
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -78,28 +80,67 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Buscar perfil atual para calcular nova data de expiração
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("trial_ends_at, is_vip, subscription_status")
-      .eq("id", user.id)
-      .single();
+    const discountType = coupon.discount_type || "trial_days";
+    const discountValue = Number(coupon.discount_value) || Number(coupon.trial_days) || 30;
 
-    if (profile?.is_vip) {
+    // 3. Caso 1: Cupom de Acesso VIP
+    if (discountType === "vip") {
+      await supabase
+        .from("coupon_redemptions")
+        .insert({ coupon_id: coupon.id, profile_id: user.id });
+
+      await supabase
+        .from("coupons")
+        .update({ uses_count: (coupon.uses_count || 0) + 1 })
+        .eq("id", coupon.id);
+
+      await supabase
+        .from("profiles")
+        .update({ is_vip: true, subscription_status: "vip" })
+        .eq("id", user.id);
+
       return NextResponse.json({
-        message: "Sua conta já possui acesso VIP vitalício.",
+        success: true,
         is_vip: true,
+        message: "Parabéns! Sua conta agora possui Acesso VIP Permanente!",
       });
     }
 
-    // 3. Definir nova data de expiração para exatamente o limite do cupom (ex: 30 dias a partir de agora)
+    // 4. Caso 2: Cupom de Desconto (%) ou Valor Fixo (R$)
+    if (discountType === "percent" || discountType === "fixed") {
+      let finalAmount = BASE_PRICE;
+      let discountDescription = "";
+
+      if (discountType === "percent") {
+        const discount = (BASE_PRICE * discountValue) / 100;
+        finalAmount = Math.max(1, BASE_PRICE - discount);
+        discountDescription = `${discountValue}% OFF`;
+      } else {
+        finalAmount = Math.max(1, BASE_PRICE - discountValue);
+        discountDescription = `R$ ${discountValue.toFixed(2).replace(".", ",")} OFF`;
+      }
+
+      const formattedFinal = finalAmount.toFixed(2).replace(".", ",");
+
+      return NextResponse.json({
+        success: true,
+        discount_type: discountType,
+        discount_value: discountValue,
+        discount_description: discountDescription,
+        final_amount: Number(finalAmount.toFixed(2)),
+        coupon_code: cleanCode,
+        message: `Cupom ${cleanCode} aplicado com sucesso (${discountDescription})! De R$ 34,90 por apenas R$ ${formattedFinal}/mês.`,
+      });
+    }
+
+    // 5. Caso 3: Cupom de Dias de Teste Grátis
     const now = new Date();
-    const targetDays = coupon.trial_days || 30;
+    const targetDays = discountValue;
     const newTrialEndsAt = new Date(
       now.getTime() + targetDays * 24 * 60 * 60 * 1000
     );
 
-    // 4. Registrar o resgate do cupom
+    // Registrar o resgate do cupom
     const { error: redemptionError } = await supabase
       .from("coupon_redemptions")
       .insert({
@@ -115,13 +156,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Incrementar contador do cupom
+    // Incrementar contador do cupom
     await supabase
       .from("coupons")
       .update({ uses_count: (coupon.uses_count || 0) + 1 })
       .eq("id", coupon.id);
 
-    // 6. Atualizar data de expiração do trial do psicólogo
+    // Atualizar data de expiração do trial do psicólogo
     const { error: profileUpdateError } = await supabase
       .from("profiles")
       .update({
@@ -140,15 +181,15 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      code: cleanCode,
+      discount_type: "trial_days",
       trial_days: targetDays,
       trial_ends_at: newTrialEndsAt.toISOString(),
-      message: `Cupom ${cleanCode} aplicado com sucesso! Seu período de teste foi ajustado para ${targetDays} dias.`,
+      message: `Cupom ativado com sucesso! Você ganhou +${targetDays} dias de acesso completo sem custos.`,
     });
-  } catch (error: any) {
-    console.error("Erro ao aplicar cupom:", error);
+  } catch (err: any) {
+    console.error("Erro geral ao aplicar cupom:", err);
     return NextResponse.json(
-      { error: error?.message || "Erro interno ao processar cupom." },
+      { error: "Erro interno no servidor ao aplicar cupom." },
       { status: 500 }
     );
   }

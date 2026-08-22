@@ -26,6 +26,7 @@ import {
   BookOpen,
   EyeOff,
   RefreshCw,
+  Percent,
 } from "lucide-react";
 
 export function SubscriptionModal() {
@@ -59,6 +60,13 @@ export function SubscriptionModal() {
   const [couponCode, setCouponCode] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMessage, setCouponMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount_type: string;
+    discount_value: number;
+    final_amount: number;
+    discount_description: string;
+  } | null>(null);
 
   // Limpar estados ao fechar modal
   useEffect(() => {
@@ -69,6 +77,7 @@ export function SubscriptionModal() {
       setPixData(null);
       setPixApproved(false);
       setCouponMessage(null);
+      setAppliedCoupon(null);
     }
   }, [isModalOpen]);
 
@@ -102,13 +111,20 @@ export function SubscriptionModal() {
 
   if (!isModalOpen) return null;
 
+  const currentAmount = appliedCoupon ? appliedCoupon.final_amount : 34.9;
+  const formattedCurrentAmount = currentAmount.toFixed(2).replace(".", ",");
+
   async function handleGeneratePix() {
     setPixLoading(true);
     setPixData(null);
     setPixApproved(false);
 
     try {
-      const res = await fetch("/api/subscription/pix", { method: "POST" });
+      const res = await fetch("/api/subscription/pix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupon_code: appliedCoupon?.code }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -120,7 +136,7 @@ export function SubscriptionModal() {
         payment_id: data.payment_id,
         qr_code: data.qr_code,
         qr_code_base64: data.qr_code_base64,
-        amount: data.amount || 34.9,
+        amount: data.amount || currentAmount,
         expires_at: data.date_of_expiration,
       });
     } catch (err) {
@@ -159,7 +175,22 @@ export function SubscriptionModal() {
       } else {
         setCouponMessage({ type: "success", text: data.message });
         setCouponCode("");
-        await refreshSubscription();
+
+        if (data.discount_type === "percent" || data.discount_type === "fixed") {
+          setAppliedCoupon({
+            code: data.coupon_code,
+            discount_type: data.discount_type,
+            discount_value: data.discount_value,
+            final_amount: data.final_amount,
+            discount_description: data.discount_description,
+          });
+          // Se já havia gerado um Pix antigo, limpa para gerar no novo valor
+          setPixData(null);
+          // Redireciona suavemente para a aba Pix para o usuário ver o desconto
+          setTimeout(() => setActiveTab("pix"), 1500);
+        } else {
+          await refreshSubscription();
+        }
       }
     } catch (err: any) {
       setCouponMessage({ type: "error", text: "Erro de conexão ao aplicar cupom." });
@@ -199,96 +230,87 @@ export function SubscriptionModal() {
                   <span>Período de Teste: {trialDaysLeft} dias restantes</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-                  <ShieldCheck size={12} />
-                  <span>Plano Único Profissional</span>
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-bold">
+                  <Sparkles size={12} />
+                  <span>Plano Profissional Completo</span>
                 </div>
               )}
 
               <h2 className="text-xl sm:text-2xl font-serif font-bold text-text mt-2">
-                Plano Único Profissional Clínico
+                {isReadOnly
+                  ? "Reative seu acesso total"
+                  : "Desbloqueie o PsiSetting Ilimitado"}
               </h2>
-              <p className="text-xs text-text-muted mt-0.5">
-                Acesso total e ilimitado a todas as ferramentas do sistema.
+
+              <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                {isReadOnly
+                  ? "Seus registros antigos continuam 100% seguros e guardados (CFP). Assine para cadastrar novos pacientes e documentos."
+                  : "Organize seus atendimentos com segurança, criptografia clínica e sem fidelidade contratual."}
               </p>
             </div>
 
-            {/* Card de Preço Compacto */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-gradient-to-r from-primary/10 via-surface to-secondary/10 border border-primary/20 flex items-center justify-between shadow-2xs">
+            {/* Benefícios em 2 Colunas */}
+            <div className="grid grid-cols-2 gap-2 py-0.5">
+              {[
+                { icon: Users, title: "Pacientes Ilimitados", desc: "Sem limites ou custos por cadastro" },
+                { icon: FileCheck2, title: "5 Modelos CFP", desc: "Resolução CFP nº 06/2019" },
+                { icon: Lock, title: "Criptografia AES-256", desc: "Chave isolada por profissional" },
+                { icon: EyeOff, title: "Modo Privacidade", desc: "Oculte nomes com 1 clique" },
+                { icon: Calendar, title: "Agenda Integrada", desc: "Sincronização com Apple & Google" },
+                { icon: BookOpen, title: "Diário de Bordo", desc: "Anotações e supervisão" },
+              ].map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-xl bg-background border border-border/80 flex items-start gap-2"
+                  >
+                    <div className="p-1 rounded-lg bg-primary/10 text-primary shrink-0 mt-0.5">
+                      <Icon size={13} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-text truncate">{item.title}</p>
+                      <p className="text-[10px] text-text-muted leading-tight">{item.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bloco de Preço & Garantia */}
+            <div className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between gap-3">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Assinatura Mensal</span>
-                <div className="flex items-baseline gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                  Assinatura Única
+                </span>
+                <div className="flex items-baseline gap-1 mt-0.5">
                   <span className="text-xs font-bold text-text">R$</span>
-                  <span className="text-2xl sm:text-3xl font-serif font-black text-text">34</span>
-                  <span className="text-base font-serif font-bold text-text">,90</span>
-                  <span className="text-xs text-text-muted">/mês</span>
+                  <span className="text-2xl font-serif font-black text-text">34</span>
+                  <span className="text-xs font-serif font-bold text-text">,90</span>
+                  <span className="text-[11px] text-text-muted">/mês</span>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Sem fidelidade
-                </span>
-                <p className="text-[10px] text-text-muted mt-0.5">Cancele quando quiser</p>
+
+              <div className="text-right text-[11px] text-text-muted space-y-0.5">
+                <p className="flex items-center gap-1 font-medium text-text justify-end">
+                  <ShieldCheck size={13} className="text-primary" />
+                  <span>Sem fidelidade</span>
+                </p>
+                <p>Cancele quando quiser</p>
               </div>
             </div>
 
-            {/* Lista Enxuta de Benefícios em 2 Colunas / Linhas Compactas */}
-            <div className="space-y-1.5 py-0.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-                Tudo incluído sem limites:
-              </p>
+            {/* Botão de Avanço */}
+            <button
+              type="button"
+              onClick={() => setStep("payment")}
+              className="w-full py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 text-xs sm:text-sm shadow-md hover:shadow-lg cursor-pointer group"
+            >
+              <span>Assinar Plano Ilimitado (R$ 34,90/mês)</span>
+              <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+            </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-text">
-                {[
-                  { icon: Users, text: "Pacientes e Prontuários ilimitados" },
-                  { icon: FileCheck2, text: "5 Modelos conforme a Res. CFP 06/2019" },
-                  { icon: Calendar, text: "Agenda com Sincronização iCal" },
-                  { icon: DollarSign, text: "Controle Financeiro de Sessões" },
-                  { icon: BookOpen, text: "Diário de Bordo para Supervisão" },
-                  { icon: Lock, text: "Criptografia AES-256 (CFP/LGPD)" },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                      <Check size={11} strokeWidth={3} />
-                    </div>
-                    <span className="text-[11px] sm:text-xs font-medium text-text">{item.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Botão de Ação Principal (SEMPRE VISÍVEL) */}
-            <div className="pt-1 space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("payment");
-                  setActiveTab("pix");
-                }}
-                className="w-full py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg cursor-pointer"
-              >
-                <span>Assinar Plano Ilimitado (R$ 34,90/mês)</span>
-                <ArrowRight size={15} />
-              </button>
-
-              <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("payment");
-                    setActiveTab("cupom");
-                  }}
-                  className="hover:text-primary transition-colors cursor-pointer font-medium underline"
-                >
-                  Possui um cupom?
-                </button>
-                <span className="flex items-center gap-1 text-emerald-700">
-                  <Lock size={10} /> Mercado Pago Seguro
-                </span>
-              </div>
-            </div>
-
-            {/* Selo Compacto Mercado Pago */}
+            {/* Rodapé Compacto */}
             <div className="pt-2 border-t border-border/60">
               <MercadoPagoBadge variant="compact" className="w-full justify-center text-[10px]" />
             </div>
@@ -296,15 +318,15 @@ export function SubscriptionModal() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════
-            ETAPA 2: OPÇÕES DE PAGAMENTO (PIX, CARTÃO E CUPOM)
+            ETAPA 2: FORMAS DE PAGAMENTO EMBUTIDAS (PIX / CARTÃO / CUPOM)
         ═══════════════════════════════════════════════════════════════ */}
         {step === "payment" && (
-          <div className="space-y-3.5 animate-in fade-in overflow-y-auto">
+          <div className="space-y-3 animate-in fade-in">
             {/* Botão Voltar */}
             <button
               type="button"
               onClick={() => setStep("overview")}
-              className="inline-flex items-center gap-1 text-xs font-bold text-text-muted hover:text-text transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text cursor-pointer transition-colors"
             >
               <ArrowLeft size={13} />
               <span>Voltar aos benefícios</span>
@@ -314,9 +336,15 @@ export function SubscriptionModal() {
               <h2 className="text-lg sm:text-xl font-serif font-bold text-text">
                 Escolha a forma de pagamento
               </h2>
-              <p className="text-xs text-text-muted">
-                Plano Ilimitado · <strong>R$ 34,90/mês</strong>
-              </p>
+              {appliedCoupon ? (
+                <p className="text-xs text-emerald-800 font-medium">
+                  Plano Ilimitado · De <span className="line-through text-text-muted">R$ 34,90</span> por <strong>R$ {formattedCurrentAmount}/mês</strong> ({appliedCoupon.discount_description})
+                </p>
+              ) : (
+                <p className="text-xs text-text-muted">
+                  Plano Ilimitado · <strong>R$ 34,90/mês</strong>
+                </p>
+              )}
             </div>
 
             {/* SELETOR DE ABAS (PIX / CARTÃO / CUPOM) */}
@@ -353,11 +381,13 @@ export function SubscriptionModal() {
                 className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === "cupom"
                     ? "bg-primary text-white shadow-xs"
+                    : appliedCoupon
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
                     : "text-text-muted hover:text-text"
                 }`}
               >
                 <Tag size={12} />
-                <span>Cupom</span>
+                <span>{appliedCoupon ? "Cupom Ativo ✓" : "Cupom"}</span>
               </button>
             </div>
 
@@ -438,7 +468,7 @@ export function SubscriptionModal() {
                 ) : (
                   <div className="space-y-3 text-center py-1">
                     <p className="text-xs text-text-muted leading-relaxed">
-                      Gere o <strong>QR Code Pix de R$ 34,90</strong>. A liberação do seu plano é instantânea.
+                      Gere o <strong>QR Code Pix de R$ {formattedCurrentAmount}</strong>. A liberação do seu plano é instantânea.
                     </p>
 
                     <button
@@ -455,7 +485,7 @@ export function SubscriptionModal() {
                       ) : (
                         <>
                           <QrCode size={15} />
-                          <span>Gerar QR Code Pix (R$ 34,90)</span>
+                          <span>Gerar QR Code Pix (R$ {formattedCurrentAmount})</span>
                         </>
                       )}
                     </button>
@@ -472,13 +502,14 @@ export function SubscriptionModal() {
                   <div>
                     <p className="font-bold text-text text-[11px]">Assinatura Mensal Recorrente Automática</p>
                     <p className="text-[10px] text-text-muted leading-tight">
-                      Cobrança automática de <strong>R$ 34,90/mês</strong> a cada 30 dias na sua fatura. Cancele quando quiser sem multas ou fidelidade.
+                      Cobrança automática de <strong>R$ {formattedCurrentAmount}/mês</strong> a cada 30 dias na sua fatura. Cancele quando quiser sem multas ou fidelidade.
                     </p>
                   </div>
                 </div>
 
                 <MercadoPagoBrick
-                  amount={34.9}
+                  amount={currentAmount}
+                  couponCode={appliedCoupon?.code}
                   onSuccess={async () => {
                     await refreshSubscription();
                     setTimeout(() => {
@@ -491,15 +522,15 @@ export function SubscriptionModal() {
 
             {/* ───────── CONTEÚDO DA ABA 3: CUPOM ───────── */}
             {activeTab === "cupom" && (
-              <div className="space-y-2 py-1">
+              <div className="space-y-3 py-1">
                 <p className="text-xs text-text-muted">
-                  Digite seu código de cupom exclusivo:
+                  Digite seu código de cupom promocional exclusivo:
                 </p>
 
                 <form onSubmit={handleApplyCoupon} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Digite seu código de cupom"
+                    placeholder="Ex: PROMO20, HELLEN30"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                     className="flex-1 px-3 py-2 rounded-xl bg-background border border-border/80 text-xs text-text placeholder:text-text-muted uppercase font-mono tracking-wider focus:outline-hidden focus:border-primary"
@@ -515,12 +546,33 @@ export function SubscriptionModal() {
 
                 {couponMessage && (
                   <p
-                    className={`text-xs mt-1.5 font-medium ${
-                      couponMessage.type === "success" ? "text-emerald-700" : "text-rose-600"
+                    className={`text-xs mt-1.5 font-medium leading-relaxed ${
+                      couponMessage.type === "success" ? "text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200" : "text-rose-600"
                     }`}
                   >
                     {couponMessage.text}
                   </p>
+                )}
+
+                {appliedCoupon && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold">Cupom {appliedCoupon.code} Ativo</p>
+                      <p className="text-[11px] text-emerald-800">
+                        Novo valor: <strong>R$ {formattedCurrentAmount}/mês</strong>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedCoupon(null);
+                        setCouponMessage(null);
+                      }}
+                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Remover
+                    </button>
+                  </div>
                 )}
               </div>
             )}

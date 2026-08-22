@@ -5,10 +5,11 @@ import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface MercadoPagoBrickProps {
   amount: number;
+  couponCode?: string;
   onSuccess: () => void;
 }
 
-export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
+export function MercadoPagoBrick({ amount, couponCode, onSuccess }: MercadoPagoBrickProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -55,6 +56,8 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
           containerRef.current.innerHTML = "";
         }
 
+        const formattedAmount = amount.toFixed(2).replace(".", ",");
+
         // Criar o Payment Brick transparente (Cartão e Pix embutidos)
         brickControllerRef.current = await bricksBuilder.create(
           "payment",
@@ -74,7 +77,7 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
                 },
                 hideFormTitle: true,
                 texts: {
-                  customButtonText: "Confirmar Assinatura (R$ 34,90/mês)",
+                  customButtonText: `Confirmar Assinatura (R$ ${formattedAmount}/mês)`,
                 },
               },
             },
@@ -88,7 +91,7 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
                     const res = await fetch("/api/subscription/process-payment", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ formData }),
+                      body: JSON.stringify({ formData, coupon_code: couponCode }),
                     });
 
                     const data = await res.json();
@@ -136,9 +139,10 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
         } catch {}
       }
     };
-  }, [amount, onSuccess]);
+  }, [amount, couponCode, onSuccess]);
 
   if (success) {
+    const formattedAmount = amount.toFixed(2).replace(".", ",");
     return (
       <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-300 text-center space-y-3 animate-in zoom-in-95">
         <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-sm">
@@ -148,7 +152,7 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
           Pagamento Aprovado com Sucesso!
         </h3>
         <p className="text-xs text-emerald-800">
-          Sua assinatura profissional de R$ 34,90/mês foi ativada.
+          Sua assinatura profissional de R$ {formattedAmount}/mês foi ativada.
         </p>
       </div>
     );
@@ -159,13 +163,13 @@ export function MercadoPagoBrick({ amount, onSuccess }: MercadoPagoBrickProps) {
       {loading && (
         <div className="flex flex-col items-center justify-center py-10 space-y-2 text-text-muted">
           <Loader2 size={24} className="animate-spin text-primary" />
-          <span className="text-xs">Carregando formulário seguro do Mercado Pago...</span>
+          <p className="text-xs font-medium">Carregando gateway seguro...</p>
         </div>
       )}
 
       {error && (
         <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-          <AlertCircle size={16} className="shrink-0 text-rose-600" />
+          <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
