@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import {
   X,
@@ -16,6 +14,9 @@ import {
   CheckCircle2,
   Phone,
   Building,
+  Trash2,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 
 interface UserDetailDrawerProps {
@@ -26,15 +27,23 @@ interface UserDetailDrawerProps {
 
 export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerProps) {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [customDays, setCustomDays] = useState<string>("7");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!user) return null;
+
+  const isPrimaryAdmin = user.is_admin || user.email === "vitorrohde84@gmail.com";
 
   async function handleActionClick(action: string, days?: number) {
     setLoadingAction(`${action}_${days || ""}`);
     try {
       await onAction(user.id, action, days);
+      if (action === "delete_user") {
+        onClose();
+      }
     } finally {
       setLoadingAction(null);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -95,7 +104,7 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
         {/* Conteúdo com Scroll */}
         <div className="flex-1 p-5 space-y-5 overflow-y-auto">
           {/* Status Badge Principal */}
-          {user.is_admin || user.email === "vitorrohde84@gmail.com" ? (
+          {isPrimaryAdmin ? (
             <div className="p-3 rounded-xl border border-primary/20 bg-primary/10 text-primary text-xs font-bold flex items-center justify-between">
               <span>Administrador & Desenvolvedor do SaaS</span>
               <ShieldCheck size={16} />
@@ -175,17 +184,24 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
           </div>
 
           {/* Ações Administrativas de 1 Clique */}
-          <div className="space-y-2 pt-2 border-t border-border/60">
+          <div className="space-y-3 pt-2 border-t border-border/60">
             <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
-              Ações Rápidas na Conta
+              Gerenciamento de Acesso & Testes
             </p>
 
-            {/* Estender Período de Testes */}
-            <div className="p-3 rounded-xl bg-background border border-border/80 space-y-2">
-              <p className="text-xs font-semibold text-text flex items-center gap-1.5">
-                <Clock size={13} className="text-primary" />
-                <span>Estender Dias de Teste Grátis</span>
-              </p>
+            {/* Gestão Flexível de Período de Testes */}
+            <div className="p-3.5 rounded-xl bg-background border border-border/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-text flex items-center gap-1.5">
+                  <Clock size={13} className="text-primary" />
+                  <span>Dias de Teste Grátis</span>
+                </p>
+                <span className="text-[10px] text-text-muted">
+                  {user.trialDaysLeft > 0 ? `${user.trialDaysLeft} dias restantes` : "Expirado"}
+                </span>
+              </div>
+
+              {/* Botões Rápidos de Aumento */}
               <div className="grid grid-cols-3 gap-1.5">
                 {[7, 15, 30].map((days) => (
                   <button
@@ -193,7 +209,7 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                     type="button"
                     disabled={loadingAction === `extend_trial_${days}`}
                     onClick={() => handleActionClick("extend_trial", days)}
-                    className="py-1.5 px-2 rounded-lg bg-surface hover:bg-primary hover:text-white border border-border text-xs font-semibold text-text transition-all cursor-pointer disabled:opacity-50"
+                    className="py-1.5 px-2 rounded-lg bg-surface hover:bg-primary hover:text-white border border-border text-xs font-semibold text-text transition-all cursor-pointer disabled:opacity-50 text-center"
                   >
                     {loadingAction === `extend_trial_${days}` ? (
                       <Loader2 size={12} className="animate-spin mx-auto" />
@@ -203,10 +219,54 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                   </button>
                 ))}
               </div>
+
+              {/* Definir Exatamente X dias */}
+              <div className="pt-1.5 border-t border-border/60 flex items-center gap-2">
+                <div className="flex-1 flex items-center bg-surface rounded-lg border border-border px-2.5 py-1">
+                  <span className="text-[11px] text-text-muted mr-1.5 whitespace-nowrap">Definir exatos:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    className="w-full bg-transparent text-xs font-bold text-text focus:outline-none"
+                    placeholder="7"
+                  />
+                  <span className="text-[11px] text-text-muted ml-1">dias</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={loadingAction === `set_trial_days_${customDays}` || !customDays}
+                  onClick={() => handleActionClick("set_trial_days", Number(customDays))}
+                  className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {loadingAction === `set_trial_days_${customDays}` ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    "Definir"
+                  )}
+                </button>
+              </div>
+
+              {/* Botão de Zerar / Expirar Acesso Grátis */}
+              <button
+                type="button"
+                disabled={loadingAction === "expire_trial_"}
+                onClick={() => {
+                  if (confirm(`Deseja zerar os dias de teste e expirar o acesso de ${user.nome || user.email}?`)) {
+                    handleActionClick("expire_trial");
+                  }
+                }}
+                className="w-full py-1.5 px-2 rounded-lg bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 text-amber-900 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RotateCcw size={12} className="text-amber-700" />
+                <span>Zerar / Encerrar Teste Imediatamente</span>
+              </button>
             </div>
 
             {/* Acesso VIP / Cortesia */}
-            <div className="p-3 rounded-xl bg-background border border-border/80 space-y-2">
+            <div className="p-3.5 rounded-xl bg-background border border-border/80 space-y-2">
               <p className="text-xs font-semibold text-text flex items-center gap-1.5">
                 <Crown size={13} className="text-purple-700" />
                 <span>Status VIP / Cortesia Vitalícia</span>
@@ -231,6 +291,60 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                 </button>
               )}
             </div>
+
+            {/* Zona de Perigo: Exclusão de Conta */}
+            {!isPrimaryAdmin && (
+              <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-200/80 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-rose-800 text-xs font-bold">
+                  <AlertTriangle size={13} className="text-rose-600" />
+                  <span>Zona de Perigo</span>
+                </div>
+                <p className="text-[11px] text-rose-900/80 leading-relaxed">
+                  Exclui permanentemente o psicólogo, prontuários, registros e libera o e-mail no Supabase para novos testes.
+                </p>
+
+                {showDeleteConfirm ? (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-[11px] font-bold text-rose-950 text-center">
+                      Confirmar exclusão definitiva?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={loadingAction === "delete_user_"}
+                        onClick={() => handleActionClick("delete_user")}
+                        className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {loadingAction === "delete_user_" ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <>
+                            <Trash2 size={13} />
+                            <span>Sim, Excluir</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="py-2 px-3 rounded-xl bg-surface border border-border text-text text-xs font-semibold hover:bg-background transition-colors cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full py-2 px-3 rounded-xl bg-surface hover:bg-rose-100/70 border border-rose-200 text-rose-700 hover:text-rose-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Excluir Conta do Usuário</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

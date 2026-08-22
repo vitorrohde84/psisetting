@@ -120,8 +120,9 @@ export default function AdminDashboardPage() {
       if (res.ok) {
         showToast(data.message || "Ação executada com sucesso!");
         loadAllData();
-        // Atualizar o selectedUser se estiver aberto
-        if (selectedUser && selectedUser.id === userId) {
+        if (data.deleted) {
+          setSelectedUser(null);
+        } else if (selectedUser && selectedUser.id === userId) {
           setSelectedUser((prev: any) => ({
             ...prev,
             ...data.updates,
