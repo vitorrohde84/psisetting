@@ -29,7 +29,7 @@ BEGIN
     ),
     NEW.email,
     'cal_' || md5(random()::text || clock_timestamp()::text),
-    NOW() + INTERVAL '30 days',
+    NOW() + INTERVAL '7 days',
     'trialing',
     false
   )
