@@ -56,19 +56,25 @@ export function ProntuarioList() {
 
   const fetchResumoPacientes = useCallback(async () => {
     setLoadingPacientes(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     const { data: pronts } = await supabase
       .from("prontuarios")
       .select("id, paciente_id, data, pacientes(nome)")
       .order("data", { ascending: false });
     
-    if (pronts) {
+    if (pronts && user) {
       const map = new Map<string, PacienteResumo>();
-      pronts.forEach((p) => {
+      for (const p of pronts) {
         if (!map.has(p.paciente_id)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const pacs = p.pacientes as any;
-          const pacNome = Array.isArray(pacs) ? pacs[0]?.nome : pacs?.nome;
+          let pacNome = Array.isArray(pacs) ? pacs[0]?.nome : pacs?.nome;
+          if (pacNome && pacNome.startsWith("enc:v1:")) {
+            pacNome = await decryptClinicalData(pacNome, user.id);
+          }
           map.set(p.paciente_id, {
             id: p.paciente_id,
             nome: pacNome || "Desconhecido",
@@ -79,7 +85,7 @@ export function ProntuarioList() {
           const item = map.get(p.paciente_id)!;
           item.total += 1;
         }
-      });
+      }
       setPacientes(Array.from(map.values()));
     } else {
       setPacientes([]);

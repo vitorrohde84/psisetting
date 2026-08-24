@@ -100,7 +100,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 }
 
 function formatShortPatientName(fullName: string): string {
-  if (!fullName) return "Paciente";
+  if (!fullName || fullName.startsWith("enc:v1:")) return "Paciente";
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] || "Paciente";
 
@@ -108,7 +108,7 @@ function formatShortPatientName(fullName: string): string {
   const initials = parts
     .slice(1)
     .filter((p) => !["de", "da", "do", "das", "dos", "e"].includes(p.toLowerCase()))
-    .map((p) => `${p[0].toUpperCase()}.`)
+    .map((p) => `${p[0]?.toUpperCase()}.`)
     .join(" ");
 
   return initials ? `${firstName} ${initials}` : firstName;

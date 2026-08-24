@@ -65,10 +65,17 @@ export function DiarioList() {
     if (data && user) {
       // Descriptografa os registros na memória da sessão do psicólogo
       const decryptedList = await Promise.all(
-        data.map(async (d) => ({
-          ...d,
-          conteudo: await decryptClinicalData(d.conteudo, user.id),
-        }))
+        data.map(async (d) => {
+          let pacNome = (d.pacientes as any)?.nome || "Paciente";
+          if (pacNome && pacNome.startsWith("enc:v1:")) {
+            pacNome = await decryptClinicalData(pacNome, user.id);
+          }
+          return {
+            ...d,
+            pacientes: { nome: pacNome },
+            conteudo: await decryptClinicalData(d.conteudo, user.id),
+          };
+        })
       );
 
       // Filtro de busca textual na memória decifrada
@@ -90,11 +97,27 @@ export function DiarioList() {
 
   useEffect(() => {
     async function fetchOptions() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const { data } = await supabase
         .from("pacientes")
         .select("id, nome")
         .order("nome", { ascending: true });
-      setPacientesOptions(data || []);
+
+      if (data && user) {
+        const decrypted = await Promise.all(
+          data.map(async (p) => ({
+            ...p,
+            nome: await decryptClinicalData(p.nome, user.id),
+          }))
+        );
+        decrypted.sort((a, b) => a.nome.localeCompare(b.nome));
+        setPacientesOptions(decrypted);
+      } else {
+        setPacientesOptions(data || []);
+      }
     }
     fetchOptions();
   }, []);

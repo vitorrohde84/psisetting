@@ -145,6 +145,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
 
       switch (tab) {
         case "agendamentos": {
+          const { data: { user } } = await supabase.auth.getUser();
           const { data } = await supabase
             .from("agendamentos")
             .select("id, data, horario, modalidade, status, observacoes")
@@ -152,7 +153,20 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             .order("data", { ascending: false })
             .order("horario", { ascending: false })
             .limit(50);
-          setAgendamentos(data || []);
+          if (data && user) {
+            const decrypted = await Promise.all(
+              data.map(async (a) => {
+                let obs = a.observacoes;
+                if (obs && obs.startsWith("enc:v1:")) {
+                  obs = await decryptClinicalData(obs, user.id);
+                }
+                return { ...a, observacoes: obs };
+              })
+            );
+            setAgendamentos(decrypted);
+          } else {
+            setAgendamentos(data || []);
+          }
           break;
         }
         case "prontuarios": {

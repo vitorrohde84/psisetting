@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { decryptClinicalData } from "@/utils/crypto";
 import { Bell, FileText, DollarSign, X, ChevronUp, ChevronDown } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
 import { PagamentoFormModal } from "./pagamento-form-modal";
@@ -50,15 +51,29 @@ export function SessionMonitor() {
         .eq("data_vencimento", todayStr),
     ]);
 
+    const { data: { user } } = await supabase.auth.getUser();
+
     // O status é baseado no paciente_id E data, já que filtramos por "hoje"
     const prontSet = new Set(prontRes.data?.map(p => p.paciente_id));
     const pagSet = new Set(pagRes.data?.map(p => p.paciente_id));
 
-    const enhancedAgs = (agsRes.data || []).map(ag => ({
-      ...ag,
-      has_prontuario: prontSet.has(ag.paciente_id),
-      has_pagamento: pagSet.has(ag.paciente_id),
-    }));
+    const enhancedAgs = await Promise.all(
+      (agsRes.data || []).map(async (ag) => {
+        let pacNome = (ag.pacientes as any)?.nome || "Paciente";
+        if (user && pacNome && pacNome.startsWith("enc:v1:")) {
+          pacNome = await decryptClinicalData(pacNome, user.id);
+        }
+
+        return {
+          ...ag,
+          pacientes: {
+            nome: pacNome,
+          },
+          has_prontuario: prontSet.has(ag.paciente_id),
+          has_pagamento: pagSet.has(ag.paciente_id),
+        };
+      })
+    );
 
     setAgendamentos(enhancedAgs);
   }, []);
