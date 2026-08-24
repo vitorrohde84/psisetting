@@ -30,7 +30,7 @@ interface PacienteResumo {
   id: string;
   nome: string;
   total: number;
-  ultimaData: string;
+  ultimaData: string | null;
 }
 
 export function ProntuarioList() {
@@ -46,6 +46,11 @@ export function ProntuarioList() {
   const [selectedPacienteId, setSelectedPacienteId] = useState<string | null>(null);
   const [prontuariosPaciente, setProntuariosPaciente] = useState<Prontuario[]>([]);
   const [loadingProntuarios, setLoadingProntuarios] = useState(false);
+  const [loadingMoreProntuarios, setLoadingMoreProntuarios] = useState(false);
+  const [hasMoreProntuarios, setHasMoreProntuarios] = useState(false);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 12;
+
   const prontuarioRef = useRef<HTMLDivElement>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   
@@ -60,33 +65,49 @@ export function ProntuarioList() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { data: pronts } = await supabase
-      .from("prontuarios")
-      .select("id, paciente_id, data, pacientes(nome)")
-      .order("data", { ascending: false });
-    
-    if (pronts && user) {
-      const map = new Map<string, PacienteResumo>();
-      for (const p of pronts) {
-        if (!map.has(p.paciente_id)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const pacs = p.pacientes as any;
-          let pacNome = Array.isArray(pacs) ? pacs[0]?.nome : pacs?.nome;
+    // 1. Busca pacientes ativos diretamente (Master)
+    const [pacsRes, prontsRes] = await Promise.all([
+      supabase
+        .from("pacientes")
+        .select("id, nome, created_at")
+        .eq("ativo", true)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("prontuarios")
+        .select("paciente_id, data")
+        .order("data", { ascending: false }),
+    ]);
+
+    if (pacsRes.data && user) {
+      // Mapear contagens e última data de sessões por paciente
+      const statsMap = new Map<string, { total: number; ultimaData: string | null }>();
+      (prontsRes.data || []).forEach((p) => {
+        if (!statsMap.has(p.paciente_id)) {
+          statsMap.set(p.paciente_id, { total: 1, ultimaData: p.data });
+        } else {
+          const s = statsMap.get(p.paciente_id)!;
+          s.total += 1;
+        }
+      });
+
+      const list: PacienteResumo[] = await Promise.all(
+        pacsRes.data.map(async (p) => {
+          let pacNome = p.nome;
           if (pacNome && pacNome.startsWith("enc:v1:")) {
             pacNome = await decryptClinicalData(pacNome, user.id);
           }
-          map.set(p.paciente_id, {
-            id: p.paciente_id,
-            nome: pacNome || "Desconhecido",
-            total: 1,
-            ultimaData: p.data,
-          });
-        } else {
-          const item = map.get(p.paciente_id)!;
-          item.total += 1;
-        }
-      }
-      setPacientes(Array.from(map.values()));
+          const stat = statsMap.get(p.id) || { total: 0, ultimaData: null };
+          return {
+            id: p.id,
+            nome: pacNome || "Paciente",
+            total: stat.total,
+            ultimaData: stat.ultimaData,
+          };
+        })
+      );
+
+      list.sort((a, b) => a.nome.localeCompare(b.nome));
+      setPacientes(list);
     } else {
       setPacientes([]);
     }
@@ -94,17 +115,27 @@ export function ProntuarioList() {
     setLoadingPacientes(false);
   }, []);
 
-  const fetchProntuariosDoPaciente = useCallback(async (pacId: string) => {
-    setLoadingProntuarios(true);
+  const fetchProntuariosDoPaciente = useCallback(async (pacId: string, pageNum = 0, isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMoreProntuarios(true);
+    } else {
+      setLoadingProntuarios(true);
+      setPage(0);
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     const { data } = await supabase
       .from("prontuarios")
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, agendamentos(horario)")
       .eq("paciente_id", pacId)
-      .order("data", { ascending: false });
+      .order("data", { ascending: false })
+      .range(from, to);
     
     if (data && user) {
       const decrypted = await Promise.all(
@@ -113,18 +144,33 @@ export function ProntuarioList() {
           conteudo: await decryptClinicalData(p.conteudo, user.id),
         }))
       );
-      setProntuariosPaciente(decrypted);
+      if (isLoadMore) {
+        setProntuariosPaciente((prev) => [...prev, ...decrypted]);
+      } else {
+        setProntuariosPaciente(decrypted);
+      }
+      setHasMoreProntuarios(data.length === PAGE_SIZE);
     } else {
-      setProntuariosPaciente(data || []);
+      if (!isLoadMore) setProntuariosPaciente(data || []);
+      setHasMoreProntuarios(false);
     }
+
     setLoadingProntuarios(false);
+    setLoadingMoreProntuarios(false);
   }, []);
+
+  function handleLoadMore() {
+    if (!selectedPacienteId || loadingMoreProntuarios) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchProntuariosDoPaciente(selectedPacienteId, nextPage, true);
+  }
 
   useEffect(() => {
     if (!selectedPacienteId) {
       fetchResumoPacientes();
     } else {
-      fetchProntuariosDoPaciente(selectedPacienteId);
+      fetchProntuariosDoPaciente(selectedPacienteId, 0, false);
     }
   }, [fetchResumoPacientes, fetchProntuariosDoPaciente, selectedPacienteId]);
 
@@ -427,6 +473,26 @@ export function ProntuarioList() {
                 </div>
               );
             })}
+            
+            {hasMoreProntuarios && (
+              <div className="pt-6 text-center no-print">
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  disabled={loadingMoreProntuarios}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-surface border border-border text-xs font-semibold text-text hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {loadingMoreProntuarios ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin text-primary" />
+                      <span>Carregando sessões anteriores...</span>
+                    </>
+                  ) : (
+                    <span>Carregar evoluções anteriores</span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
         

@@ -38,23 +38,36 @@ export function DiarioList() {
   const [search, setSearch] = useState("");
   const [pacienteFilter, setPacienteFilter] = useState<string>("all");
   const [pacientesOptions, setPacientesOptions] = useState<PacienteOption[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 15;
 
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [editingDiario, setEditingDiario] = useState<Diario | null>(null);
 
-  const fetchDiarios = useCallback(async () => {
-    setLoading(true);
+  const fetchDiarios = useCallback(async (pageNum = 0, isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(0);
+    }
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     let query = supabase
       .from("diario_bordo")
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, pacientes(nome)")
       .order("data", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (pacienteFilter !== "all") {
       query = query.eq("paciente_id", pacienteFilter);
@@ -87,13 +100,27 @@ export function DiarioList() {
           )
         : decryptedList;
 
-      setDiarios(filtered);
+      if (isLoadMore) {
+        setDiarios((prev) => [...prev, ...filtered]);
+      } else {
+        setDiarios(filtered);
+      }
+      setHasMore(data.length === PAGE_SIZE);
     } else {
-      setDiarios([]);
+      if (!isLoadMore) setDiarios([]);
+      setHasMore(false);
     }
 
     setLoading(false);
+    setLoadingMore(false);
   }, [pacienteFilter, search]);
+
+  function handleLoadMore() {
+    if (loadingMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchDiarios(nextPage, true);
+  }
 
   useEffect(() => {
     async function fetchOptions() {
@@ -269,6 +296,26 @@ export function DiarioList() {
               </p>
             </div>
           ))}
+
+          {hasMore && (
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-surface border border-border text-xs font-semibold text-text hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin text-primary" />
+                    <span>Carregando anotações anteriores...</span>
+                  </>
+                ) : (
+                  <span>Carregar mais anotações</span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

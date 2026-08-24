@@ -128,35 +128,42 @@ export async function GET() {
       activeCouponsCount = 0;
     }
 
-    return NextResponse.json({
-      finance: {
-        mrr: calculatedMrr,
-        arr,
-        ticketPrice: BASE_PRICE,
-        activeSubscribers,
-        pastDue,
+    return NextResponse.json(
+      {
+        finance: {
+          mrr: calculatedMrr,
+          arr,
+          ticketPrice: BASE_PRICE,
+          activeSubscribers,
+          pastDue,
+        },
+        users: {
+          total: totalUsers,
+          activeTrials,
+          expiredTrials,
+          vips,
+          newLast7Days: newUsersLast7Days,
+          newLast30Days: newUsersLast30Days,
+          conversionRate: Number(conversionRate.toFixed(1)),
+        },
+        engagement: {
+          totalPacientes: totalPacientes || 0,
+          totalProntuarios: totalProntuarios || 0,
+          totalLaudos: totalLaudos || 0,
+          totalAgendamentos: totalAgendamentos || 0,
+        },
+        operations: {
+          pendingFeedbacks,
+          activeCouponsCount,
+        },
+        recentProfiles: allProfiles.slice(0, 8),
       },
-      users: {
-        total: totalUsers,
-        activeTrials,
-        expiredTrials,
-        vips,
-        newLast7Days: newUsersLast7Days,
-        newLast30Days: newUsersLast30Days,
-        conversionRate: Number(conversionRate.toFixed(1)),
-      },
-      engagement: {
-        totalPacientes: totalPacientes || 0,
-        totalProntuarios: totalProntuarios || 0,
-        totalLaudos: totalLaudos || 0,
-        totalAgendamentos: totalAgendamentos || 0,
-      },
-      operations: {
-        pendingFeedbacks,
-        activeCouponsCount,
-      },
-      recentProfiles: allProfiles.slice(0, 8),
-    });
+      {
+        headers: {
+          "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (err: any) {
     console.error("Erro na rota de métricas admin:", err);
     return NextResponse.json({ error: "Erro interno ao carregar métricas." }, { status: 500 });

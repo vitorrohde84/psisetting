@@ -77,10 +77,6 @@ export function PacienteList() {
             nome: await decryptClinicalData(p.nome, user.id),
             cpf: await decryptClinicalData(p.cpf, user.id),
             telefone: await decryptClinicalData(p.telefone, user.id),
-            email: await decryptClinicalData(p.email, user.id),
-            endereco: await decryptClinicalData(p.endereco, user.id),
-            contato_emergencia: await decryptClinicalData(p.contato_emergencia, user.id),
-            observacoes_gerais: await decryptClinicalData(p.observacoes_gerais, user.id),
           }))
         );
         decrypted.sort((a, b) => a.nome.localeCompare(b.nome));

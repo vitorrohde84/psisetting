@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { AdminSidebar, AdminTabType } from "./components/admin-sidebar";
 import { UserDetailDrawer } from "./components/user-detail-drawer";
 import { CouponModal } from "./components/coupon-modal";
@@ -48,13 +48,14 @@ export default function AdminDashboardPage() {
   const [coupons, setCoupons] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(["overview", "users"]));
 
   // Estados de Modais & Gavetas
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
 
-  // Filtros de Usuários
+  // Filtros de Usuários (Filtro instantâneo no cliente)
   const [userSearch, setUserSearch] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState("all");
 
@@ -66,16 +67,13 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToastMessage(null), 3500);
   }
 
-  // Carregar Dados
-  async function loadAllData() {
+  // Carregador Principal (Métricas + Usuários)
+  const loadEssentialData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const [mRes, uRes, cRes, fRes, aRes] = await Promise.all([
+      const [mRes, uRes] = await Promise.all([
         fetch("/api/admin/metrics"),
-        fetch(`/api/admin/users?search=${encodeURIComponent(userSearch)}&status=${userStatusFilter}`),
-        fetch("/api/admin/coupons"),
-        fetch("/api/admin/feedbacks"),
-        fetch("/api/admin/announcements"),
+        fetch("/api/admin/users"),
       ]);
 
       if (mRes.ok) setMetrics(await mRes.json());
@@ -83,29 +81,61 @@ export default function AdminDashboardPage() {
         const uData = await uRes.json();
         setUsers(uData.users || []);
       }
-      if (cRes.ok) {
-        const cData = await cRes.json();
-        setCoupons(cData.coupons || []);
-      }
-      if (fRes.ok) {
-        const fData = await fRes.json();
-        setFeedbacks(fData.feedbacks || []);
-      }
-      if (aRes.ok) {
-        const aData = await aRes.json();
-        setAnnouncements(aData.announcements || []);
-      }
     } catch (err) {
-      console.error("Erro ao carregar dados do admin:", err);
+      console.error("Erro ao carregar dados essenciais do admin:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, []);
 
+  // Lazy Loading por Aba sob Demanda
+  const loadTabData = useCallback(async (tab: AdminTabType) => {
+    try {
+      if (tab === "coupons") {
+        const res = await fetch("/api/admin/coupons");
+        if (res.ok) {
+          const data = await res.json();
+          setCoupons(data.coupons || []);
+        }
+      } else if (tab === "feedbacks") {
+        const res = await fetch("/api/admin/feedbacks");
+        if (res.ok) {
+          const data = await res.json();
+          setFeedbacks(data.feedbacks || []);
+        }
+      } else if (tab === "announcements") {
+        const res = await fetch("/api/admin/announcements");
+        if (res.ok) {
+          const data = await res.json();
+          setAnnouncements(data.announcements || []);
+        }
+      }
+      setLoadedTabs((prev) => new Set([...prev, tab]));
+    } catch (err) {
+      console.error(`Erro ao carregar aba ${tab}:`, err);
+    }
+  }, []);
+
+  // Disparar carga sob demanda ao trocar de aba
   useEffect(() => {
-    loadAllData();
-  }, [userStatusFilter]);
+    if (!loadedTabs.has(activeTab)) {
+      loadTabData(activeTab);
+    }
+  }, [activeTab, loadedTabs, loadTabData]);
+
+  // Carga inicial dos dados
+  useEffect(() => {
+    loadEssentialData();
+  }, [loadEssentialData]);
+
+  // Recarregar tudo quando o botão de refresh for clicado
+  async function loadAllData() {
+    await loadEssentialData();
+    if (loadedTabs.has("coupons")) loadTabData("coupons");
+    if (loadedTabs.has("feedbacks")) loadTabData("feedbacks");
+    if (loadedTabs.has("announcements")) loadTabData("announcements");
+  }
 
   // Ações de Usuário (Estender Trial / VIP)
   async function handleUserAction(userId: string, action: string, days?: number) {
@@ -246,7 +276,30 @@ export default function AdminDashboardPage() {
     document.body.removeChild(link);
   }
 
-  const atRiskUsers = users.filter((u) => u.isAtRisk);
+  // Filtragem Instantânea em Memória no Cliente (0ms)
+  const filteredUsers = useMemo(() => {
+    let list = users;
+    if (userSearch.trim()) {
+      const q = userSearch.toLowerCase();
+      list = list.filter(
+        (u) =>
+          (u.nome && u.nome.toLowerCase().includes(q)) ||
+          (u.email && u.email.toLowerCase().includes(q)) ||
+          (u.crp && u.crp.toLowerCase().includes(q)) ||
+          (u.telefone && u.telefone.toLowerCase().includes(q))
+      );
+    }
+    if (userStatusFilter !== "all") {
+      if (userStatusFilter === "risk") {
+        list = list.filter((u) => u.isAtRisk);
+      } else {
+        list = list.filter((u) => u.calculatedStatus === userStatusFilter);
+      }
+    }
+    return list;
+  }, [users, userSearch, userStatusFilter]);
+
+  const atRiskUsers = useMemo(() => users.filter((u) => u.isAtRisk), [users]);
 
   return (
     <div className="flex min-h-screen bg-background text-text">
@@ -544,12 +597,12 @@ export default function AdminDashboardPage() {
 
               {/* Lista Arejada de Usuários */}
               <div className="divide-y divide-border/40">
-                {users.length === 0 ? (
+                {filteredUsers.length === 0 ? (
                   <p className="py-12 text-center text-xs text-text-muted">
                     Nenhum psicólogo encontrado com esses filtros.
                   </p>
                 ) : (
-                  users.map((u) => {
+                  filteredUsers.map((u) => {
                     const initials = (u.nome || "P")
                       .split(" ")
                       .map((n: string) => n[0])

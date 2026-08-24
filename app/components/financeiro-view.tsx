@@ -50,10 +50,15 @@ export function FinanceiroView() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Busca tudo para poder gerar os gráficos anuais com facilidade
+    // Busca os pagamentos do ano selecionado para compor métricas e gráficos anuais
+    const startOfYear = `${anoSelecionado}-01-01`;
+    const endOfYear = `${anoSelecionado}-12-31`;
+
     const { data } = await supabase
       .from("pagamentos")
       .select("id, valor, data_vencimento, status, forma_pagamento, receita_saude, created_at, paciente_id, agendamento_id, pacientes(nome, cpf)")
+      .gte("data_vencimento", startOfYear)
+      .lte("data_vencimento", endOfYear)
       .order("data_vencimento", { ascending: false });
 
     if (data && user) {
@@ -84,7 +89,7 @@ export function FinanceiroView() {
       setTodosPagamentos(data);
     }
     setLoading(false);
-  }, []);
+  }, [anoSelecionado]);
 
   useEffect(() => {
     fetchPagamentos();

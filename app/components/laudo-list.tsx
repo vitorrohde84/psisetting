@@ -67,7 +67,7 @@ export function LaudoList() {
 
     let query = supabase
       .from("laudos")
-      .select("id, titulo, tipo_documento, conteudo, created_at, paciente_id, pacientes(nome, cpf, data_nascimento)")
+      .select("id, titulo, tipo_documento, conteudo, created_at, paciente_id, pacientes(nome)")
       .order("created_at", { ascending: false });
 
     if (pacienteFilter !== "all") {
@@ -83,28 +83,14 @@ export function LaudoList() {
         data.map(async (l) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let pac: any = l.pacientes;
-          if (pac) {
-            if (Array.isArray(pac)) {
-              pac = await Promise.all(
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                pac.map(async (p: any) => ({
-                  ...p,
-                  nome: p?.nome ? await decryptClinicalData(p.nome, user.id) : "",
-                  cpf: p?.cpf ? await decryptClinicalData(p.cpf, user.id) : "",
-                }))
-              );
-            } else {
-              pac = {
-                ...pac,
-                nome: pac?.nome ? await decryptClinicalData(pac.nome, user.id) : "",
-                cpf: pac?.cpf ? await decryptClinicalData(pac.cpf, user.id) : "",
-              };
-            }
+          let pacNome = Array.isArray(pac) ? pac[0]?.nome : pac?.nome;
+          if (pacNome && pacNome.startsWith("enc:v1:")) {
+            pacNome = await decryptClinicalData(pacNome, user.id);
           }
 
           return {
             ...l,
-            pacientes: pac,
+            pacientes: { nome: pacNome || "" },
             conteudo:
               l.tipo_documento === "text"
                 ? await decryptClinicalData(l.conteudo, user.id)
