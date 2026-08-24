@@ -176,6 +176,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             .select("id, data, conteudo, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(50);
           if (data && user) {
             const decrypted = await Promise.all(
@@ -197,6 +198,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             .select("id, data, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(50);
           setDiario(data || []);
           break;

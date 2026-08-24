@@ -106,7 +106,15 @@ export function ProntuarioList() {
         })
       );
 
-      list.sort((a, b) => a.nome.localeCompare(b.nome));
+      // Ordena por data da última sessão (mais recente no topo), pacientes sem sessão ao final
+      list.sort((a, b) => {
+        if (a.ultimaData && b.ultimaData) {
+          return b.ultimaData.localeCompare(a.ultimaData);
+        }
+        if (a.ultimaData) return -1;
+        if (b.ultimaData) return 1;
+        return a.nome.localeCompare(b.nome);
+      });
       setPacientes(list);
     } else {
       setPacientes([]);
@@ -135,6 +143,7 @@ export function ProntuarioList() {
       .select("id, data, conteudo, created_at, paciente_id, agendamento_id, agendamentos(horario)")
       .eq("paciente_id", pacId)
       .order("data", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(from, to);
     
     if (data && user) {
