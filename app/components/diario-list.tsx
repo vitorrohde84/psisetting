@@ -1,9 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
-import { Search, Plus, Filter, FileText, Pencil, Calendar, Loader2, BookOpen, ShieldCheck } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Filter,
+  FileText,
+  Pencil,
+  Calendar,
+  Loader2,
+  BookOpen,
+  ShieldCheck,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Tag,
+  Activity,
+  Heart,
+  Users as UsersIcon,
+  Layers,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 
 const DiarioFormModal = dynamic(
@@ -11,6 +30,7 @@ const DiarioFormModal = dynamic(
   { ssr: false }
 );
 import { decryptClinicalData } from "@/utils/crypto";
+import { analyzeClinicalEvolutions, ThemeInsight } from "@/utils/clinical-analyzer";
 
 interface Diario {
   id: string;
@@ -42,6 +62,10 @@ export function DiarioList() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const PAGE_SIZE = 15;
+
+  // Radar de Temas & Inteligência Clínica
+  const [showRadar, setShowRadar] = useState(false);
+  const [activeThemeFilter, setActiveThemeFilter] = useState<string | null>(null);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -168,6 +192,17 @@ export function DiarioList() {
     setShowModal(true);
   }
 
+  // Motor de Inteligência Clínica (100% Client-Side na memória da sessão)
+  const insights = useMemo(() => {
+    return analyzeClinicalEvolutions(diarios);
+  }, [diarios]);
+
+  const displayedDiarios = useMemo(() => {
+    if (!activeThemeFilter) return diarios;
+    const termLower = activeThemeFilter.toLowerCase();
+    return diarios.filter((d) => d.conteudo.toLowerCase().includes(termLower));
+  }, [diarios, activeThemeFilter]);
+
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -212,6 +247,115 @@ export function DiarioList() {
         </div>
       </div>
 
+      {/* ─── RADAR DE TEMAS & ESTUDO DE CASO (100% Client-Side) ─── */}
+      {diarios.length > 0 && insights.topKeywords.length > 0 && (
+        <div className="mb-6 rounded-2xl bg-surface border border-primary/20 shadow-xs overflow-hidden transition-all">
+          <div
+            onClick={() => setShowRadar(!showRadar)}
+            className="p-4 bg-primary/5 hover:bg-primary/10 flex items-center justify-between cursor-pointer transition-colors"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-bold text-sm text-text">
+                    Radar de Temas & Estudo de Caso
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/15 text-primary">
+                    {insights.topKeywords.length} tópicos identificados
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Mapeamento automático de queixas, afetos e figuras centrais das suas anotações.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {activeThemeFilter && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-primary px-2.5 py-1 rounded-lg bg-primary/10">
+                  <Tag size={12} /> #{activeThemeFilter}
+                </span>
+              )}
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-background transition-colors"
+              >
+                {showRadar ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {showRadar && (
+            <div className="p-5 border-t border-border/40 space-y-4 animate-in fade-in-50 duration-200">
+              <div className="flex flex-wrap gap-2 items-center">
+                {insights.topKeywords.map((item) => {
+                  const isActive = activeThemeFilter === item.term;
+
+                  const categoryStyles = {
+                    sintoma: "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100",
+                    emocional: "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100",
+                    relacional: "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100",
+                    contexto: "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100",
+                    geral: "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100",
+                  };
+
+                  const badgeStyle = categoryStyles[item.category] || categoryStyles.geral;
+
+                  return (
+                    <button
+                      key={item.term}
+                      type="button"
+                      onClick={() =>
+                        setActiveThemeFilter(isActive ? null : item.term)
+                      }
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-primary text-white border-primary shadow-xs ring-2 ring-primary/20 scale-105"
+                          : badgeStyle
+                      }`}
+                    >
+                      <span>#{item.term}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isActive
+                            ? "bg-white/20 text-white"
+                            : "bg-black/5 text-text-muted"
+                        }`}
+                      >
+                        {item.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeThemeFilter && (
+                <div className="flex items-center justify-between pt-2 border-t border-border/30 text-xs">
+                  <span className="text-text-muted">
+                    Exibindo <strong>{displayedDiarios.length}</strong> anotação(ões) contendo <strong>#{activeThemeFilter}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveThemeFilter(null)}
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-bold cursor-pointer"
+                  >
+                    <X size={12} /> Limpar filtro de tema
+                  </button>
+                </div>
+              )}
+
+              <div className="pt-2 text-[10px] text-text-muted/70 flex items-center gap-1.5">
+                <ShieldCheck size={13} className="text-primary" />
+                <span>Análise de estudo de caso 100% processada na memória do seu navegador com sigilo absoluto.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-surface rounded-xl border border-border/60 p-4 mb-6 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -250,21 +394,21 @@ export function DiarioList() {
           <Loader2 className="animate-spin mb-3 text-primary" size={24} />
           <p className="text-sm">Decifrando anotações seguras…</p>
         </div>
-      ) : diarios.length === 0 ? (
+      ) : displayedDiarios.length === 0 ? (
         <div className="bg-surface rounded-2xl border border-border/60 p-12 text-center">
           <BookOpen className="mx-auto text-text-muted/30 mb-3" size={40} />
           <h3 className="text-base font-serif font-medium text-text mb-1">
             Nenhuma anotação encontrada
           </h3>
           <p className="text-sm text-text-muted max-w-sm mx-auto">
-            {search || pacienteFilter !== "all"
-              ? "Tente ajustar os filtros de busca."
+            {search || pacienteFilter !== "all" || activeThemeFilter
+              ? "Tente ajustar os filtros de busca ou tema."
               : "Registre o que aconteceu nas sessões com sigilo clínico e criptografia de ponta a ponta."}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {diarios.map((d) => (
+          {displayedDiarios.map((d) => (
             <div
               key={d.id}
               onClick={() => handleEdit(d)}
