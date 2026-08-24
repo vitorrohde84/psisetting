@@ -58,7 +58,7 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
   const currentBadge = statusBadges[user.calculatedStatus] || statusBadges.trialing;
 
   const rawPhone = (user.telefone || "").replace(/\D/g, "");
-  const whatsappMsg = `Olá Dr(a). ${user.nome || ""}, tudo bem? Sou da equipe do PsiSetting! Vi que você começou seus testes no sistema e gostaria de saber se precisa de algum apoio inicial para configurar seus pacientes e laudos.`;
+  const whatsappMsg = `Olá Psi. ${user.nome || ""}, tudo bem? Sou da equipe do PsiSetting! Vi que você começou seus testes no sistema e gostaria de saber se precisa de algum apoio inicial para configurar seus pacientes e laudos.`;
   const whatsappLink = rawPhone ? `https://wa.me/55${rawPhone}?text=${encodeURIComponent(whatsappMsg)}` : null;
 
   const initials = (user.nome || "P")
