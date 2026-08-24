@@ -21,7 +21,11 @@ import {
   Sparkles,
   MapPin,
   Building,
+  Database,
+  Download,
+  ShieldAlert,
 } from "lucide-react";
+import { generateFullSystemBackupCSV } from "@/utils/export-backup";
 
 interface Profile {
   id: string;
@@ -42,6 +46,9 @@ export function ConfiguracoesView() {
   const router = useRouter();
   const { openSubscriptionModal } = useSubscription();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Profile state
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -231,6 +238,44 @@ export function ConfiguracoesView() {
     navigator.clipboard.writeText(webcalUrl);
     setCopiedCalendar(true);
     setTimeout(() => setCopiedCalendar(false), 2500);
+  }
+
+  // Backup Completo do Sistema (Descriptografado em CSV)
+  async function handleDownloadBackup() {
+    if (exportingBackup) return;
+    setExportingBackup(true);
+    setBackupStatus(null);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const result = await generateFullSystemBackupCSV(
+        supabase,
+        user.id,
+        nome || "psicologo"
+      );
+
+      if (result.success) {
+        setBackupStatus({
+          message: `Backup gerado com sucesso! Arquivo: ${result.filename}`,
+          type: "success",
+        });
+      } else {
+        setBackupStatus({
+          message: `Erro ao gerar backup: ${result.error}`,
+          type: "error",
+        });
+      }
+    } catch (err: any) {
+      setBackupStatus({
+        message: err.message || "Erro inesperado ao gerar backup.",
+        type: "error",
+      });
+    } finally {
+      setExportingBackup(false);
+    }
   }
 
   if (loadingProfile) {
@@ -604,6 +649,76 @@ export function ConfiguracoesView() {
               <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">
                 Política de Privacidade
               </a>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Backup & Exportação Completa de Dados (Portabilidade LGPD & CFP) ─── */}
+        <div className="lg:col-span-2 bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <Database size={18} className="text-primary" />
+              <h3 className="text-base font-serif font-medium text-text">
+                Backup & Exportação Completa dos Dados
+              </h3>
+            </div>
+            <span className="text-xs font-semibold text-text-muted flex items-center gap-1">
+              <ShieldCheck size={14} className="text-success" /> Resolução CFP nº 01/2009 & LGPD
+            </span>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="max-w-2xl space-y-1">
+                <p className="text-sm font-semibold text-text">
+                  Baixar todos os registros do consultório em planilha (.CSV)
+                </p>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Gere um arquivo estruturado contendo todos os seus <strong>pacientes, evoluções de prontuário, notas do diário de bordo, histórico de agendamentos, lançamentos financeiros e documentos emitidos</strong>. Todos os dados são descriptografados na memória do seu navegador com a sua chave pessoal para você guardar em seu computador ou pendrive seguro.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadBackup}
+                disabled={exportingBackup}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl
+                           bg-primary text-white text-sm font-medium
+                           hover:bg-primary-dark active:scale-[0.98]
+                           transition-all duration-200 cursor-pointer shrink-0 shadow-xs disabled:opacity-50"
+              >
+                {exportingBackup ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Decodificando e gerando backup...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    <span>Baixar Backup Completo (.CSV)</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {backupStatus && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center gap-2 ${
+                  backupStatus.type === "success"
+                    ? "bg-success/10 text-success border-success/20"
+                    : "bg-danger/10 text-danger border-danger/20"
+                }`}
+              >
+                {backupStatus.type === "success" ? <Check size={14} /> : <ShieldAlert size={14} />}
+                <span>{backupStatus.message}</span>
+              </div>
+            )}
+
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+              <ShieldAlert size={15} className="text-amber-700 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                <strong>Atenção ao Sigilo Profissional:</strong> O arquivo .CSV gerado contém prontuários e informações de saúde em texto legível. Armazene-o em dispositivo protegido por senha, em conformidade com o Código de Ética Profissional do Psicólogo.
+              </p>
             </div>
           </div>
         </div>
