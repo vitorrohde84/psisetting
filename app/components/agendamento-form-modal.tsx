@@ -95,6 +95,8 @@ export function AgendamentoFormModal({
         );
         list.sort((a, b) => a.nome.localeCompare(b.nome));
       }
+      setPacientes(list);
+
       // If editing or duplicating, find patient name
       const targetId = agendamento?.paciente_id || prefillData?.paciente_id;
       if (targetId && list.length > 0) {
@@ -109,7 +111,7 @@ export function AgendamentoFormModal({
       }
     }
     fetchPacientes();
-  }, []);
+  }, [agendamento, prefillData]);
 
   // Filter patients by search
   const filteredPacientes = pacienteSearch
