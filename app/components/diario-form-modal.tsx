@@ -26,12 +26,14 @@ interface AgendamentoOption {
 
 interface DiarioFormModalProps {
   diario: Diario | null;
+  prefillData?: { paciente_id: string };
   onClose: () => void;
   onSaved: () => void;
 }
 
 export function DiarioFormModal({
   diario,
+  prefillData,
   onClose,
   onSaved,
 }: DiarioFormModalProps) {
@@ -39,7 +41,7 @@ export function DiarioFormModal({
   const supabase = createClient();
 
   const [form, setForm] = useState({
-    paciente_id: diario?.paciente_id || "",
+    paciente_id: diario?.paciente_id || prefillData?.paciente_id || "",
     agendamento_id: diario?.agendamento_id || "",
     data: diario?.data || new Date().toISOString().split("T")[0],
     conteudo: diario?.conteudo || "",
@@ -81,8 +83,9 @@ export function DiarioFormModal({
       }
       setPacientes(list);
 
-      if (diario?.paciente_id && list.length > 0) {
-        const found = list.find((p) => p.id === diario.paciente_id);
+      const targetId = diario?.paciente_id || prefillData?.paciente_id;
+      if (targetId && list.length > 0) {
+        const found = list.find((p) => p.id === targetId);
         if (found) setSelectedPacienteName(found.nome);
       }
 
@@ -93,7 +96,7 @@ export function DiarioFormModal({
       }
     }
     initModalData();
-  }, [diario]);
+  }, [diario, prefillData]);
 
   useEffect(() => {
     async function fetchAgendamentos() {
