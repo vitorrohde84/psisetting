@@ -492,7 +492,34 @@ export function DiarioList() {
                   </div>
                 )}
 
-                <div className="pt-2 text-[10px] text-text-muted/70 flex items-center gap-1.5">
+                {/* Legenda Explicativa de Cores */}
+                <div className="pt-3 pb-1 border-t border-border/30 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-text-muted">
+                  <span className="font-semibold text-text text-[11px]">
+                    Legenda:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span>Relações / Família</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Sintomas / Queixas</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
+                    <span>Afetos / Emoções</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+                    <span>Contexto / Estressores</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                    <span>Termos Frequentes</span>
+                  </div>
+                </div>
+
+                <div className="pt-1 text-[10px] text-text-muted/70 flex items-center gap-1.5">
                   <ShieldCheck size={13} className="text-primary" />
                   <span>Análise semântica processada 100% na memória do seu navegador com sigilo absoluto.</span>
                 </div>

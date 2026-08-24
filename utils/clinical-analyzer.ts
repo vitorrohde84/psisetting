@@ -36,18 +36,25 @@ const PORTUGUESE_STOPWORDS = new Set([
   "relata", "relatou", "relatam", "refere", "referiu", "referem", "traz", "trouxe", "trazem",
   "paciente", "sessão", "sessao", "atendimento", "durante", "após", "apos", "início", "fim",
   "hoje", "ontem", "dia", "semana", "mês", "ano", "vez", "vezes", "coisa", "coisas", "tudo", "nada",
-  "bem", "mal", "assim", "então", "aqui", "ali", "lá", "ainda", "sempre", "nunca", "quase", "apenas"
+  "bem", "mal", "assim", "então", "aqui", "ali", "lá", "ainda", "sempre", "nunca", "quase", "apenas",
+  "dar", "deu", "dava", "dado", "atrás", "atras", "agora", "iniciou", "inicia", "certo", "certa", "certos", "certas",
+  "gosta", "gostou", "gostava", "ficar", "ficou", "fica", "ficava", "passar", "passou", "passa", "passava",
+  "sabe", "saber", "sabia", "acha", "achar", "achava", "forma", "formar", "tempo", "caso", "frente", "lado",
+  "ver", "viu", "vendo", "olhar", "olhou", "poucos", "muitos", "tanto", "quanto", "desde"
 ]);
 
 // Categorias e termos clínicos conhecidos para classificação inteligente
 const CLINICAL_CATEGORIES: Record<string, "sintoma" | "emocional" | "relacional" | "contexto" | "geral"> = {
   // Relacional (Figuras Centrais)
   "mãe": "relacional", "mae": "relacional", "pai": "relacional", "pais": "relacional",
-  "irmão": "relacional", "irmao": "relacional", "irmã": "relacional", "irma": "relacional",
+  "irmão": "relacional", "irmao": "relacional", "irmãos": "relacional", "irmaos": "relacional",
+  "irmã": "relacional", "irma": "relacional", "irmãs": "relacional", "irmas": "relacional",
   "esposa": "relacional", "esposo": "relacional", "marido": "relacional", "namorado": "relacional",
-  "namorada": "relacional", "filho": "relacional", "filha": "relacional", "filhos": "relacional",
+  "namorada": "relacional", "filho": "relacional", "filha": "relacional", "filhos": "relacional", "filhas": "relacional",
   "família": "relacional", "familia": "relacional", "amigo": "relacional", "amiga": "relacional",
-  "amigos": "relacional", "chefe": "relacional", "colega": "relacional", "casamento": "relacional",
+  "amigos": "relacional", "amigas": "relacional", "chefe": "relacional", "colega": "relacional", "colegas": "relacional",
+  "casamento": "relacional", "tia": "relacional", "tio": "relacional", "avó": "relacional", "avô": "relacional",
+  "avo": "relacional", "avos": "relacional", "parceiro": "relacional", "parceira": "relacional",
 
   // Sintomas / Queixas Clínicas
   "ansiedade": "sintoma", "ansioso": "sintoma", "ansiosa": "sintoma", "angústia": "sintoma", "angustia": "sintoma",
