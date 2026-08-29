@@ -10,16 +10,15 @@ interface RateLimitRecord {
 
 const rateLimitStore = new Map<string, RateLimitRecord>();
 
-// Limpeza automática periódica a cada 5 minutos
-if (typeof setInterval !== "undefined") {
-  setInterval(() => {
+function cleanExpiredRecords() {
+  if (rateLimitStore.size > 500) {
     const now = Date.now();
     rateLimitStore.forEach((record, key) => {
       if (record.resetTime < now) {
         rateLimitStore.delete(key);
       }
     });
-  }, 5 * 60 * 1000);
+  }
 }
 
 /**
@@ -33,6 +32,7 @@ export function checkRateLimit(
   maxRequests: number,
   windowMs: number
 ): { success: boolean; remaining: number; resetTime: number } {
+  cleanExpiredRecords();
   const now = Date.now();
   const record = rateLimitStore.get(identifier);
 
