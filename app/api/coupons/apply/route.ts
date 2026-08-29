@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 
 const BASE_PRICE = 34.9;
 
 export async function POST(request: Request) {
   try {
+    // 🛡️ Proteção Anti-Força Bruta: Máximo 8 tentativas de validação de cupom por IP a cada 5 minutos
+    const ip = getClientIp(request);
+    const rateCheck = checkRateLimit(`coupon:${ip}`, 8, 5 * 60 * 1000);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Muitas tentativas de aplicar cupons. Por favor, aguarde alguns minutos antes de tentar novamente." },
+        { status: 429 }
+      );
+    }
+
     const supabase = await createClient();
     const {
       data: { user },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 
 /**
  * POST /api/auth/register
@@ -15,6 +16,16 @@ import { createAdminClient } from "@/utils/supabase/admin";
  */
 export async function POST(request: Request) {
   try {
+    // 🛡️ Proteção Anti-Força Bruta: Máximo 5 tentativas de cadastro por IP a cada 15 minutos
+    const ip = getClientIp(request);
+    const rateCheck = checkRateLimit(`register:${ip}`, 5, 15 * 60 * 1000);
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: "Muitas tentativas de cadastro a partir deste endereço. Por favor, aguarde alguns minutos." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { nome, email, password, invite_code } = body;
 

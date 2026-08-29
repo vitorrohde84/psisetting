@@ -24,6 +24,7 @@ import {
   Database,
   Download,
   ShieldAlert,
+  RefreshCw,
 } from "lucide-react";
 import { generateFullSystemBackupCSV } from "@/utils/export-backup";
 
@@ -230,6 +231,9 @@ export function ConfiguracoesView() {
     setUploadingLogo(false);
   }
 
+  const [regeneratingToken, setRegeneratingToken] = useState(false);
+  const [tokenMessage, setTokenMessage] = useState<string | null>(null);
+
   // Copy calendar URL
   function handleCopyCalendar() {
     if (!profile?.calendar_token) return;
@@ -238,6 +242,35 @@ export function ConfiguracoesView() {
     navigator.clipboard.writeText(webcalUrl);
     setCopiedCalendar(true);
     setTimeout(() => setCopiedCalendar(false), 2500);
+  }
+
+  // Regenerate/Revoke calendar token
+  async function handleRegenerateCalendarToken() {
+    if (
+      !confirm(
+        "Atenção: Ao gerar um novo link, o link anterior deixará de funcionar imediatamente no seu iPhone/Google Agenda e você precisará assinar o novo link. Deseja continuar?"
+      )
+    ) {
+      return;
+    }
+
+    setRegeneratingToken(true);
+    setTokenMessage(null);
+    try {
+      const res = await fetch("/api/calendar/regenerate-token", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.calendar_token) {
+        setProfile((prev) => (prev ? { ...prev, calendar_token: data.calendar_token } : null));
+        setTokenMessage("Novo link gerado com sucesso! O anterior foi revogado.");
+        setTimeout(() => setTokenMessage(null), 5000);
+      } else {
+        alert(data.error || "Erro ao regenerar link.");
+      }
+    } catch {
+      alert("Erro ao regenerar link do calendário.");
+    } finally {
+      setRegeneratingToken(false);
+    }
   }
 
   // Backup Completo do Sistema (Descriptografado em CSV)
@@ -577,25 +610,44 @@ export function ConfiguracoesView() {
               Assine este feed para sincronizar seus atendimentos diretamente no calendário do iPhone, Mac ou Google Agenda.
             </p>
             {profile?.calendar_token ? (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 px-3.5 py-2.5 rounded-xl bg-background border border-border text-xs text-text-muted truncate font-mono">
-                  webcal://.../{profile.calendar_token.slice(0, 12)}…
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="flex-1 px-3.5 py-2.5 rounded-xl bg-background border border-border text-xs text-text-muted truncate font-mono">
+                    webcal://.../{profile.calendar_token.slice(0, 12)}…
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyCalendar}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
+                                 bg-primary text-white text-sm font-medium
+                                 hover:bg-primary-dark active:scale-[0.98]
+                                 transition-all duration-200 cursor-pointer shadow-xs"
+                    >
+                      {copiedCalendar ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedCalendar ? "Copiado!" : "Copiar Link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRegenerateCalendarToken}
+                      disabled={regeneratingToken}
+                      title="Gerar um novo link e revogar o anterior por segurança"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl
+                                 bg-background border border-border text-text-muted hover:text-text hover:bg-surface
+                                 transition-all duration-200 cursor-pointer text-xs font-medium disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} className={regeneratingToken ? "animate-spin text-primary" : ""} />
+                      <span className="hidden sm:inline">Revogar / Novo Link</span>
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCopyCalendar}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl
-                             bg-primary text-white text-sm font-medium
-                             hover:bg-primary-dark active:scale-[0.98]
-                             transition-all duration-200 cursor-pointer shadow-xs"
-                >
-                  {copiedCalendar ? (
-                    <Check size={14} />
-                  ) : (
-                    <Copy size={14} />
-                  )}
-                  {copiedCalendar ? "Copiado!" : "Copiar Link"}
-                </button>
+
+                {tokenMessage && (
+                  <div className="p-2.5 rounded-xl bg-success/10 border border-success/20 text-xs text-success flex items-center gap-1.5">
+                    <Check size={13} />
+                    <span>{tokenMessage}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-danger">Token não configurado.</p>

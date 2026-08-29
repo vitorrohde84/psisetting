@@ -1,20 +1,28 @@
 import { createClient } from "./client";
 
 /**
- * Uploads a PDF to the 'laudos' private bucket.
- * The path will be: {paciente_id}/{timestamp}-{filename}
+ * Uploads a PDF to the 'laudos' private bucket with multi-tenant isolation.
+ * The path will be: {user_id}/{paciente_id}/{timestamp}-{filename}
  */
 export async function uploadLaudoPdf(
   file: File,
   pacienteId: string
 ): Promise<{ path: string | null; error: string | null }> {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { path: null, error: "Usuário não autenticado." };
+  }
+
   const fileExt = file.name.split(".").pop();
   const timestamp = Date.now();
   const cleanName = file.name
     .replace(/[^a-zA-Z0-9.-]/g, "_")
     .replace(`.${fileExt}`, "");
-  const filePath = `${pacienteId}/${timestamp}-${cleanName}.${fileExt}`;
+  const filePath = `${user.id}/${pacienteId}/${timestamp}-${cleanName}.${fileExt}`;
 
   const { data, error } = await supabase.storage
     .from("laudos")
@@ -39,6 +47,14 @@ export async function getLaudoSignedUrl(
   filePath: string
 ): Promise<{ signedUrl: string | null; error: string | null }> {
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { signedUrl: null, error: "Usuário não autenticado." };
+  }
+
   const { data, error } = await supabase.storage
     .from("laudos")
     .createSignedUrl(filePath, 600); // 10 minutes
@@ -50,3 +66,4 @@ export async function getLaudoSignedUrl(
 
   return { signedUrl: data.signedUrl, error: null };
 }
+
