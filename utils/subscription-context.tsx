@@ -48,8 +48,27 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (force = false) => {
     try {
+      if (!force && typeof window !== "undefined") {
+        const cached = sessionStorage.getItem("cached_sub_status");
+        const cachedAt = sessionStorage.getItem("cached_sub_status_at");
+        if (cached && cachedAt && Date.now() - Number(cachedAt) < 60000) {
+          const data = JSON.parse(cached);
+          setState({
+            isVip: Boolean(data.isVip),
+            status: data.status || "trialing",
+            isTrialing: Boolean(data.isTrialing),
+            trialDaysLeft: typeof data.trialDaysLeft === "number" ? data.trialDaysLeft : 0,
+            trialEndsAt: data.trialEndsAt || null,
+            isReadOnly: Boolean(data.isReadOnly),
+            hasActiveSubscription: Boolean(data.hasActiveSubscription),
+            loading: false,
+          });
+          return;
+        }
+      }
+
       const res = await fetch("/api/subscription/status");
       if (!res.ok) {
         // Se der erro ou não estiver logado, não quebra a tela
@@ -57,6 +76,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return;
       }
       const data = await res.json();
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("cached_sub_status", JSON.stringify(data));
+        sessionStorage.setItem("cached_sub_status_at", Date.now().toString());
+      }
+
       setState({
         isVip: Boolean(data.isVip),
         status: data.status || "trialing",

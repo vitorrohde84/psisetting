@@ -145,6 +145,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setMobileOpen(false)}
                 className={`
                   flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium
@@ -185,6 +186,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
             <div className="pt-1">
               <Link
                 href="/admin"
+                prefetch={false}
                 onClick={() => setMobileOpen(false)}
                 className={`
                   w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold
@@ -207,6 +209,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
         <div className="p-3 border-t border-border/60 bg-background/30 space-y-2">
           <Link
             href="/configuracoes"
+            prefetch={false}
             onClick={() => setMobileOpen(false)}
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface border border-transparent hover:border-border/60 transition-all group"
             title="Acessar Configurações e Perfil"
@@ -243,6 +246,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
       >
         <Link
           href="/"
+          prefetch={false}
           className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
             isActive("/") ? "text-primary font-bold" : "text-text-muted hover:text-text"
           }`}
@@ -253,6 +257,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
 
         <Link
           href="/pacientes"
+          prefetch={false}
           className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
             isActive("/pacientes") ? "text-primary font-bold" : "text-text-muted hover:text-text"
           }`}
@@ -263,6 +268,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
 
         <Link
           href="/agenda"
+          prefetch={false}
           className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
             isActive("/agenda") ? "text-primary font-bold" : "text-text-muted hover:text-text"
           }`}
@@ -273,6 +279,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
 
         <Link
           href="/laudos"
+          prefetch={false}
           className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-medium transition-colors ${
             isActive("/laudos") ? "text-primary font-bold" : "text-text-muted hover:text-text"
           }`}

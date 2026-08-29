@@ -19,11 +19,27 @@ export function AnnouncementBanner() {
   useEffect(() => {
     async function loadAnnouncement() {
       try {
+        if (typeof window !== "undefined") {
+          const cached = sessionStorage.getItem("cached_announcement");
+          const cachedAt = sessionStorage.getItem("cached_announcement_at");
+          if (cached && cachedAt && Date.now() - Number(cachedAt) < 120000) {
+            const first = JSON.parse(cached);
+            if (first?.id && !sessionStorage.getItem(`dismissed_announcement_${first.id}`)) {
+              setAnnouncement(first);
+            }
+            return;
+          }
+        }
+
         const res = await fetch("/api/announcements");
         if (res.ok) {
           const data = await res.json();
           if (data.announcements && data.announcements.length > 0) {
             const first = data.announcements[0];
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("cached_announcement", JSON.stringify(first));
+              sessionStorage.setItem("cached_announcement_at", Date.now().toString());
+            }
             const dismissedKey = `dismissed_announcement_${first.id}`;
             if (!sessionStorage.getItem(dismissedKey)) {
               setAnnouncement(first);
