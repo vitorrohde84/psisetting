@@ -36,7 +36,7 @@ export async function updateSession(request: NextRequest) {
   const isRegisterApi = pathname.startsWith("/api/auth/register");
   const isWebhookApi = pathname.startsWith("/api/webhooks");
   const isPwaStatic =
-    pathname === "/manifest.webmanifest" ||
+    pathname.startsWith("/manifest") ||
     pathname === "/sw.js" ||
     pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
