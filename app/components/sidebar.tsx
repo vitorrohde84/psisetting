@@ -122,11 +122,19 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Topo da Sidebar: Branding Oficial do PsiSetting */}
-        <div className="p-5 pb-4 border-b border-border/60 flex items-center justify-between">
+        {/* Topo da Sidebar: Branding Oficial do PsiSetting + Modo Privacidade no Desktop */}
+        <div className="p-5 pb-4 border-b border-border/60 flex items-center justify-between gap-2">
           <Link href="/" className="flex items-center gap-3 min-w-0 group">
             <PsiSettingBrand size="md" showIcon={true} showSubtitle={true} subtitleText="Gestão Clínica" />
           </Link>
+
+          {/* Botão Privacidade no Desktop */}
+          <div className="hidden lg:flex items-center shrink-0">
+            <PrivacyToggle 
+              className="p-2 rounded-xl bg-background hover:bg-surface-hover border border-border active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              size={18}
+            />
+          </div>
 
           {/* Botão Fechar no celular */}
           <button

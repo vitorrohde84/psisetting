@@ -12,7 +12,7 @@ export function PrivacyToggle({ className, size = 18 }: PrivacyToggleProps) {
   const [isPrivacyMode, setIsPrivacyMode] = useState(false);
 
   useEffect(() => {
-    // Check local storage on mount
+    // Verificar localStorage no carregamento
     const saved = localStorage.getItem("privacyMode");
     if (saved === "true") {
       setIsPrivacyMode(true);
@@ -23,7 +23,7 @@ export function PrivacyToggle({ className, size = 18 }: PrivacyToggleProps) {
   function togglePrivacy() {
     const newState = !isPrivacyMode;
     setIsPrivacyMode(newState);
-    
+
     if (newState) {
       document.body.classList.add("privacy-mode");
       localStorage.setItem("privacyMode", "true");
@@ -33,32 +33,25 @@ export function PrivacyToggle({ className, size = 18 }: PrivacyToggleProps) {
     }
   }
 
-  if (className) {
-    return (
-      <button
-        onClick={togglePrivacy}
-        className={className}
-        title={isPrivacyMode ? "Mostrar informações sensíveis" : "Ocultar informações sensíveis (Modo Privacidade)"}
-        aria-label="Alternar modo privacidade"
-      >
-        {isPrivacyMode ? <EyeOff size={size} /> : <Eye size={size} />}
-      </button>
-    );
-  }
+  const baseClass =
+    className ||
+    "p-2 rounded-xl bg-background border border-border transition-all cursor-pointer flex items-center justify-center";
+  const activeClass = isPrivacyMode
+    ? "bg-primary/15 text-primary border-primary/40 shadow-xs"
+    : "text-text-muted hover:text-text hover:bg-surface-hover";
 
-  // Desktop default placement (hidden on mobile to prevent overlapping mobile navbar)
   return (
     <button
       onClick={togglePrivacy}
-      className={`hidden lg:flex fixed top-4 right-4 z-30 p-2.5 rounded-full shadow-sm transition-all cursor-pointer border ${
-        isPrivacyMode 
-          ? "bg-primary text-white border-primary" 
-          : "bg-surface text-text-muted border-border hover:bg-background hover:text-text"
-      }`}
-      title={isPrivacyMode ? "Mostrar informações sensíveis" : "Ocultar informações sensíveis (Modo Privacidade)"}
+      className={`${baseClass} ${activeClass}`}
+      title={
+        isPrivacyMode
+          ? "Modo Privacidade Ativo: Clique para exibir informações sensíveis"
+          : "Ativar Modo Privacidade: Ocultar nomes e valores sensíveis"
+      }
       aria-label="Alternar modo privacidade"
     >
-      {isPrivacyMode ? <EyeOff size={20} /> : <Eye size={20} />}
+      {isPrivacyMode ? <EyeOff size={size} /> : <Eye size={size} />}
     </button>
   );
 }

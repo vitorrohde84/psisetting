@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/app/components/sidebar";
 import { SessionMonitor } from "@/app/components/session-monitor";
-import { PrivacyToggle } from "@/app/components/privacy-toggle";
 import { SubscriptionProvider } from "@/utils/subscription-context";
 import { SubscriptionBanner } from "@/app/components/subscription-banner";
 import { SubscriptionModal } from "@/app/components/subscription-modal";
@@ -95,7 +94,6 @@ export default async function DashboardLayout({
           </main>
         </div>
 
-        <PrivacyToggle />
         <SessionMonitor />
         <SubscriptionModal />
       </div>
