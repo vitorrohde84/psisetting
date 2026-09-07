@@ -110,8 +110,8 @@ export async function updateSession(request: NextRequest) {
     });
   }
 
-  // If user is not authenticated and trying to access an API route (that is not public), return 401 JSON
-  if (!user && !isPublicPath) {
+  // If user is not authenticated and trying to access a protected route (that is not public and not login)
+  if (!user && !isPublicPath && !isLoginPath) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "Não autorizado. Faça login para continuar." },
