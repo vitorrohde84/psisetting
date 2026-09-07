@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
-import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, Download, ShieldCheck } from "lucide-react";
+import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, UsersRound, Download, ShieldCheck } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const ProntuarioFormModal = dynamic(
@@ -20,6 +20,7 @@ interface Prontuario {
   created_at: string;
   paciente_id: string;
   agendamento_id: string | null;
+  grupo_sessao_id?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pacientes?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,7 +141,7 @@ export function ProntuarioList() {
 
     const { data } = await supabase
       .from("prontuarios")
-      .select("id, data, conteudo, created_at, paciente_id, agendamento_id, agendamentos(horario)")
+      .select("id, data, conteudo, created_at, paciente_id, agendamento_id, grupo_sessao_id, agendamentos(horario)")
       .eq("paciente_id", pacId)
       .order("data", { ascending: false })
       .order("created_at", { ascending: false })
@@ -453,9 +454,16 @@ export function ProntuarioList() {
                   {index !== 0 && <div className="absolute -top-5 left-0 right-0 h-px bg-border/40 print:bg-border/60" />}
                   
                   <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 mb-3">
-                    <h3 className="text-base font-semibold text-text flex items-center gap-2 capitalize">
-                      Sessão: {dataSessao}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-text flex items-center gap-2 capitalize">
+                        Sessão: {dataSessao}
+                      </h3>
+                      {p.grupo_sessao_id && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 text-[11px] font-medium border border-purple-500/20">
+                          <UsersRound size={11} /> Sessão de Grupo
+                        </span>
+                      )}
+                    </div>
                     
                     <div className="flex items-center gap-3">
                       {horarioSessao && (

@@ -10,6 +10,7 @@ import { FeedbackModal } from "@/app/components/feedback-modal";
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
   Calendar,
   FileText,
   BookOpen,
@@ -26,6 +27,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Pacientes", href: "/pacientes", icon: Users },
+  { label: "Grupos", href: "/grupos", icon: UsersRound },
   { label: "Agenda", href: "/agenda", icon: Calendar },
   { label: "Prontuários", href: "/prontuarios", icon: FileText },
   { label: "Diário de Bordo", href: "/diario-bordo", icon: BookOpen },
