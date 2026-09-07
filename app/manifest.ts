@@ -6,24 +6,31 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "PsiSetting",
     description: "Software de gestão clínica, prontuários eletrônicos e agenda para psicólogos.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    orientation: "portrait-primary",
     background_color: "#FAF6F0",
     theme_color: "#5C6753",
+    lang: "pt-BR",
+    categories: ["medical", "productivity", "business"],
     icons: [
       {
         src: "/icon.png",
         sizes: "192x192",
         type: "image/png",
+        purpose: "any",
       },
       {
         src: "/apple-icon.png",
         sizes: "512x512",
         type: "image/png",
+        purpose: "any",
       },
       {
         src: "/logo.png",
-        sizes: "any",
+        sizes: "512x512",
         type: "image/png",
+        purpose: "maskable",
       },
     ],
   };

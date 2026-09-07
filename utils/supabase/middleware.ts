@@ -35,6 +35,15 @@ export async function updateSession(request: NextRequest) {
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isRegisterApi = pathname.startsWith("/api/auth/register");
   const isWebhookApi = pathname.startsWith("/api/webhooks");
+  const isPwaStatic =
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/icon.png" ||
+    pathname === "/apple-icon.png" ||
+    pathname === "/logo.png" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml";
 
   const isPublicPath =
     isCalendarPath ||
@@ -43,7 +52,8 @@ export async function updateSession(request: NextRequest) {
     isPrivacidadePath ||
     isAuthCallback ||
     isRegisterApi ||
-    isWebhookApi;
+    isWebhookApi ||
+    isPwaStatic;
 
   // 3. Rotas públicas não autenticadas passam direto (0 latência)
   if (isPublicPath) {

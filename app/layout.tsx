@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Lora } from "next/font/google";
 import "./globals.css";
+import { PwaRegister } from "@/app/components/pwa-register";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -14,11 +15,27 @@ const lora = Lora({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#5C6753",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://psisetting.com.br"),
   title: "PsiSetting — O Software Clínico mais Elegante e Seguro para Psicólogos",
   description:
     "Gestão de consultório descomplicada: prontuários criptografados, 5 modelos CFP, agenda integrada e controle financeiro completo. Experimente grátis.",
+  applicationName: "PsiSetting",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "PsiSetting",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   keywords: [
     "software para psicólogos",
     "prontuário eletrônico psicologia",
@@ -76,6 +93,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-text font-sans">
         {children}
+        <PwaRegister />
       </body>
     </html>
   );
