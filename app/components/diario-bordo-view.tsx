@@ -4,38 +4,57 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
   Lock,
-  Unlock,
-  ShieldAlert,
-  Loader2,
   KeyRound,
   CheckCircle2,
-  Delete,
   AlertCircle,
-  RefreshCw,
-  Sparkles,
+  Mail,
+  ArrowLeft,
+  Loader2,
+  ShieldAlert,
+  Send,
 } from "lucide-react";
 import { hashDiarioPin, verifyDiarioPin } from "@/utils/crypto";
 import { DiarioList } from "./diario-list";
 
-type PinMode = "unlock" | "create_step1" | "create_step2" | "reset_confirm";
+type PinMode =
+  | "unlock"
+  | "create_step1"
+  | "create_step2"
+  | "forgot_send"
+  | "forgot_verify"
+  | "reset_step1"
+  | "reset_step2";
 
 export function DiarioBordoView() {
   const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
+  const otpInputRef = useRef<HTMLInputElement>(null);
 
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [unlocked, setUnlocked] = useState(false);
 
   // Estados do PIN
   const [storedPinHash, setStoredPinHash] = useState<string | null>(null);
   const [mode, setMode] = useState<PinMode>("unlock");
   const [pin, setPin] = useState("");
-  const [tempPin, setTempPin] = useState(""); // usado no passo 1 de criação
+  const [tempPin, setTempPin] = useState(""); // para confirmação
+  const [otpCode, setOtpCode] = useState(""); // código de 6 dígitos do e-mail
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
   const [shake, setShake] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  // Timer do cooldown de reenvio de e-mail
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
 
   const loadUserState = useCallback(async () => {
     setLoadingAuth(true);
@@ -49,6 +68,7 @@ export function DiarioBordoView() {
     }
 
     setUserId(user.id);
+    setUserEmail(user.email || null);
 
     // 1. Verificar se já desbloqueou nesta sessão do navegador
     if (typeof window !== "undefined") {
@@ -60,8 +80,7 @@ export function DiarioBordoView() {
       }
     }
 
-    // 2. Verificar se o usuário já possui um PIN cadastrado
-    // Busca no user_metadata (funciona 100% sem migration) ou no profiles
+    // 2. Verificar se possui PIN cadastrado (user_metadata ou profiles)
     let pinHash = user.user_metadata?.diario_pin_hash || null;
 
     if (!pinHash) {
@@ -75,7 +94,7 @@ export function DiarioBordoView() {
           pinHash = prof.diario_pin_hash;
         }
       } catch {
-        // Ignora caso a coluna ainda não exista no profiles
+        // Ignora caso coluna não exista
       }
     }
 
@@ -94,17 +113,21 @@ export function DiarioBordoView() {
     loadUserState();
   }, [loadUserState]);
 
-  // Foco automático no input invisível para captura de teclado
+  // Foco automático nos inputs
   useEffect(() => {
     if (!unlocked && !loadingAuth) {
       const timer = setTimeout(() => {
-        inputRef.current?.focus();
+        if (mode === "forgot_verify") {
+          otpInputRef.current?.focus();
+        } else {
+          inputRef.current?.focus();
+        }
       }, 100);
       return () => clearTimeout(timer);
     }
   }, [unlocked, loadingAuth, mode]);
 
-  // Efeito de erro com vibração visual (shake)
+  // Animação de erro com vibração visual
   const triggerError = (msg: string) => {
     setError(msg);
     setShake(true);
@@ -114,14 +137,14 @@ export function DiarioBordoView() {
     }, 500);
   };
 
-  // Processamento automático ao atingir 6 dígitos
+  // Processamento automático de PIN de 6 dígitos
   const handlePinComplete = useCallback(
     async (completedPin: string) => {
       if (!userId) return;
 
       if (mode === "unlock") {
         if (!storedPinHash) return;
-        setVerifying(true);
+        setLoadingAction(true);
         setError(null);
 
         const isValid = await verifyDiarioPin(completedPin, userId, storedPinHash);
@@ -133,80 +156,136 @@ export function DiarioBordoView() {
         } else {
           triggerError("PIN incorreto. Tente novamente.");
         }
-        setVerifying(false);
+        setLoadingAction(false);
       } else if (mode === "create_step1") {
         setTempPin(completedPin);
         setPin("");
         setError(null);
         setMode("create_step2");
-      } else if (mode === "create_step2") {
+      } else if (mode === "create_step2" || mode === "reset_step2") {
         if (completedPin !== tempPin) {
-          triggerError("Os PINs não coincidem. Tente novamente.");
+          triggerError("Os PINs não coincidem. Digite novamente.");
           setTempPin("");
-          setMode("create_step1");
+          setMode(mode === "reset_step2" ? "reset_step1" : "create_step1");
           return;
         }
 
-        setVerifying(true);
+        setLoadingAction(true);
         setError(null);
 
         try {
           const newHash = await hashDiarioPin(completedPin, userId);
 
-          // 1. Salvar no user_metadata do Supabase Auth (instantâneo e sem migration)
+          // 1. Salvar no user_metadata do Supabase
           await supabase.auth.updateUser({
             data: { diario_pin_hash: newHash },
           });
 
-          // 2. Tentar salvar também na tabela profiles
+          // 2. Salvar na tabela profiles se a coluna existir
           try {
             await supabase
               .from("profiles")
               .update({ diario_pin_hash: newHash })
               .eq("id", userId);
           } catch {
-            // Ignora se coluna não existir no profiles
+            // Ignora se não existir
           }
 
           setStoredPinHash(newHash);
-          setSuccessMessage("PIN de 6 dígitos configurado com sucesso!");
+          setSuccessMessage("Novo PIN configurado com sucesso!");
           sessionStorage.setItem(`diario_unlocked_${userId}`, "true");
 
           setTimeout(() => {
             setUnlocked(true);
             setSuccessMessage(null);
             setPin("");
-          }, 1200);
+            setTempPin("");
+          }, 1000);
         } catch (err) {
           console.error("Erro ao salvar PIN:", err);
           setError("Erro ao salvar o PIN. Tente novamente.");
         } finally {
-          setVerifying(false);
+          setLoadingAction(false);
         }
+      } else if (mode === "reset_step1") {
+        setTempPin(completedPin);
+        setPin("");
+        setError(null);
+        setMode("reset_step2");
       }
     },
     [userId, mode, storedPinHash, tempPin, supabase]
   );
 
-  // Manipulação de dígitos (via input ou teclado virtual)
-  const handleDigitPress = (digit: string) => {
-    if (verifying || pin.length >= 6) return;
-    const newPin = pin + digit;
-    setPin(newPin);
+  // Solicitar envio do código de segurança por e-mail
+  async function handleSendEmailCode() {
+    if (!userEmail) return;
+    setLoadingAction(true);
     setError(null);
 
-    if (newPin.length === 6) {
-      handlePinComplete(newPin);
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: userEmail,
+        options: { shouldCreateUser: false },
+      });
+
+      if (otpError) {
+        console.error("Erro ao disparar OTP:", otpError);
+        setError("Não foi possível enviar o código por e-mail. Tente novamente.");
+        setLoadingAction(false);
+        return;
+      }
+
+      setCooldown(60); // 60 segundos para reenviar
+      setMode("forgot_verify");
+      setOtpCode("");
+    } catch (err) {
+      console.error("Erro inesperado:", err);
+      setError("Erro de conexão ao enviar e-mail.");
+    } finally {
+      setLoadingAction(false);
     }
-  };
+  }
 
-  const handleDeletePress = () => {
-    if (verifying || pin.length === 0) return;
-    setPin((prev) => prev.slice(0, -1));
+  // Validar código recebido no e-mail
+  async function handleVerifyEmailCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!userEmail || otpCode.length < 6) return;
+
+    setLoadingAction(true);
     setError(null);
-  };
 
-  // Bloquear manualmente o cofre
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: userEmail,
+        token: otpCode.trim(),
+        type: "email",
+      });
+
+      if (verifyError || !data?.user) {
+        console.error("Erro na verificação de OTP:", verifyError);
+        setError("Código incorreto ou expirado. Verifique seu e-mail.");
+        setLoadingAction(false);
+        return;
+      }
+
+      // Código do e-mail validado! Identidade confirmada com segurança.
+      setSuccessMessage("Identidade confirmada!");
+      setTimeout(() => {
+        setSuccessMessage(null);
+        setMode("reset_step1");
+        setPin("");
+        setTempPin("");
+      }, 900);
+    } catch (err) {
+      console.error("Erro inesperado:", err);
+      setError("Erro ao validar código.");
+    } finally {
+      setLoadingAction(false);
+    }
+  }
+
+  // Bloquear manualmente o Diário de Bordo
   const handleLockNow = () => {
     if (userId) {
       sessionStorage.removeItem(`diario_unlocked_${userId}`);
@@ -214,14 +293,6 @@ export function DiarioBordoView() {
     setUnlocked(false);
     setPin("");
     setMode("unlock");
-  };
-
-  // Iniciar fluxo de redefinição ("Esqueci meu PIN")
-  const handleStartReset = () => {
-    setMode("create_step1");
-    setPin("");
-    setTempPin("");
-    setError(null);
   };
 
   if (loadingAuth) {
@@ -232,200 +303,239 @@ export function DiarioBordoView() {
     );
   }
 
-  // --- TELA DE BLOQUEIO / CADASTRO DE PIN ---
+  // Mascarar e-mail para exibição segura (ex: psih***@gmail.com)
+  const maskedEmail = userEmail
+    ? userEmail.replace(/(.{3})(.*)(?=@)/, (_, a, b) => a + "*".repeat(b.length))
+    : "";
+
+  // ─── TELA COMPACTA DE BLOQUEIO / PIN ───
   if (!unlocked) {
     return (
-      <div className="max-w-md mx-auto mt-6 sm:mt-12 px-4">
-        {/* Input invisível para suportar teclado físico e mobile nativo */}
-        <input
-          ref={inputRef}
-          type="password"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={6}
-          value={pin}
-          onChange={(e) => {
-            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-            setPin(val);
-            setError(null);
-            if (val.length === 6) {
-              handlePinComplete(val);
-            }
-          }}
-          className="sr-only"
-          autoFocus
-        />
-
+      <div className="flex flex-col items-center justify-center min-h-[50vh] px-4 py-8">
         <div
-          onClick={() => inputRef.current?.focus()}
-          className={`bg-surface rounded-3xl border border-border/80 shadow-xl overflow-hidden transition-all duration-200 cursor-pointer ${
-            shake ? "animate-shake border-danger/60" : ""
+          className={`w-full max-w-[340px] bg-surface rounded-2xl border border-border shadow-xl p-6 transition-all duration-200 ${
+            shake ? "animate-shake border-danger/60 ring-2 ring-danger/20" : ""
           }`}
         >
-          {/* Cabeçalho do Card */}
-          <div className="p-6 text-center border-b border-border/40 bg-surface-hover/30">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3 shadow-xs">
-              {mode === "unlock" ? <Lock size={26} /> : <KeyRound size={26} />}
-            </div>
-
-            <h2 className="text-xl font-serif font-bold text-text">
-              {mode === "unlock"
-                ? "Cofre do Diário de Bordo"
-                : mode === "create_step1"
-                ? "Criar PIN de Acesso"
-                : "Confirme seu PIN"}
-            </h2>
-
-            <p className="text-xs text-text-muted mt-1.5 max-w-xs mx-auto leading-relaxed">
-              {mode === "unlock"
-                ? "Digite seu PIN de 6 dígitos para acessar suas anotações confidenciais."
-                : mode === "create_step1"
-                ? "Escolha um PIN de 6 números para proteger seu Diário sem depender de senhas externas."
-                : "Digite novamente o PIN de 6 dígitos para confirmar."}
-            </p>
-          </div>
-
-          {/* Área Central: Os 6 Círculos do PIN */}
-          <div className="p-6 sm:p-8 space-y-6">
-            {/* Mensagem de Erro ou Sucesso */}
-            {error && (
-              <div className="p-3 rounded-xl bg-danger/10 border border-danger/20 text-xs font-medium text-danger flex items-center justify-center gap-2 animate-fadeIn">
-                <AlertCircle size={15} />
-                <span>{error}</span>
+          {/* 1. MODO: DIGITAR CÓDIGO DO E-MAIL (VERIFICAÇÃO DE SEGURANÇA) */}
+          {mode === "forgot_verify" ? (
+            <form onSubmit={handleVerifyEmailCode} className="space-y-4 text-center">
+              <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
+                <Mail size={20} />
               </div>
-            )}
 
-            {successMessage && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-2 animate-fadeIn">
-                <CheckCircle2 size={16} />
-                <span>{successMessage}</span>
+              <div>
+                <h3 className="text-base font-serif font-bold text-text">
+                  Código de Segurança
+                </h3>
+                <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                  Enviamos um código de 6 dígitos para{" "}
+                  <strong className="text-text">{maskedEmail}</strong>.
+                </p>
               </div>
-            )}
 
-            {/* Os 6 Indicadores Visuais */}
-            <div className="flex items-center justify-center gap-3 sm:gap-4 py-2">
-              {[0, 1, 2, 3, 4, 5].map((index) => {
-                const isFilled = pin.length > index;
-                const isCurrent = pin.length === index;
-                return (
-                  <div
-                    key={index}
-                    className={`w-10 h-12 sm:w-11 sm:h-13 rounded-2xl border flex items-center justify-center transition-all duration-200 ${
-                      isFilled
-                        ? "bg-primary border-primary text-white shadow-xs scale-105"
-                        : isCurrent
-                        ? "bg-surface border-primary/60 ring-2 ring-primary/20"
-                        : "bg-surface border-border text-text-muted/30"
-                    }`}
-                  >
-                    {isFilled ? (
-                      <span className="w-3 h-3 rounded-full bg-white block animate-scaleIn" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-border block" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+              {error && (
+                <div className="p-2.5 rounded-xl bg-danger/10 text-danger text-xs font-medium flex items-center justify-center gap-1.5 animate-fadeIn">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            {/* Teclado Numérico Virtual (Perfeito para iPad / Celular / Touch) */}
-            <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto pt-2">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDigitPress(num);
-                  }}
-                  disabled={verifying}
-                  className="h-12 rounded-2xl bg-surface-hover/60 hover:bg-surface-hover text-text font-semibold text-lg border border-border/40 active:scale-95 transition-all cursor-pointer select-none"
-                >
-                  {num}
-                </button>
-              ))}
+              {successMessage && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-medium flex items-center justify-center gap-1.5 animate-fadeIn">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
 
-              {/* Botão Limpar */}
+              <div>
+                <input
+                  ref={otpInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  autoFocus
+                  required
+                  className="w-full py-2.5 px-3 rounded-xl bg-background border border-border text-center text-xl font-mono tracking-widest text-text focus:outline-hidden focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-text-muted/30"
+                />
+              </div>
+
               <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPin("");
-                  setError(null);
-                }}
-                className="h-12 rounded-2xl text-text-muted hover:text-text hover:bg-surface-hover/40 text-xs font-medium transition-all cursor-pointer select-none"
+                type="submit"
+                disabled={loadingAction || otpCode.length < 6}
+                className="w-full py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Limpar
+                {loadingAction ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <span>Confirmar Código</span>
+                )}
               </button>
 
-              {/* Dígito Zero */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDigitPress("0");
-                }}
-                disabled={verifying}
-                className="h-12 rounded-2xl bg-surface-hover/60 hover:bg-surface-hover text-text font-semibold text-lg border border-border/40 active:scale-95 transition-all cursor-pointer select-none"
-              >
-                0
-              </button>
-
-              {/* Botão Backspace */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeletePress();
-                }}
-                disabled={verifying}
-                className="h-12 rounded-2xl bg-surface-hover/30 hover:bg-surface-hover text-text-muted hover:text-text flex items-center justify-center border border-border/40 active:scale-95 transition-all cursor-pointer select-none"
-                aria-label="Apagar último número"
-              >
-                <Delete size={20} />
-              </button>
-            </div>
-
-            {/* Opção Esqueci meu PIN / Redefinir */}
-            <div className="text-center pt-2">
-              {mode === "unlock" ? (
+              <div className="flex items-center justify-between text-[11px] pt-1 text-text-muted">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStartReset();
-                  }}
-                  className="text-xs text-text-muted hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <RefreshCw size={13} />
-                  <span>Esqueci meu PIN / Redefinir PIN</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
                     setMode("unlock");
-                    setPin("");
-                    setTempPin("");
                     setError(null);
                   }}
-                  className="text-xs text-text-muted hover:text-text transition-colors cursor-pointer"
+                  className="hover:text-text cursor-pointer flex items-center gap-1"
                 >
-                  Voltar para tela de desbloqueio
+                  <ArrowLeft size={11} />
+                  <span>Voltar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendEmailCode}
+                  disabled={cooldown > 0 || loadingAction}
+                  className="text-primary hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline"
+                >
+                  {cooldown > 0 ? `Reenviar em ${cooldown}s` : "Reenviar código"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* 2. MODO: ENTRADA DE PIN DE 6 DÍGITOS (DESBLOQUEIO OU CRIAÇÃO) */
+            <div
+              onClick={() => inputRef.current?.focus()}
+              className="text-center space-y-4 cursor-pointer"
+            >
+              {/* Input invisível com foco automático para capturar digitação nativa */}
+              <input
+                ref={inputRef}
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={pin}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setPin(val);
+                  setError(null);
+                  if (val.length === 6) {
+                    handlePinComplete(val);
+                  }
+                }}
+                className="sr-only"
+                autoFocus
+              />
+
+              {/* Ícone sutil e compacto */}
+              <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
+                {mode === "unlock" ? <Lock size={20} /> : <KeyRound size={20} />}
+              </div>
+
+              {/* Título e Subtítulo */}
+              <div>
+                <h3 className="text-base font-serif font-bold text-text">
+                  {mode === "unlock"
+                    ? "Diário de Bordo"
+                    : mode === "create_step1" || mode === "reset_step1"
+                    ? "Definir PIN de 6 Dígitos"
+                    : "Confirme o Novo PIN"}
+                </h3>
+                <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                  {mode === "unlock"
+                    ? "Digite seu PIN para desbloquear o cofre."
+                    : mode === "create_step1" || mode === "reset_step1"
+                    ? "Escolha 6 números para proteger suas anotações."
+                    : "Digite os 6 números novamente para confirmar."}
+                </p>
+              </div>
+
+              {/* Alertas */}
+              {error && (
+                <div className="p-2 rounded-xl bg-danger/10 text-danger text-xs font-medium flex items-center justify-center gap-1.5 animate-fadeIn">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-medium flex items-center justify-center gap-1.5 animate-fadeIn">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
+
+              {/* As 6 Bolinhas Minimalistas (Dots) */}
+              <div className="flex items-center justify-center gap-3 py-3">
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                  const isFilled = pin.length > index;
+                  return (
+                    <div
+                      key={index}
+                      className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
+                        isFilled
+                          ? "bg-primary scale-125 shadow-xs"
+                          : "border-2 border-border/80 bg-background/60"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+
+              {loadingAction ? (
+                <div className="py-2 flex items-center justify-center gap-1.5 text-xs text-text-muted">
+                  <Loader2 size={14} className="animate-spin text-primary" />
+                  <span>Validando...</span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-text-muted">
+                  Clique ou toque na tela para digitar
+                </p>
+              )}
+
+              {/* Opção Segura: Esqueci meu PIN */}
+              {mode === "unlock" && (
+                <div className="pt-2 border-t border-border/50">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSendEmailCode();
+                    }}
+                    disabled={loadingAction}
+                    className="text-xs text-text-muted hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Mail size={12} />
+                    <span>Esqueci meu PIN (Verificar por E-mail)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Voltar se estiver no passo 2 de criação/redefinição */}
+              {(mode === "create_step2" || mode === "reset_step2") && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPin("");
+                    setTempPin("");
+                    setMode(mode === "reset_step2" ? "reset_step1" : "create_step1");
+                  }}
+                  className="text-xs text-text-muted hover:text-text transition-colors cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                >
+                  <ArrowLeft size={12} />
+                  <span>Voltar ao passo anterior</span>
                 </button>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // --- SE ESTIVER DESBLOQUEADO: EXIBE O DIÁRIO DE BORDO ---
+  // ─── SE ESTIVER DESBLOQUEADO: EXIBE O DIÁRIO DE BORDO ───
   return (
     <div className="print:hidden select-none" onContextMenu={(e) => e.preventDefault()}>
-      {/* Banner de Segurança com Botão de Bloqueio Rápido */}
+      {/* Barra de Segurança com Bloqueio Rápido */}
       <div className="flex items-center justify-between gap-3 p-3.5 mb-6 rounded-2xl bg-primary/10 border border-primary/20 shadow-2xs">
         <div className="flex items-center gap-2.5 text-primary">
           <ShieldAlert size={19} className="shrink-0" />
@@ -434,7 +544,7 @@ export function DiarioBordoView() {
               Cofre do Diário de Bordo Desbloqueado
             </p>
             <p className="text-[11px] text-text-muted hidden sm:block">
-              Conteúdo de altíssima sensibilidade — uso exclusivo da profissional
+              Conteúdo protegido — uso exclusivo da profissional
             </p>
           </div>
         </div>
