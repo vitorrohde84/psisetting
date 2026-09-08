@@ -154,3 +154,30 @@ export async function decryptClinicalData(
     return "[Conteúdo protegido - Chave indisponível]";
   }
 }
+
+/**
+ * Gera o hash SHA-256 seguro de um PIN de 6 dígitos para o Diário de Bordo.
+ * O hash é salgado com o ID exclusivo do usuário, impedindo ataques de rainbow table.
+ */
+export async function hashDiarioPin(pin: string, userId: string): Promise<string> {
+  const cryptoObj = getCrypto();
+  const enc = new TextEncoder();
+  const data = enc.encode(`diario-pin-salt:${userId}:${pin}`);
+  const hashBuffer = await cryptoObj.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Valida o PIN fornecido contra o hash armazenado.
+ */
+export async function verifyDiarioPin(
+  pin: string,
+  userId: string,
+  storedHash: string
+): Promise<boolean> {
+  if (!pin || !storedHash) return false;
+  const computedHash = await hashDiarioPin(pin, userId);
+  return computedHash === storedHash;
+}

@@ -25,8 +25,10 @@ import {
   Download,
   ShieldAlert,
   RefreshCw,
+  KeyRound,
 } from "lucide-react";
 import { generateFullSystemBackupCSV } from "@/utils/export-backup";
+import { AlterarPinModal } from "./alterar-pin-modal";
 
 interface Profile {
   id: string;
@@ -50,6 +52,7 @@ export function ConfiguracoesView() {
 
   const [exportingBackup, setExportingBackup] = useState(false);
   const [backupStatus, setBackupStatus] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Profile state
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -705,6 +708,45 @@ export function ConfiguracoesView() {
           </div>
         </div>
 
+        {/* ─── Segurança & PIN do Diário de Bordo ─── */}
+        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <KeyRound size={18} className="text-primary" />
+              <h3 className="text-base font-serif font-medium text-text">
+                PIN do Diário de Bordo
+              </h3>
+            </div>
+            <span className="text-xs font-semibold text-text-muted flex items-center gap-1">
+              <ShieldCheck size={14} className="text-success" /> 6 Dígitos
+            </span>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-text-muted leading-relaxed">
+              O Diário de Bordo é protegido por um PIN exclusivo de 6 dígitos numéricos para garantir que suas anotações mais íntimas fiquem em sigilo absoluto, sem depender de senhas externas ou do Google.
+            </p>
+
+            <div className="p-4 rounded-xl bg-background border border-border/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-text">Chave do Cofre Pessoal</p>
+                <p className="text-xs text-text-muted">
+                  Defina ou altere seu código de 6 números a qualquer momento.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPinModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
+              >
+                <KeyRound size={14} />
+                <span>Configurar / Alterar PIN</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* ─── Backup & Exportação Completa de Dados (Portabilidade LGPD & CFP) ─── */}
         <div className="lg:col-span-2 bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
           <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
@@ -775,6 +817,11 @@ export function ConfiguracoesView() {
           </div>
         </div>
       </div>
+
+      <AlterarPinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+      />
     </div>
   );
 }
