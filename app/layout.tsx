@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://psisetting.com.br"),
+  metadataBase: new URL("https://www.psisetting.com.br"),
   title: "PsiSetting — O Software Clínico mais Elegante e Seguro para Psicólogos",
   description:
     "Gestão de consultório descomplicada: prontuários criptografados, 5 modelos CFP, agenda integrada e controle financeiro completo. Experimente grátis.",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    url: "https://psisetting.com.br",
+    url: "https://www.psisetting.com.br",
     title: "PsiSetting — Gestão Clínica para Psicólogos",
     description:
       "Prontuários eletrônicos com criptografia clínica, 5 modelos oficiais CFP, agenda e financeiro. Teste grátis.",

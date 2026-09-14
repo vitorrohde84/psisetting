@@ -1,9 +1,8 @@
 # PsiSetting — robots.txt
-# https://psisetting.com.br
+# https://www.psisetting.com.br
 
 User-agent: *
-Allow: /landing
-Allow: /login
+Allow: /
 Disallow: /api/
 Disallow: /auth/
 Disallow: /pacientes/
@@ -15,4 +14,4 @@ Disallow: /configuracoes/
 Disallow: /diario-bordo/
 Disallow: /calendario/
 
-Sitemap: https://psisetting.com.br/sitemap.xml
+Sitemap: https://www.psisetting.com.br/sitemap.xml

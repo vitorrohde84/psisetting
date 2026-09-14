@@ -93,8 +93,8 @@ const jsonLdOrganization = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "PsiSetting",
-  url: "https://psisetting.com.br",
-  logo: "https://psisetting.com.br/og-image.png",
+  url: "https://www.psisetting.com.br",
+  logo: "https://www.psisetting.com.br/og-image.png",
   description:
     "Seu setting clínico organizado, protegido e em um só lugar. Desenvolvido e validado em colaboração com psicóloga clínica atuante.",
 };
@@ -120,7 +120,7 @@ const jsonLdWebSite = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "PsiSetting",
-  url: "https://psisetting.com.br",
+  url: "https://www.psisetting.com.br",
   description:
     "Seu setting clínico organizado, protegido e em um só lugar. Prontuário protegido, gestão da clínica e documentos psicológicos.",
 };

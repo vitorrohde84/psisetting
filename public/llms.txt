@@ -37,10 +37,10 @@ Psicólogos clínicos autônomos, psicoterapeutas e pequenas clínicas de saúde
 
 ## Contato
 
-- Website: https://psisetting.com.br
+- Website: https://www.psisetting.com.br
 - E-mail: contato@psisetting.com.br
 
 ## Links
 
-- [Landing Page](https://psisetting.com.br/landing)
-- [Login / Criar Conta](https://psisetting.com.br/login)
+- [Landing Page](https://www.psisetting.com.br)
+- [Login / Criar Conta](https://app.psisetting.com.br/login)

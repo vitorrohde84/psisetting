@@ -5,13 +5,13 @@ export const metadata: Metadata = {
   description:
     "Um sistema que entende como uma sessão de psicoterapia realmente acontece. Prontuário protegido, gestão da clínica e documentos conforme a Resolução CFP nº 06/2019.",
   alternates: {
-    canonical: "https://psisetting.com.br",
+    canonical: "https://www.psisetting.com.br",
   },
   openGraph: {
     title: "PsiSetting — Seu setting clínico organizado, protegido e em um só lugar",
     description:
       "Desenvolvido e validado em colaboração com psicóloga clínica atuante. Prontuário protegido, gestão da clínica e documentos psicológicos.",
-    url: "https://psisetting.com.br",
+    url: "https://www.psisetting.com.br",
     siteName: "PsiSetting",
     locale: "pt_BR",
     type: "website",
