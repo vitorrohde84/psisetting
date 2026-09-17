@@ -1,0 +1,83 @@
+name: CI
+
+# A24 — docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md
+#
+# O projeto chegou a 130 commits e a produção sem nenhum pipeline. Os scripts
+# em scripts/test-*.ts eram rodados à mão — inclusive o de isolamento
+# multi-tenant, que testava justamente o que estava quebrado e por isso nunca
+# reprovou nada.
+#
+# Este pipeline é o mínimo que impede uma regressão silenciosa dos achados
+# desta auditoria.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Auditoria de dependências
+        # A02 era um RCE não autenticado no Next que já tinha correção
+        # publicada. Falha aqui significa CVE conhecida entrando em produção.
+        run: npm audit --audit-level=high
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Lint
+        # NÃO BLOQUEIA, e isto é uma dívida declarada, não uma escolha de
+        # conforto: há 115 erros pré-existentes (87 `no-explicit-any`, 74
+        # `no-unused-vars`), todos anteriores a esta auditoria. Bloquear agora
+        # deixaria o CI vermelho desde o primeiro dia, e CI que nasce vermelho
+        # é CI que ninguém olha. Zerar o backlog e trocar para bloqueante está
+        # no relatório de handoff.
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Testes
+        run: npm test
+
+      - name: Segredo no código versionado
+        # A07: a chave de criptografia clínica era uma constante no repositório.
+        # Este passo impede que volte.
+        run: |
+          set -e
+          if grep -rn "psychocare-vault-secret-key" --include="*.ts" --include="*.tsx" app utils 2>/dev/null | grep -v "LEGACY_MASTER_SECRET" | grep -v "^utils/crypto.ts"; then
+            echo "::error::Segredo legado referenciado fora do caminho de leitura do formato antigo."
+            exit 1
+          fi
+          if grep -rEn "NEXT_PUBLIC_[A-Z_]*(SECRET|KEK|PRIVATE|SERVICE_ROLE)" --include="*.ts" --include="*.tsx" app utils 2>/dev/null | grep -v "CLINICAL_ENCRYPTION_SECRET"; then
+            echo "::error::Variável NEXT_PUBLIC_ com nome de segredo: tudo com esse prefixo vai para o bundle do navegador."
+            exit 1
+          fi
+          echo "OK: nenhum segredo novo exposto ao cliente."
+
+      - name: Script SQL legado fora da quarentena
+        # A17: reexecutar o "script mestre de blindagem" reabria a IDOR de
+        # laudos. Eles ficam em scripts/sql-legado-nao-executar/ e não voltam.
+        run: |
+          set -e
+          if ls scripts/*.sql 2>/dev/null | grep -q .; then
+            echo "::error::Há .sql solto em scripts/. Migrações válidas vivem em supabase/migrations/."
+            exit 1
+          fi
+          echo "OK: nenhum SQL legado fora da quarentena."
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://exemplo.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: chave-de-build

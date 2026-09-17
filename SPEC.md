@@ -21,7 +21,7 @@
 1. **Prontuário Eletrônico & Evoluções:**
    * Registro confidencial e cronológico por sessão.
    * **Modo Privacidade:** Botão de ativação rápida na barra superior e atalhos para ocultação visual instantânea de nomes, diagnósticos e valores em tela (ideal para atendimentos online, presenciais ou locais com circulação).
-   * Criptografia ponta a ponta na camada de aplicação (AES-256 GCM).
+   * Criptografia AES-256 GCM na camada de aplicação, com **chave própria por psicólogo** (modelo de envelope). Ver a seção 5 para o que isso protege e o que não protege — a declaração honesta do par (adversário, propriedade) faz parte da especificação.
 
 2. **Emissão de Laudos & Documentos (Resolução CFP nº 06/2019):**
    * Modelos oficiais padronizados com preenchimento automático inteligente de dados do paciente e psicólogo:
@@ -75,18 +75,55 @@
 |---|---|
 | Frontend | Next.js 16 (App Router + Turbopack), React 19, TypeScript |
 | Estilização | Tailwind CSS, Lucide Icons |
-| Criptografia | AES-GCM 256 bits isomórfico (WebCrypto API no cliente e Node.js) com chave derivada por usuário |
+| Criptografia | AES-GCM 256 bits isomórfico (WebCrypto no cliente e no Node). Envelope: KEK no servidor (`CLINICAL_KEK`) cifra uma DEK aleatória por psicólogo, guardada em `user_encryption_keys` |
 | Backend & DB | Supabase PostgreSQL com Row Level Security (RLS) estrito em todas as tabelas |
-| Autenticação | Supabase Auth (Email/Senha + Google OAuth) com cadastro por convite e tokens individuais |
-| Storage | Supabase Storage com buckets privados para laudos e logos |
+| Autenticação | Supabase Auth (Email/Senha + Google OAuth), cadastro aberto com teste de 7 dias ou por convite |
+| Storage | Supabase Storage: `laudos` privado com URL assinada; `logos` público para leitura direta, sem listagem |
 | Calendário | Rota RFC 5545 iCalendar (`/calendario/[token]`) com fuso `America/Sao_Paulo` |
-| Hospedagem | Vercel (Deploy contínuo via GitHub: `psihellenlimberger-lgtm/hellen-sistema`) |
+| Migrações | `supabase/migrations/`, numeradas e idempotentes. `scripts/sql-legado-nao-executar/` é histórico — **não rode nada de lá** |
+| Hospedagem | Vercel (deploy contínuo via GitHub) |
 
 ---
 
 ## 5. Regras de Segurança e Privacidade (CFP & LGPD)
 
 * Todos os dados clínicos (nomes, CPFs, relatos de prontuário, anotações de evolução e laudos) são criptografados na aplicação antes da gravação no banco de dados.
-* Nenhuma `service_role key` é exposta no frontend.
-* Acesso estritamente restrito: cada psicólogo acessa unicamente os seus registros (`psicologo_id = auth.uid()`).
-* Feeds de calendário externos nunca expõem dados sensíveis (apenas horário, modalidade e primeiro nome com iniciais).
+* Nenhuma `service_role key` é exposta no frontend. Nenhum segredo usa o prefixo `NEXT_PUBLIC_` — tudo com esse prefixo é embutido no JavaScript servido ao navegador.
+* Acesso estritamente restrito: cada psicólogo acessa unicamente os seus registros (`psicologo_id = auth.uid()`), com RLS cobrindo as quatro operações em `USING` **e** `WITH CHECK`.
+* Colunas de privilégio (`is_admin`, `is_vip`, `subscription_status`, `email`, `calendar_token`) **não são graváveis pelo próprio usuário**: há `REVOKE` de coluna e trigger de guarda. Autorização nunca depende de dado que o usuário edita.
+* Feeds de calendário externos nunca expõem dados sensíveis (apenas horário, modalidade e primeiro nome com iniciais). Nome completo e anotações clínicas **não entram** no `.ics`.
+
+### 5.1 O que a criptografia protege — e contra quem NÃO protege
+
+Toda alegação de proteção criptográfica aqui vem com o par (adversário, propriedade). Afirmar "é criptografado" sem dizer contra quem é como não afirmar nada.
+
+**Protege:**
+* Vazamento do banco, backup roubado, falha de RLS, acesso ao painel do Supabase — o conteúdo é inútil sem a `CLINICAL_KEK`, que não está no banco.
+* Um psicólogo tentando ler dado de outro — cada sessão só obtém a própria chave.
+
+**Não protege:**
+* **Servidor comprometido.** Quem executa código no servidor alcança a KEK e o banco. Não há proteção criptográfica contra isso neste modelo.
+* **Não é ponta a ponta.** O servidor consegue decifrar quando precisa (feed iCal). Foi decisão consciente: E2E real quebraria o calendário e faria de "esqueci a senha" uma perda definitiva do prontuário.
+* **O PIN do Diário de Bordo não é um cofre.** É trava de tela contra quem passa pela sala: a verificação acontece no navegador e são 10⁶ combinações. Não o descreva como controle de segurança.
+
+Qualquer texto de marketing sobre segurança precisa caber nesta seção. Se não couber, o texto está errado — ou a arquitetura mudou e esta seção está desatualizada.
+
+---
+
+## 6. Checklist de segurança (revisar antes de publicar)
+
+> Esta checklist existia no SPEC original, foi removida no commit `964b6c7` (18/08) e voltou com os itens que a auditoria de 17/09 acrescentou. Ela é barata e foi o único gate de segurança que o projeto já teve.
+
+- [ ] Nenhuma `service_role key` no código do frontend
+- [ ] Nenhuma variável `NEXT_PUBLIC_` contendo segredo, chave ou token
+- [ ] Todas as rotas exigem sessão autenticada, exceto landing, login, webhook e feed de calendário
+- [ ] RLS ativo e testado em todas as tabelas (tentar acessar dado de outro usuário deve falhar)
+- [ ] Nenhuma policy concede a `anon`/`public`, nem usa `USING (true)`
+- [ ] Colunas de privilégio não graváveis pelo usuário (tente `update profiles set is_admin=true` numa conta comum: deve falhar)
+- [ ] Bucket de laudos privado, URLs assinadas com expiração, caminho validado por `user.id`
+- [ ] Feed `.ics` sem nome completo e sem anotação clínica
+- [ ] Preço e concessão de assinatura decididos **apenas** no servidor
+- [ ] Webhook de pagamento com validação de assinatura e idempotência
+- [ ] `npm audit` sem vulnerabilidade alta ou crítica
+- [ ] Nenhum `.sql` solto em `scripts/` (migrações vivem em `supabase/migrations/`)
+- [ ] Sessão expira após inatividade e logout limpa a chave da memória

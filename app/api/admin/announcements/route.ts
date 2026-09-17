@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { validarLinkExterno } from "@/utils/validation";
 
 export async function GET() {
   try {
@@ -41,6 +42,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Título e mensagem são obrigatórios." }, { status: 400 });
     }
 
+    // A21 — o comunicado aparece na barra superior de TODOS os psicólogos, e
+    // link_url virava href sem validação nenhuma: `javascript:...` ali é XSS
+    // distribuído para a base inteira a partir do painel admin.
+    const linkLimpo = validarLinkExterno(link_url);
+    if (link_url && !linkLimpo) {
+      return NextResponse.json(
+        { error: "O link deve começar com http:// ou https://." },
+        { status: 400 }
+      );
+    }
+
+    if (String(title).length > 200 || String(message).length > 2000) {
+      return NextResponse.json(
+        { error: "Título ou mensagem excedem o tamanho permitido." },
+        { status: 400 }
+      );
+    }
+
     const adminClient = createAdminClient();
 
     const { data: newAnnouncement, error: insertError } = await adminClient
@@ -50,7 +69,7 @@ export async function POST(request: Request) {
         message: message.trim(),
         type: type || "info",
         active: active !== undefined ? active : true,
-        link_url: link_url ? link_url.trim() : null,
+        link_url: linkLimpo,
         link_label: link_label ? link_label.trim() : null,
       })
       .select()
@@ -91,7 +110,16 @@ export async function PATCH(request: Request) {
     if (title) updates.title = title.trim();
     if (message) updates.message = message.trim();
     if (type) updates.type = type;
-    if (link_url !== undefined) updates.link_url = link_url ? link_url.trim() : null;
+    if (link_url !== undefined) {
+      const linkLimpo = validarLinkExterno(link_url);
+      if (link_url && !linkLimpo) {
+        return NextResponse.json(
+          { error: "O link deve começar com http:// ou https://." },
+          { status: 400 }
+        );
+      }
+      updates.link_url = linkLimpo;
+    }
     if (link_label !== undefined) updates.link_label = link_label ? link_label.trim() : null;
 
     const { data: updatedAnnouncement, error: updateError } = await adminClient
