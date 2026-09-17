@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { decryptClinicalData } from "@/utils/crypto";
+import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 
 /**
  * RFC 5545 iCalendar feed for subscribing in Apple Calendar / iPhone.
@@ -20,11 +21,20 @@ interface RouteParams {
   params: Promise<{ token: string }>;
 }
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(request: Request, { params }: RouteParams) {
   const { token } = await params;
 
   if (!token) {
     return new NextResponse("Não autorizado", { status: 403 });
+  }
+
+  // O token é a única credencial deste caminho, e a rota lê dado clínico sem
+  // sessão. Sem limite, ela é um oráculo de adivinhação ilimitado. 60 requisições
+  // por hora acomodam qualquer cliente de calendário real — o iPhone atualiza
+  // algumas vezes ao dia.
+  const rate = await checkRateLimit(`ical:${getClientIp(request)}`, 60, 60 * 60 * 1000);
+  if (!rate.success) {
+    return new NextResponse("Muitas requisições", { status: 429 });
   }
 
   try {
@@ -51,7 +61,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const { data: agendamentos, error } = await supabase
       .from("agendamentos")
-      .select("id, data, horario, duracao_minutos, modalidade, status, observacoes, pacientes(nome)")
+      // `observacoes` deixou de ser buscado: não entra mais no feed (A03), e o
+      // que não é lido não pode vazar.
+      .select("id, data, horario, duracao_minutos, modalidade, status, pacientes(nome)")
       .eq("psicologo_id", psicologoId)
       .gte("data", cutoffDate)
       .in("status", ["agendado", "confirmado", "realizado"])
@@ -63,21 +75,18 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return new NextResponse("Erro interno", { status: 500 });
     }
 
-    // Decodificar dados confidenciais (nome do paciente e observações) para o feed da psicóloga
+    // O nome é descriptografado apenas para ser reduzido a "Maria S." no
+    // SUMMARY. Ele não sai daqui inteiro — ver A03 e o comentário na montagem
+    // da DESCRIPTION. As observações clínicas não são mais lidas.
     const decryptedAgendamentos = await Promise.all(
       (agendamentos || []).map(async (ag) => {
         let pacNome = (ag.pacientes as { nome?: string })?.nome || "Paciente";
         if (pacNome && pacNome.startsWith("enc:v1:")) {
           pacNome = await decryptClinicalData(pacNome, psicologoId);
         }
-        let obs = ag.observacoes;
-        if (obs && obs.startsWith("enc:v1:")) {
-          obs = await decryptClinicalData(obs, psicologoId);
-        }
         return {
           ...ag,
           pacienteNomeDecrypted: pacNome,
-          observacoesDecrypted: obs,
         };
       })
     );
@@ -178,15 +187,21 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
     lines.push(`SUMMARY:${summary}`);
     lines.push(`STATUS:${icsStatus}`);
 
-    const obs = ag.observacoesDecrypted || ag.observacoes;
-    const descriptionParts = [
-      `Paciente: ${pacienteNome}`,
-      ag.modalidade ? `Modalidade: ${ag.modalidade === "online" ? "Online" : "Presencial"}` : null,
-      obs ? `Obs: ${obs}` : null,
-    ].filter(Boolean);
-
-    if (descriptionParts.length > 0) {
-      lines.push(`DESCRIPTION:${escapeICS(descriptionParts.join(" | "))}`);
+    // A03 — docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md
+    //
+    // A DESCRIPTION levava `Paciente: <nome completo>` e `Obs: <anotação
+    // clínica>` em texto claro. Esta rota é PÚBLICA: basta a URL. E uma URL de
+    // calendário trafega por histórico de navegador, logs de proxy/CDN e
+    // backup de iPhone — lugares onde dado sensível de saúde (LGPD art. 11)
+    // não pode estar.
+    //
+    // A anonimização do SUMMARY ("Maria S.") não servia de nada enquanto a
+    // DESCRIPTION a desfazia logo abaixo. O feed passa a carregar apenas o que
+    // um calendário precisa para ser útil: quando, por quanto tempo e em que
+    // modalidade. Quem precisa do prontuário abre o sistema, autenticado.
+    if (ag.modalidade) {
+      const modalidadeLabel = ag.modalidade === "online" ? "Online" : "Presencial";
+      lines.push(`DESCRIPTION:${escapeICS(`Modalidade: ${modalidadeLabel}`)}`);
     }
 
     lines.push("END:VEVENT");
@@ -216,5 +231,7 @@ function escapeICS(text: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+    // \r precisa ser tratado junto com \n: o iCal separa propriedades por
+    // CRLF, então um CR solto permite injetar propriedades no evento.
+    .replace(/\r\n|\r|\n/g, "\\n");
 }

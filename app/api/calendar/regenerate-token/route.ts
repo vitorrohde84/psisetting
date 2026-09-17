@@ -19,7 +19,7 @@ export async function POST() {
     }
 
     // Regeneração é barata para o usuário e cara para o abuso: 10 por hora.
-    const limit = checkRateLimit(
+    const limit = await checkRateLimit(
       `regenerate-calendar:${user.id}`,
       10,
       60 * 60 * 1000

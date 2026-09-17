@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     // 🛡️ Proteção Anti-Força Bruta: Máximo 8 tentativas de validação de cupom por IP a cada 5 minutos
     const ip = getClientIp(request);
-    const rateCheck = checkRateLimit(`coupon:${ip}`, 8, 5 * 60 * 1000);
+    const rateCheck = await checkRateLimit(`coupon:${ip}`, 8, 5 * 60 * 1000);
     if (!rateCheck.success) {
       return NextResponse.json(
         { error: "Muitas tentativas de aplicar cupons. Por favor, aguarde alguns minutos antes de tentar novamente." },

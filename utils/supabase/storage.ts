@@ -55,6 +55,14 @@ export async function getLaudoSignedUrl(
     return { signedUrl: null, error: "Usuário não autenticado." };
   }
 
+  // A04 — defesa em profundidade. A policy do Storage já exige que a primeira
+  // pasta seja o auth.uid(), mas esta função aceitava caminho arbitrário e era
+  // a rota de exploração pronta caso a policy voltasse a afrouxar (o que já
+  // aconteceu uma vez, por reexecução de script). Validar aqui custa nada.
+  if (!filePath || !filePath.startsWith(`${user.id}/`)) {
+    return { signedUrl: null, error: "Caminho de arquivo inválido." };
+  }
+
   const { data, error } = await supabase.storage
     .from("laudos")
     .createSignedUrl(filePath, 600); // 10 minutes
