@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { limparCacheDeChaves } from "@/utils/crypto";
 import { LogOut } from "lucide-react";
 
 export function LogoutButton() {
@@ -10,6 +11,9 @@ export function LogoutButton() {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    // A chave clínica vive em memória (A07). Ao sair, ela some junto — do
+    // contrário continuaria acessível a quem assumisse a aba em seguida.
+    limparCacheDeChaves();
     router.push("/login");
     router.refresh();
   }
