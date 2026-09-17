@@ -370,10 +370,17 @@ async function main() {
 
   for (const [tabela, colunas] of Object.entries(CAMPOS_CIFRADOS)) {
     for (const coluna of colunas) {
-      const { count, error } = await supabase
+      // Com --user, a conferência precisa olhar SÓ aquele psicólogo. Sem este
+      // filtro, rodar para uma conta só reportava "sobraram N campos" contando
+      // os das outras contas — um alarme falso que parece falha de gravação.
+      let consulta = supabase
         .from(tabela)
         .select(coluna, { count: "exact", head: true })
         .like(coluna, `${V1}%`);
+
+      if (USER_FILTER) consulta = consulta.eq("psicologo_id", USER_FILTER);
+
+      const { count, error } = await consulta;
 
       if (error) continue;
       if ((count ?? 0) > 0) {
