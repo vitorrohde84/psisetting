@@ -441,7 +441,7 @@ export function DiarioBordoView() {
                 </h3>
                 <p className="text-xs text-text-muted mt-1 leading-relaxed">
                   {mode === "unlock"
-                    ? "Digite seu PIN para desbloquear o cofre."
+                    ? "Digite seu PIN para abrir o Diário de Bordo."
                     : mode === "create_step1" || mode === "reset_step1"
                     ? "Escolha 6 números para proteger suas anotações."
                     : "Digite os 6 números novamente para confirmar."}
@@ -541,10 +541,10 @@ export function DiarioBordoView() {
           <ShieldAlert size={19} className="shrink-0" />
           <div>
             <p className="text-xs sm:text-sm font-semibold text-primary">
-              Cofre do Diário de Bordo Desbloqueado
+              Diário de Bordo aberto nesta sessão
             </p>
             <p className="text-[11px] text-text-muted hidden sm:block">
-              Conteúdo protegido — uso exclusivo da profissional
+              Fecha sozinho ao sair ou ao encerrar a sessão
             </p>
           </div>
         </div>
@@ -555,7 +555,7 @@ export function DiarioBordoView() {
           title="Bloquear Diário de Bordo agora"
         >
           <Lock size={13} />
-          <span>Bloquear Cofre</span>
+          <span>Fechar Diário</span>
         </button>
       </div>
 

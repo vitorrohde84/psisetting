@@ -729,9 +729,9 @@ export function ConfiguracoesView() {
 
             <div className="p-4 rounded-xl bg-background border border-border/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold text-text">Chave do Cofre Pessoal</p>
+                <p className="text-xs font-bold text-text">PIN do Diário de Bordo</p>
                 <p className="text-xs text-text-muted">
-                  Defina ou altere seu código de 6 números a qualquer momento.
+                  Bloqueio rápido de tela para o Diário. Defina ou altere a qualquer momento.
                 </p>
               </div>
 
