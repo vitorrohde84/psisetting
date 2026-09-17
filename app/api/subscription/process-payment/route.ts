@@ -1,9 +1,28 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { paymentClient } from "@/utils/mercadopago";
+import { checkRateLimit } from "@/utils/rate-limit";
+import { ativarAssinatura } from "@/utils/subscription-activation";
+import { resolverDescontoDeCupom, registrarResgate } from "@/utils/coupons";
 
 const BASE_PRICE = 34.9;
 
+/**
+ * Processa o pagamento do Brick (cartão ou PIX) e ativa a assinatura.
+ *
+ * A05 — docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md
+ *
+ * A versão anterior fazia:
+ *     let finalAmount = Number(formData.transaction_amount) || BASE_PRICE;
+ * com formData vindo cru do corpo da requisição, e depois espalhava
+ * `...formData` inteiro no pagamento. Ou seja: o cliente definia quanto ia
+ * pagar. R$ 0,01 caía em `approved` e liberava 30 dias de assinatura.
+ *
+ * Agora o preço é calculado exclusivamente no servidor, e do corpo da
+ * requisição só passam adiante os campos que o Mercado Pago precisa para
+ * identificar o meio de pagamento — nunca valor, referência ou URL.
+ */
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -19,89 +38,99 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
-    const { formData, coupon_code } = body;
+    const rate = await checkRateLimit(`pagamento:${user.id}`, 10, 10 * 60 * 1000);
+    if (!rate.success) {
+      return NextResponse.json(
+        { error: "Muitas tentativas de pagamento. Aguarde alguns minutos." },
+        { status: 429 }
+      );
+    }
 
-    if (!formData) {
+    const body = await request.json();
+    const { formData, coupon_code } = body ?? {};
+
+    if (!formData || typeof formData !== "object") {
       return NextResponse.json(
         { error: "Dados do formulário de pagamento não fornecidos." },
         { status: 400 }
       );
     }
 
-    // Calcular valor final com cupom (se fornecido)
-    let finalAmount = Number(formData.transaction_amount) || BASE_PRICE;
+    // ── Preço: decidido aqui, ponto ──────────────────────────────────────
+    const adminClient = createAdminClient();
+    let finalAmount = BASE_PRICE;
+    let cupomAplicado: { id: string; code: string } | null = null;
 
     if (coupon_code) {
-      const cleanCode = String(coupon_code).trim().toUpperCase();
-      const { data: coupon } = await supabase
-        .from("coupons")
-        .select("*")
-        .eq("code", cleanCode)
-        .eq("active", true)
-        .single();
+      // A leitura do cupom passa por service_role: o catálogo deixou de ser
+      // legível pelo usuário (A11), justamente para não ser enumerável.
+      const desconto = await resolverDescontoDeCupom({
+        adminClient,
+        code: String(coupon_code),
+        userId: user.id,
+        basePrice: BASE_PRICE,
+      });
 
-      if (coupon) {
-        const discountType = coupon.discount_type || "trial_days";
-        const discountVal = Number(coupon.discount_value) || 0;
-
-        if (discountType === "percent" && discountVal > 0) {
-          const discount = (BASE_PRICE * discountVal) / 100;
-          finalAmount = Math.max(1, BASE_PRICE - discount);
-        } else if (discountType === "fixed" && discountVal > 0) {
-          finalAmount = Math.max(1, BASE_PRICE - discountVal);
-        }
+      if (desconto.valido) {
+        finalAmount = desconto.valorFinal;
+        cupomAplicado = { id: desconto.couponId, code: desconto.code };
       }
     }
 
     finalAmount = Number(finalAmount.toFixed(2));
 
+    // ── Campos aceitos do cliente: apenas identificação do meio de pagamento.
+    // Espalhar `...formData` deixava o cliente sobrescrever transaction_amount,
+    // external_reference e notification_url.
+    const {
+      token,
+      payment_method_id,
+      issuer_id,
+      installments,
+      payer,
+    } = formData as Record<string, unknown>;
+
+    if (!payment_method_id) {
+      return NextResponse.json(
+        { error: "Meio de pagamento não informado." },
+        { status: 400 }
+      );
+    }
+
     const host = request.headers.get("host") || "app.psisetting.com.br";
     const protocol = host.includes("localhost") ? "http" : "https";
     const baseUrl = `${protocol}://${host}`;
 
-    // Processar o pagamento diretamente com o token do cartão ou Pix gerado pelo Brick
     const payment = await paymentClient.create({
       body: {
-        ...formData,
+        token: token as string | undefined,
+        payment_method_id: payment_method_id as string,
+        issuer_id: issuer_id as string | undefined,
+        installments: Number(installments) || 1,
+        payer: payer as Record<string, unknown> | undefined,
         transaction_amount: finalAmount,
-        description: `PsiSetting — Assinatura Mensal (${coupon_code ? `Cupom ${coupon_code}` : "Plano Único"})`,
+        description: `PsiSetting — Assinatura Mensal (${cupomAplicado ? `Cupom ${cupomAplicado.code}` : "Plano Único"})`,
         statement_descriptor: "PSISETTING",
         external_reference: user.id,
         notification_url: `${baseUrl}/api/webhooks/mercadopago`,
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
     });
 
     if (payment.status === "approved") {
-      const newPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      await supabase
-        .from("profiles")
-        .update({
-          subscription_status: "active",
-          current_period_end: newPeriodEnd.toISOString(),
-          trial_ends_at: newPeriodEnd.toISOString(),
-        })
-        .eq("id", user.id);
+      await ativarAssinatura({
+        adminClient,
+        userId: user.id,
+        paymentId: String(payment.id),
+        origem: "process-payment",
+      });
 
-      // Se utilizou cupom, registrar resgate
-      if (coupon_code) {
-        const cleanCode = String(coupon_code).trim().toUpperCase();
-        const { data: coupon } = await supabase
-          .from("coupons")
-          .select("id, uses_count")
-          .eq("code", cleanCode)
-          .single();
-
-        if (coupon) {
-          await supabase.from("coupon_redemptions").insert({
-            coupon_id: coupon.id,
-            profile_id: user.id,
-          });
-          await supabase
-            .from("coupons")
-            .update({ uses_count: (coupon.uses_count || 0) + 1 })
-            .eq("id", coupon.id);
-        }
+      if (cupomAplicado) {
+        await registrarResgate({
+          adminClient,
+          couponId: cupomAplicado.id,
+          userId: user.id,
+        });
       }
     }
 
@@ -111,13 +140,14 @@ export async function POST(request: Request) {
       id: payment.id,
       amount: finalAmount,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao processar pagamento:", error);
+    // A mensagem crua do Mercado Pago pode carregar detalhe interno; o
+    // usuário recebe uma resposta estável e o detalhe fica no log.
     return NextResponse.json(
       {
         error:
-          error?.message ||
-          "Erro ao processar o pagamento com o Mercado Pago. Verifique os dados do cartão.",
+          "Erro ao processar o pagamento. Verifique os dados informados e tente novamente.",
       },
       { status: 500 }
     );
