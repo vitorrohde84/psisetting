@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import {
   ArrowLeft,
   Pencil,
@@ -157,7 +157,7 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
             const decrypted = await Promise.all(
               data.map(async (a) => {
                 let obs = a.observacoes;
-                if (obs && obs.startsWith("enc:v1:")) {
+                if (obs && ehCifrado(obs)) {
                   obs = await decryptClinicalData(obs, user.id);
                 }
                 return { ...a, observacoes: obs };

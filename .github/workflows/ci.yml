@@ -65,6 +65,19 @@ jobs:
           fi
           echo "OK: nenhum segredo novo exposto ao cliente."
 
+      - name: Verificação de formato de criptografia na mão
+        # Regressão de 17/09/2026: 17 pontos do app testavam
+        # `.startsWith("enc:v1:")` direto. Ao entrar o formato v2, todos
+        # deixaram de reconhecer o dado novo como cifrado, e a tela passou a
+        # mostrar "enc:v2:..." no lugar do texto clínico. Use ehCifrado().
+        run: |
+          set -e
+          if grep -rn 'startsWith("enc:' --include="*.ts" --include="*.tsx" app utils 2>/dev/null | grep -v "^utils/crypto.ts"; then
+            echo "::error::Não teste o prefixo de criptografia na mão — use ehCifrado() de utils/crypto."
+            exit 1
+          fi
+          echo "OK: nenhuma verificação de prefixo fora do utilitário."
+
       - name: Script SQL legado fora da quarentena
         # A17: reexecutar o "script mestre de blindagem" reabria a IDOR de
         # laudos. Eles ficam em scripts/sql-legado-nao-executar/ e não voltam.

@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import {
   Calendar,
   Clock,
@@ -71,7 +71,7 @@ export default async function DashboardPage() {
   const proximasSessoes = await Promise.all(
     (rawSessoes || []).map(async (sessao) => {
       let nome = (sessao.pacientes as any)?.nome || "Paciente";
-      if (user && nome && nome.startsWith("enc:v1:")) {
+      if (user && nome && ehCifrado(nome)) {
         nome = await decryptClinicalData(nome, user.id);
       }
       return {
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
   const pagamentosPendentes = await Promise.all(
     (rawPendentes || []).map(async (p) => {
       let nome = (p.pacientes as any)?.nome || "Paciente";
-      if (user && nome && nome.startsWith("enc:v1:")) {
+      if (user && nome && ehCifrado(nome)) {
         nome = await decryptClinicalData(nome, user.id);
       }
       return {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import {
   Calendar,
@@ -217,7 +217,7 @@ export function AgendaView() {
         }
 
         let observacoesDecrypted = ag.observacoes;
-        if (user && ag.observacoes && ag.observacoes.startsWith("enc:v1:")) {
+        if (user && ag.observacoes && ehCifrado(ag.observacoes)) {
           observacoesDecrypted = await decryptClinicalData(ag.observacoes, user.id);
         }
 
