@@ -125,11 +125,22 @@ async function kek(): Promise<CryptoKey> {
 async function obterDek(supabase: DbAny, userId: string): Promise<CryptoKey> {
   const k = await kek();
 
-  const { data } = await supabase
+  // O erro precisa subir. Descartá-lo faria o script concluir que o psicólogo
+  // não tem chave e GERAR UMA SEGUNDA — parte do dado ficaria cifrada com uma
+  // chave que ninguém mais vai procurar. Se a tabela não existir (migração 8
+  // não aplicada), é aqui que tem que estourar, inclusive no ensaio.
+  const { data, error: leituraError } = await supabase
     .from("user_encryption_keys")
     .select("wrapped_dek")
     .eq("user_id", userId)
     .maybeSingle();
+
+  if (leituraError) {
+    throw new Error(
+      `Não foi possível ler user_encryption_keys (${leituraError.message}). ` +
+        `Aplique a migração 20260917120700_a07_chaves_por_usuario.sql antes de rodar este script.`
+    );
+  }
 
   let dekBytes: Uint8Array;
 
@@ -207,12 +218,43 @@ async function main() {
   console.log(APPLY ? "REMIGRAÇÃO v1 → v2 — MODO GRAVAÇÃO" : "REMIGRAÇÃO v1 → v2 — ENSAIO (nada será gravado)");
   console.log("=".repeat(70));
 
-  const { data: perfis, error: perfisError } = await supabase
-    .from("profiles")
-    .select("id")
-    .order("created_at", { ascending: true });
+  // PAGINAÇÃO OBRIGATÓRIA.
+  // O PostgREST do Supabase corta a resposta no limite de "Max rows" (1000 por
+  // padrão) SEM avisar. Sem paginar, o script converteria as primeiras 1000
+  // linhas, imprimiria "Falhas: 0" e você concluiria que terminou — deixando o
+  // resto em enc:v1: para ficar ilegível no dia em que o segredo legado sair.
+  const PAGINA = 500;
 
-  if (perfisError) throw perfisError;
+  async function buscarTudo(
+    tabela: string,
+    colunas: string,
+    filtro?: { coluna: string; valor: string }
+  ): Promise<Array<Record<string, unknown>>> {
+    const acumulado: Array<Record<string, unknown>> = [];
+    let inicio = 0;
+
+    for (;;) {
+      let consulta = supabase.from(tabela).select(colunas);
+      if (filtro) consulta = consulta.eq(filtro.coluna, filtro.valor);
+
+      const { data, error } = await consulta.range(inicio, inicio + PAGINA - 1);
+      if (error) throw error;
+
+      const lote = (data || []) as Array<Record<string, unknown>>;
+      acumulado.push(...lote);
+
+      if (lote.length < PAGINA) return acumulado;
+      inicio += PAGINA;
+    }
+  }
+
+  let perfis: Array<Record<string, unknown>>;
+  try {
+    perfis = await buscarTudo("profiles", "id");
+  } catch (err) {
+    console.error("Não foi possível listar os psicólogos:", (err as Error).message);
+    process.exit(1);
+  }
 
   const alvos = ((perfis || []) as Array<{ id: string }>).filter(
     (p) => !USER_FILTER || p.id === USER_FILTER
@@ -229,27 +271,33 @@ async function main() {
     const chaveV1 = await chaveLegado(userId);
 
     for (const [tabela, colunas] of Object.entries(CAMPOS_CIFRADOS)) {
-      const { data: linhas, error } = await supabase
-        .from(tabela)
-        .select(["id", ...colunas].join(", "))
-        .eq("psicologo_id", userId);
-
-      if (error) {
+      let linhas: Array<Record<string, unknown>>;
+      try {
+        linhas = await buscarTudo(tabela, ["id", ...colunas].join(", "), {
+          coluna: "psicologo_id",
+          valor: userId,
+        });
+      } catch (err) {
         // Coluna ou tabela inexistente não é motivo para abortar tudo.
-        console.warn(`   [${tabela}] ignorada: ${error.message}`);
+        console.warn(`   [${tabela}] ignorada: ${(err as Error).message}`);
         continue;
       }
 
-      for (const linha of linhas || []) {
+      for (const linha of linhas) {
         const atualizacao: Record<string, string> = {};
 
         for (const coluna of colunas) {
           const valor = (linha as Record<string, unknown>)[coluna];
           if (typeof valor !== "string" || !valor.startsWith(V1)) continue;
 
+          // A obtenção da DEK fica FORA do try da decifragem. Dentro dele, uma
+          // falha de KEK era reportada como "não decifrou com a chave legada" —
+          // mandando você investigar o segredo errado enquanto a causa real
+          // era a CLINICAL_KEK.
+          if (!chaveV2) chaveV2 = await obterDek(supabase, userId);
+
           try {
             const claro = await decifrarV1(valor, chaveV1);
-            if (!chaveV2) chaveV2 = await obterDek(supabase, userId);
             atualizacao[coluna] = await cifrarV2(claro, chaveV2);
           } catch (err) {
             totalFalhas++;
@@ -284,10 +332,52 @@ async function main() {
     }
   }
 
+  // ── Verificação de resíduo, contra o BANCO ────────────────────────────
+  // O contador acima é o que o script ACHA que fez. Isto é o que o banco
+  // realmente tem. Se divergirem, confie no banco.
+  console.log("\nConferindo o que restou em enc:v1: no banco...");
+  let residuoTotal = 0;
+  const residuoPorTabela: string[] = [];
+
+  for (const [tabela, colunas] of Object.entries(CAMPOS_CIFRADOS)) {
+    for (const coluna of colunas) {
+      const { count, error } = await supabase
+        .from(tabela)
+        .select(coluna, { count: "exact", head: true })
+        .like(coluna, `${V1}%`);
+
+      if (error) continue;
+      if ((count ?? 0) > 0) {
+        residuoTotal += count ?? 0;
+        residuoPorTabela.push(`   ${tabela}.${coluna}: ${count}`);
+      }
+    }
+  }
+
   console.log("\n" + "=".repeat(70));
   console.log(`Campos ${APPLY ? "convertidos" : "que seriam convertidos"}: ${totalConvertidos}`);
   console.log(`Falhas: ${totalFalhas}`);
+  console.log(`Ainda em enc:v1: no banco: ${residuoTotal}`);
+  if (residuoPorTabela.length > 0) {
+    console.log(residuoPorTabela.join("\n"));
+  }
   console.log("=".repeat(70));
+
+  if (APPLY && residuoTotal > 0) {
+    console.error(
+      `\n⚠ Sobraram ${residuoTotal} campo(s) em enc:v1:. A remigração NÃO terminou.\n` +
+        "Rode o script de novo. NÃO remova o LEGACY_MASTER_SECRET de utils/crypto.ts\n" +
+        "enquanto este número não for zero — cada resíduo vira ilegível para sempre."
+    );
+    process.exit(1);
+  }
+
+  if (APPLY && residuoTotal === 0 && totalFalhas === 0) {
+    console.log(
+      "\n✓ Remigração completa: nenhum campo em enc:v1: restou no banco.\n" +
+        "  Guarde a CLINICAL_KEK. A partir daqui, o banco sozinho não abre os prontuários."
+    );
+  }
 
   if (totalFalhas > 0) {
     console.error(

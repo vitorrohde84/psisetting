@@ -28,7 +28,9 @@ SECURITY DEFINER
 SET search_path = public, extensions, auth, pg_temp
 AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, nome, trial_ends_at, subscription_status, is_vip, is_admin)
+  INSERT INTO public.profiles (
+    id, email, nome, trial_ends_at, subscription_status, is_vip, is_admin, calendar_token
+  )
   VALUES (
     NEW.id,
     NEW.email,
@@ -36,7 +38,11 @@ BEGIN
     now() + INTERVAL '7 days',
     'trialing',
     false,
-    false   -- ninguém nasce admin; a concessão é explícita e por e-mail de auth.users
+    false,  -- ninguém nasce admin; a concessão é explícita e por e-mail de auth.users
+    -- O token nasce aqui porque calendar_token deixou de ser gravável pelo
+    -- próprio usuário (A01). Sem isto, toda conta criada depois daquela
+    -- migração ficaria sem link de calendário, e a tela não explicaria por quê.
+    encode(gen_random_bytes(32), 'hex')
   )
   ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,

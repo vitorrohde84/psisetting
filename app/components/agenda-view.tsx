@@ -113,16 +113,27 @@ export function AgendaView() {
       if (profile?.calendar_token) {
         setCalendarToken(profile.calendar_token);
       } else {
-        const newToken = "cal_" + Array.from(crypto.getRandomValues(new Uint8Array(16)))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+        // `calendar_token` deixou de ser gravável pelo próprio usuário (A01):
+        // a escrita direta daqui tomaria erro 42501 e morreria num
+        // console.error, deixando a tela exibir um link que nunca foi salvo.
+        // A geração passa pela rota de servidor, que é a mesma usada pelo
+        // botão de regenerar em Configurações.
+        const resposta = await fetch("/api/calendar/regenerate-token", {
+          method: "POST",
+          credentials: "same-origin",
+        });
 
-        await supabase
-          .from("profiles")
-          .update({ calendar_token: newToken })
-          .eq("id", user.id);
+        if (!resposta.ok) {
+          console.error(
+            "Não foi possível gerar o link do calendário:",
+            resposta.status
+          );
+          setCalendarToken(null);
+          return;
+        }
 
-        setCalendarToken(newToken);
+        const { calendar_token } = await resposta.json();
+        setCalendarToken(calendar_token ?? null);
       }
     } catch (err) {
       console.error("Erro ao carregar token do calendário:", err);
