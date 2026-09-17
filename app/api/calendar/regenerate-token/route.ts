@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import { checkRateLimit } from "@/utils/rate-limit";
 
 export async function POST() {
   try {
@@ -16,10 +18,31 @@ export async function POST() {
       );
     }
 
-    // Gerar novo token criptograficamente seguro
-    const newToken = crypto.randomUUID();
+    // Regeneração é barata para o usuário e cara para o abuso: 10 por hora.
+    const limit = checkRateLimit(
+      `regenerate-calendar:${user.id}`,
+      10,
+      60 * 60 * 1000
+    );
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: "Muitas regenerações seguidas. Tente novamente mais tarde." },
+        { status: 429 }
+      );
+    }
 
-    const { error: updateError } = await supabase
+    // Token de 256 bits. O feed de calendário é acessado sem sessão, então este
+    // valor é a única credencial daquele caminho — ver A03 na auditoria.
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const newToken = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // calendar_token deixou de ser gravável pelo próprio usuário (A01), logo a
+    // escrita passa pelo service_role — ainda estritamente amarrada a user.id.
+    const adminClient = createAdminClient();
+    const { error: updateError } = await adminClient
       .from("profiles")
       .update({ calendar_token: newToken })
       .eq("id", user.id);

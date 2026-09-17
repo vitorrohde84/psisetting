@@ -39,14 +39,18 @@ export async function requireAdmin() {
     return { isAdmin: false, user: null, profile: null, error: "Não autenticado." };
   }
 
-  // Buscar perfil para verificar flag is_admin ou e-mail
+  // Buscar perfil para verificar a flag is_admin.
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  const isAdmin = Boolean(profile?.is_admin) || isEmailAdmin(user.email) || isEmailAdmin(profile?.email);
+  // O e-mail considerado é SEMPRE o de auth.users (user.email), validado pelo
+  // servidor de auth. A coluna profiles.email é editável pelo próprio usuário
+  // e, se confiada aqui, permite forjar identidade de administrador.
+  // Ver A01 em docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md.
+  const isAdmin = Boolean(profile?.is_admin) || isEmailAdmin(user.email);
 
   if (!isAdmin) {
     return { isAdmin: false, user, profile, error: "Acesso negado. Apenas administradores." };

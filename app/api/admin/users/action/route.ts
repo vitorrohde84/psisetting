@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/utils/admin-auth";
+import { requireAdmin, isEmailAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 export async function POST(request: Request) {
@@ -92,9 +92,18 @@ export async function POST(request: Request) {
         updates = { is_admin: false };
         break;
 
-      case "delete_user":
-        // 1. Proteger conta do administrador principal
-        if (userId === auth.user?.id || targetProfile.email === "vitorrohde84@gmail.com") {
+      case "delete_user": {
+        // 1. Proteger conta do administrador principal.
+        //    A checagem usa o e-mail de auth.users, obtido via service_role —
+        //    profiles.email é editável pelo usuário e não serve de identidade
+        //    (A01 em docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md).
+        const { data: targetAuth } = await adminClient.auth.admin.getUserById(userId);
+        const targetAuthEmail = targetAuth?.user?.email?.toLowerCase() ?? null;
+
+        if (
+          userId === auth.user?.id ||
+          (targetAuthEmail && isEmailAdmin(targetAuthEmail))
+        ) {
           return NextResponse.json(
             { error: "A conta do administrador principal não pode ser excluída." },
             { status: 400 }
@@ -130,6 +139,7 @@ export async function POST(request: Request) {
           deleted: true,
           userId,
         });
+      }
 
       default:
         return NextResponse.json({ error: "Ação desconhecida." }, { status: 400 });

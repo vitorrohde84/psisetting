@@ -7,10 +7,50 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   async headers() {
+    // A15 — docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md
+    //
+    // Origens externas realmente usadas pelo app:
+    //   sdk.mercadopago.com  — checkout transparente (Brick)
+    //   accounts.google.com  — Google Identity Services (login)
+    //   *.supabase.co        — banco, auth e storage
+    //
+    // TRADE-OFF DECLARADO: 'unsafe-inline' em script-src continua presente
+    // porque a hidratação do App Router injeta scripts inline. Retirá-lo exige
+    // CSP por nonce no middleware, o que muda o caminho de renderização de toda
+    // requisição — trabalho de uma onda própria, não de um ajuste de header.
+    // Com isso, esta CSP bloqueia script de origem externa, clickjacking,
+    // sequestro de formulário e injeção de <base>, mas NÃO bloqueia XSS inline.
+    // Não a apresente como proteção contra XSS.
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://accounts.google.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://sdk.mercadopago.com",
+      "frame-src https://sdk.mercadopago.com https://accounts.google.com",
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
     return [
       {
         source: "/:path*",
         headers: [
+          {
+            key: "Content-Security-Policy",
+            value: csp,
+          },
+          {
+            // Dados clínicos sob CFP/LGPD nunca devem trafegar em texto claro,
+            // nem na primeira requisição depois de um link http://.
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
           {
             key: "X-Frame-Options",
             value: "SAMEORIGIN",
