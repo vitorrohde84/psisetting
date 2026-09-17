@@ -37,6 +37,19 @@ const USER_FILTER = (() => {
   return i >= 0 ? process.argv[i + 1] : null;
 })();
 
+/**
+ * --incluir-texto-puro
+ *
+ * Alguns registros são anteriores à criptografia ter sido implantada e estão
+ * em TEXTO PURO no banco — no PsiSetting eram 13 dos 17 prontuários, mais
+ * laudos e observações de agenda. O sistema sempre os exibiu normalmente
+ * (decryptClinicalData devolve como está o que não tem prefixo), e por isso
+ * ninguém percebeu que nunca foram protegidos.
+ *
+ * Com esta opção eles também passam a ser cifrados, em v2.
+ */
+const INCLUIR_TEXTO_PURO = process.argv.includes("--incluir-texto-puro");
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const KEK_HEX = process.env.CLINICAL_KEK!;
@@ -215,7 +228,8 @@ async function main() {
   const supabase: DbAny = createClient(SUPABASE_URL, SERVICE_KEY);
 
   console.log("=".repeat(70));
-  console.log(APPLY ? "REMIGRAÇÃO v1 → v2 — MODO GRAVAÇÃO" : "REMIGRAÇÃO v1 → v2 — ENSAIO (nada será gravado)");
+  console.log(APPLY ? "REMIGRAÇÃO — MODO GRAVAÇÃO" : "REMIGRAÇÃO — ENSAIO (nada será gravado)");
+  console.log(INCLUIR_TEXTO_PURO ? "Escopo: formato antigo (v1) + campos em TEXTO PURO" : "Escopo: apenas formato antigo (v1)");
   console.log("=".repeat(70));
 
   // PAGINAÇÃO OBRIGATÓRIA.
@@ -263,6 +277,7 @@ async function main() {
 
   let totalConvertidos = 0;
   let totalFalhas = 0;
+  let totalTextoPuro = 0;
 
   for (const perfil of alvos as Array<{ id: string }>) {
     const userId = perfil.id;
@@ -288,7 +303,15 @@ async function main() {
 
         for (const coluna of colunas) {
           const valor = (linha as Record<string, unknown>)[coluna];
-          if (typeof valor !== "string" || !valor.startsWith(V1)) continue;
+          if (typeof valor !== "string" || !valor) continue;
+
+          // Já está no formato novo: nada a fazer.
+          if (valor.startsWith(V2)) continue;
+
+          const ehLegado = valor.startsWith(V1);
+          const ehTextoPuro = !ehLegado && !valor.startsWith("enc:");
+
+          if (!ehLegado && !(ehTextoPuro && INCLUIR_TEXTO_PURO)) continue;
 
           // A obtenção da DEK fica FORA do try da decifragem. Dentro dele, uma
           // falha de KEK era reportada como "não decifrou com a chave legada" —
@@ -297,12 +320,18 @@ async function main() {
           if (!chaveV2) chaveV2 = await obterDek(supabase, userId);
 
           try {
-            const claro = await decifrarV1(valor, chaveV1);
+            // Texto puro já está legível: só precisa ser cifrado.
+            const claro = ehLegado ? await decifrarV1(valor, chaveV1) : valor;
             atualizacao[coluna] = await cifrarV2(claro, chaveV2);
+            if (ehTextoPuro) totalTextoPuro++;
           } catch (err) {
             totalFalhas++;
             console.error(
-              `   ✗ ${tabela}.${coluna} id=${(linha as { id: string }).id}: não decifrou com a chave legada — ${(err as Error).message}`
+              `   ✗ ${tabela}.${coluna} id=${(linha as { id: string }).id}: ${
+                ehLegado
+                  ? "não decifrou com a chave legada"
+                  : "falhou ao cifrar texto puro"
+              } — ${(err as Error).message}`
             );
           }
         }
@@ -356,6 +385,10 @@ async function main() {
 
   console.log("\n" + "=".repeat(70));
   console.log(`Campos ${APPLY ? "convertidos" : "que seriam convertidos"}: ${totalConvertidos}`);
+  if (INCLUIR_TEXTO_PURO) {
+    console.log(`  dos quais estavam em TEXTO PURO: ${totalTextoPuro}`);
+    console.log(`  vindos do formato antigo (v1)  : ${totalConvertidos - totalTextoPuro}`);
+  }
   console.log(`Falhas: ${totalFalhas}`);
   console.log(`Ainda em enc:v1: no banco: ${residuoTotal}`);
   if (residuoPorTabela.length > 0) {
