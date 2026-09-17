@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "recifrar": "tsx --env-file=.env.local scripts/migrate-reencrypt-v1-to-v2.ts",
-    "recifrar:aplicar": "tsx --env-file=.env.local scripts/migrate-reencrypt-v1-to-v2.ts --apply"
+    "recifrar:aplicar": "tsx --env-file=.env.local scripts/migrate-reencrypt-v1-to-v2.ts --apply",
+    "backup": "tsx --env-file=.env.local scripts/backup-completo.ts",
+    "restaurar": "tsx --env-file=.env.local scripts/restaurar-backup.ts"
   },
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.7",

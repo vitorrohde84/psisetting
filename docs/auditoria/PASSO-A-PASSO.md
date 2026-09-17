@@ -1,245 +1,197 @@
 # Passo a passo — aplicar as correções de segurança
 
-**Para quem:** você, sozinho, no seu ritmo.
-**Tempo:** cerca de 2 horas, sem pressa. Dá para parar entre as etapas.
-**Quando:** fora do horário de atendimento. Existe uma janela de poucos minutos (Etapa 3) em que pagamentos não ativam.
+**Situação real do seu sistema:** 3 contas (você, Hellen e Isabella), 11 pacientes, 102 linhas no banco inteiro, 80 campos cifrados. É pequeno. Dá para fazer tudo com calma numa tarde.
+
+**Tempo:** cerca de 1 hora.
+**Quando:** num horário em que a Hellen e a Isabella não estejam atendendo. Existe uma janela de uns 15 minutos em que o sistema fica instável.
 
 ---
 
-## Entenda a ideia antes de executar
+## Três medos que você pode riscar da lista
 
-Você vai fazer quatro coisas, nesta ordem:
+Antes de começar, três coisas já foram verificadas no seu banco:
 
-1. **Preparar** — backup, guardar evidências e gerar a chave-mestra.
-2. **Mudar o banco** — 9 migrações que fecham as brechas.
-3. **Publicar o código novo** — que sabe conversar com o banco mudado.
-4. **Recifrar os prontuários** — trocar a criptografia antiga (com chave pública) pela nova.
-
-**Por que esta ordem e não outra.** O código novo precisa de tabelas que só existem depois das migrações. Se você publicar antes, `/api/crypto/key` responde erro e **ninguém consegue ler nem salvar prontuário**. Já as migrações rodando com o código antigo quebram só a ativação de pagamento, por poucos minutos. Entre estragar o consultório e atrasar uma cobrança, a escolha é óbvia.
-
-As variáveis de ambiente vão **antes de tudo** porque, com o código antigo, elas são ignoradas — e assim o deploy da Etapa 4 já nasce com elas. Isso elimina o erro mais comum: definir a variável, ver que nada mudou e não entender que faltava republicar.
-
-### Cinco regras que valem o tempo todo
-
-1. **Uma etapa por vez.** Leia a saída antes de seguir. Não cole tudo de uma vez.
-2. **A `CLINICAL_KEK` é o prontuário.** Perdeu a chave, perdeu os prontuários. Não existe recuperação, e isso é o desenho, não um defeito.
-3. **Uma migração que aborta é um freio, não um defeito.** Nunca resolva um aborto com `DELETE`.
-4. **Nunca rode nada de `scripts/sql-legado-nao-executar/`.** Um deles reabre exatamente a falha mais grave — e é o arquivo que uma pessoa razoável rodaria ao desconfiar de problema.
-5. **Teste com conta comum, em janela anônima.** Todas as travas novas liberam admin e service_role. Testar logado como você não prova nada.
+1. **Ninguém se aproveitou da falha de administrador.** As 3 contas estão com `is_admin = false`. A brecha existia, mas não foi usada. Não há incidente a apurar.
+2. **Não há registro clínico sem dono.** A migração que eu tinha avisado que poderia travar **não vai travar** no seu caso.
+3. **O backup já está feito.** Rodei `npm run backup` e o arquivo está em `backups/backup-2026-09-17T19-03-27.json`, com as 102 linhas.
 
 ---
 
-# ETAPA 0 — Preparação e evidências
+## A ideia, em quatro frases
 
-> ⏱️ 20 minutos. Nada é alterado aqui. **Não pule.**
+1. Você guarda cópias do que existe hoje.
+2. Muda o banco (9 arquivos de SQL, copiar e colar).
+3. Publica o código novo.
+4. Troca a criptografia antiga pela nova.
 
-## 0.1 — Salvar quem é admin hoje (tem prazo)
+**Por que nesta ordem:** o código novo precisa de tabelas que só existem depois do passo 2. Se você publicar antes, ninguém consegue abrir prontuário.
 
-A primeira migração **revoga** `is_admin` de quem não está na lista de três e-mails. Se alguém tiver se auto-promovido explorando a falha, esse rastro some para sempre. E é justamente a pergunta que a LGPD obriga a responder se houver incidente com dado de saúde.
+---
 
-No Supabase: menu lateral → **SQL Editor** → **New query**. Cole e rode:
+# PASSO 1 — Cópias de segurança
 
-```sql
-SELECT p.id, u.email, p.is_admin, p.is_vip, u.created_at
-FROM profiles p
-JOIN auth.users u ON u.id = p.id
-WHERE p.is_admin = true OR p.is_vip = true
-ORDER BY u.created_at;
+> ⏱️ 15 minutos. Nada muda no sistema.
+
+Você está no plano free do Supabase, que não tem backup no painel. Então a proteção vem de duas fontes, e cada uma cobre um tipo de problema diferente:
+
+| Cópia | Protege contra |
+|---|---|
+| O JSON do banco (já feito) | Uma migração dar errado |
+| O CSV que cada psicóloga exporta | A recifragem dar errado |
+
+## 1.1 — Peça o CSV para a Hellen e para a Isabella
+
+Cada uma entra no sistema e vai em **Configurações → Backup completo de dados** e baixa o arquivo `.CSV`.
+
+Esse arquivo sai com **tudo em texto legível** — nomes, prontuários, diário, laudos. É por isso que ele é a rede de proteção: se a criptografia der qualquer problema, o conteúdo clínico existe em texto puro, em Excel, independente do sistema.
+
+⚠️ Justamente por sair legível, ele é um prontuário em arquivo. Oriente as duas a guardarem num lugar seguro e a apagarem depois que tudo estiver funcionando.
+
+Você também pode fazer o seu.
+
+## 1.2 — Guarde o JSON fora deste computador
+
+O arquivo `backups/backup-2026-09-17T19-03-27.json` está na sua máquina. Copie para um pendrive ou para a nuvem — em algum lugar que não seja este computador.
+
+Se quiser gerar um mais novo a qualquer momento:
+
+```bash
+npm run backup
 ```
 
-Rode também:
+---
 
-```sql
-SELECT id, email, created_at FROM auth.users ORDER BY created_at DESC;
-```
+# PASSO 2 — Gerar a chave-mestra
 
-**Salve os dois resultados num arquivo com a data de hoje.** Use o botão de exportar CSV do próprio editor.
+> ⏱️ 10 minutos. É o passo mais importante do procedimento inteiro.
 
-**Leia o resultado com atenção.** Você conhece cada admin e cada VIP dessa lista? Foi você que concedeu?
+Hoje a criptografia dos prontuários usa uma senha que está escrita dentro do código — ou seja, qualquer pessoa que abra o site consegue extrair. Você vai substituir por uma chave de verdade, que só o servidor conhece.
 
-- **Sim** → siga em frente.
-- **Não, tem alguém estranho** → **pare aqui.** Deixa de ser correção técnica e passa a ser incidente de segurança com dado de saúde de pacientes de terceiros. Isso tem dever de apuração (LGPD, art. 48) e a conversa é outra. Me chame antes de continuar.
-
-## 0.2 — Backup do banco
-
-Supabase → **Database** → **Backups** → **Start a backup** (ou o botão de backup sob demanda do seu plano).
-
-- **Anote o horário exato.**
-- **Espere terminar** e confirme na tela.
-
-Backup de ontem não serve. Você precisa de um ponto imediatamente anterior à primeira escrita.
-
-> ⚠️ O backup vale até o instante em que foi tirado. Se você fizer a Etapa 6 só amanhã, restaurar este backup significa perder os atendimentos registrados no meio. Por isso o ideal é fazer tudo no mesmo dia.
-
-## 0.3 — Gerar a chave-mestra (`CLINICAL_KEK`)
-
-No terminal, **uma única vez**:
+**No terminal, uma única vez:**
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Sai uma linha de 64 caracteres. **Essa é a chave que abre todos os prontuários do sistema.**
+Vai sair uma linha grande de letras e números. **Essa linha abre todos os prontuários do sistema.**
 
-Agora gere a impressão digital dela — troque `COLE_A_CHAVE_AQUI` pelo valor:
+**Guarde em dois lugares, agora:**
+- No seu gerenciador de senhas
+- Num segundo lugar fora do computador (pode ser papel, num lugar seguro)
+
+**Por que dois lugares:** depois do PASSO 7, o banco sozinho não abre mais os prontuários. Ele precisa do banco **mais** essa chave. Se você perder a chave, os prontuários da Hellen e da Isabella ficam ilegíveis para sempre — e nem eu, nem o Supabase, nem ninguém consegue recuperar. Não é um defeito: é o que faz o banco vazado não virar prontuário vazado.
+
+**Agora gere uma "impressão digital" dela.** Troque `COLE_A_CHAVE` pelo valor que saiu acima:
 
 ```bash
-node -e "console.log(require('crypto').createHash('sha256').update('COLE_A_CHAVE_AQUI').digest('hex').slice(0,16))"
+node -e "console.log(require('crypto').createHash('sha256').update('COLE_A_CHAVE').digest('hex').slice(0,16))"
 ```
 
-Sai um código curto de 16 caracteres. Ele **não revela a chave** e serve para você provar depois que a chave do seu terminal é a mesma que está na Vercel. Nada no sistema confere isso sozinho — e essa é a falha mais cara possível neste procedimento.
-
-**Guarde agora, antes de seguir:**
-
-- [ ] A chave completa no seu gerenciador de senhas
-- [ ] A chave completa num segundo lugar, fora do computador (papel num lugar seguro serve)
-- [ ] A impressão digital de 16 caracteres onde você consulte fácil
-
-> ⚠️ **Nunca gere a chave duas vezes.** O erro clássico é gerar uma para a Vercel e outra depois "porque perdi a primeira". A aplicação continua funcionando para dado novo e só o dado recifrado fica ilegível — você descobre semanas depois.
+Sai um código curto de 16 caracteres. **Anote.** Ele não revela a chave, e serve para você conferir depois que a chave do seu computador é a mesma que está na Vercel — coisa que nada no sistema verifica sozinho, e que, se estiver diferente, estraga a recifragem em silêncio.
 
 ---
 
-# ETAPA 1 — Variáveis de ambiente na Vercel
+# PASSO 3 — Variáveis na Vercel
 
-> ⏱️ 10 minutos. Seguro: o código antigo ignora essas variáveis.
+> ⏱️ 5 minutos. Seguro: o código que está no ar hoje ignora essas variáveis.
 
-No painel da Vercel → seu projeto → **Settings** → **Environment Variables**.
+Vercel → seu projeto → **Settings** → **Environment Variables**. Adicione duas:
 
-Adicione as duas:
+**Primeira:**
+- Nome: `CLINICAL_KEK`
+- Valor: a chave grande do PASSO 2
 
-| Nome | Valor |
-|---|---|
-| `CLINICAL_KEK` | a chave de 64 caracteres da Etapa 0.3 |
-| `MERCADO_PAGO_WEBHOOK_SECRET` | Mercado Pago → Suas integrações → sua aplicação → Webhooks → **Assinatura secreta** |
+**Segunda:**
+- Nome: `MERCADO_PAGO_WEBHOOK_SECRET`
+- Valor: pegue em Mercado Pago → Suas integrações → sua aplicação → Webhooks → **Assinatura secreta**
 
-**Marque os três ambientes** em cada uma: Production, Preview e Development. A tela salva sem reclamar se você marcar só um, e aí a produção fica sem a variável.
+Em cada uma, **marque os três ambientes** (Production, Preview, Development). A tela salva sem reclamar se você marcar só um, e aí a produção fica sem.
 
-⚠️ **Nunca** coloque `NEXT_PUBLIC_` na frente desses nomes. Esse prefixo manda a variável para dentro do JavaScript que o navegador baixa — foi exatamente assim que a chave antiga virou pública.
+⚠️ **Nunca** escreva `NEXT_PUBLIC_` na frente desses nomes. Esse prefixo joga a variável dentro do JavaScript que o navegador baixa — foi exatamente assim que a chave antiga virou pública.
 
-⚠️ Ao colar a assinatura do Mercado Pago, cuidado com espaço ou quebra de linha na ponta. O webhook falha em silêncio: nada quebra visivelmente, as renovações só param de ativar.
+⚠️ Ao colar a assinatura do Mercado Pago, não deixe espaço no começo nem no fim.
 
-**Não republique ainda.** O deploy da Etapa 4 pega essas variáveis.
+**Não republique ainda.** O PASSO 5 faz isso.
 
 ---
 
-# ETAPA 2 — Conferir o terreno antes de mexer
+# PASSO 4 — Rodar os 9 arquivos de SQL
 
-> ⏱️ 10 minutos. Só leitura. Evita dois abortos previsíveis.
+> ⏱️ 15 minutos. **Aqui começa a mudança.** Daqui até o fim do PASSO 5, cobranças não ativam. Faça os dois passos seguidos.
 
-## 2.1 — Existe registro clínico sem dono?
+## Como rodar cada arquivo
 
-```sql
-SELECT 'pacientes' AS tabela, count(*) FROM pacientes WHERE psicologo_id IS NULL
-UNION ALL SELECT 'agendamentos', count(*) FROM agendamentos WHERE psicologo_id IS NULL
-UNION ALL SELECT 'prontuarios',  count(*) FROM prontuarios  WHERE psicologo_id IS NULL
-UNION ALL SELECT 'diario_bordo', count(*) FROM diario_bordo WHERE psicologo_id IS NULL
-UNION ALL SELECT 'laudos',       count(*) FROM laudos       WHERE psicologo_id IS NULL
-UNION ALL SELECT 'pagamentos',   count(*) FROM pagamentos   WHERE psicologo_id IS NULL;
+No Supabase: menu lateral → **SQL Editor** → **New query**.
+
+Para cada arquivo da lista, nesta ordem:
+
+1. Abra o arquivo (estão em `supabase/migrations/`) no seu editor de código
+2. `Ctrl+A` para selecionar tudo, `Ctrl+C` para copiar
+3. Cole no SQL Editor
+4. **Clique numa parte vazia do texto** para não deixar nada selecionado
+   ⚠️ O botão Run executa **só o que estiver selecionado**. Com texto selecionado, você aplica metade.
+5. Clique em **Run**
+6. Se não aparecer erro em vermelho, passe para o próximo
+
+## A ordem
+
+```
+1. 20260917120000_a01_privilegio_profiles.sql
+2. 20260917120100_a10_integridade_tenant.sql
+3. 20260917120200_a20_grupos_cross_tenant.sql
+4. 20260917120300_a03_a04_a14_superficie_publica.sql
+5. 20260917120400_a13_rate_limit_compartilhado.sql
+6. 20260917120500_a18_convites.sql
+7. 20260917120600_a05_a06_a08_a11_pagamentos.sql
+8. 20260917120700_a07_chaves_por_usuario.sql
+9. 20260917120800_a19_trigger_perfil.sql
 ```
 
-**Tudo zero?** Ótimo, siga. **Tem número diferente de zero?** Leia o Apêndice A antes de continuar — e nunca resolva isso com `DELETE`.
+**A ordem importa.** O arquivo 1 cria colunas que os outros usam.
 
-## 2.2 — Os laudos estão na pasta certa?
+## O que esperar
 
-```sql
-SELECT name FROM storage.objects
-WHERE bucket_id = 'laudos' AND name NOT LIKE '%/%/%'
-LIMIT 50;
-```
+- **"Success. No rows returned"** é o normal. Não é confirmação de nada, é só o editor dizendo que rodou sem erro.
+- **Mensagem amarela de aviso (`WARNING`)** nos arquivos 3 e 9: não é erro, a correção foi aplicada. É só um aviso sobre dado antigo.
+- **Erro vermelho (`ERROR`)**: pare, não rode o próximo, me mande a mensagem.
 
-Deve vir **vazio**. Se vier algo, esses arquivos ficarão inacessíveis pelo sistema depois da migração 4 (o arquivo não é apagado, só fica fora de alcance). Anote os nomes e me avise — eles precisam ser **movidos**, não apagados.
-
-## 2.3 — Qual é o limite de linhas do seu projeto?
-
-Supabase → **Settings** → **API** → procure **Max rows**. Anote o número (padrão: 1000). É só para conferência — o script de recifragem já pagina sozinho.
+**Se algo der errado aqui**, a volta é simples — está no final deste guia.
 
 ---
 
-# ETAPA 3 — Aplicar as 9 migrações
+# PASSO 5 — Publicar o código
 
-> ⏱️ 20 minutos. **Aqui começa a alteração.** A partir daqui, até a Etapa 4 terminar, ativação de pagamento não funciona. Por isso: fora do horário comercial, e sem pausa longa entre esta etapa e a próxima.
+> ⏱️ 10 minutos.
 
-## Como rodar cada uma
+Este repositório aqui não está ligado à Vercel. Você mencionou que ia replicar para o repositório de produção — então leve os commits para lá (push no branch que a Vercel observa).
 
-Para cada arquivo, na ordem da tabela abaixo:
+⚠️ **O push já é a publicação.** No instante em que você empurra, o código novo vai ao ar. Não existe publicar depois.
 
-1. Abra o arquivo em `supabase/migrations/` no seu editor.
-2. **Selecione tudo** (`Ctrl+A`) e copie.
-3. No Supabase SQL Editor, **New query**, cole.
-4. **Clique em qualquer lugar do texto para tirar a seleção.** ⚠️ O botão Run executa **apenas o trecho selecionado** — com texto selecionado, você aplica metade e pula justamente a verificação de segurança do final.
-5. **Run**.
-6. Leia a saída. Só então passe para a próxima.
-
-> ⚠️ **"Success. No rows returned" não é prova de que deu certo.** Quase todo o critério de aceite está em mensagens `NOTICE`, que o editor do Supabase costuma **não exibir**. Por isso a Etapa 5 valida por `SELECT`, que não mente.
-
-## A ordem (não invente outra)
-
-| # | Arquivo | O que faz | Pode abortar? |
-|---|---|---|---|
-| 1 | `20260917120000_a01_privilegio_profiles.sql` | Impede o usuário de se tornar admin | Só se algo estiver muito fora do previsto |
-| 2 | `20260917120100_a10_integridade_tenant.sql` | Exige dono em todo registro clínico | **Sim, de propósito** |
-| 3 | `20260917120200_a20_grupos_cross_tenant.sql` | Impede vincular paciente de outro | Não (pode avisar) |
-| 4 | `20260917120300_a03_a04_a14_superficie_publica.sql` | Fecha laudos e troca o link do calendário | Não |
-| 5 | `20260917120400_a13_rate_limit_compartilhado.sql` | Limite de tentativas que funciona | Não |
-| 6 | `20260917120500_a18_convites.sql` | Convites com prazo | Não |
-| 7 | `20260917120600_a05_a06_a08_a11_pagamentos.sql` | Fecha cupons e evita cobrança repetida | Não |
-| 8 | `20260917120700_a07_chaves_por_usuario.sql` | Cria a tabela de chaves | Não |
-| 9 | `20260917120800_a19_trigger_perfil.sql` | Conserta a criação de conta | Não (pode avisar) |
-
-**A ordem importa de verdade.** A migração 1 é quem cria várias colunas que as outras usam.
-
-## O que fazer quando aparecer mensagem
-
-**A migração 2 abortou, com uma lista de tabelas e números.**
-É o comportamento correto: existe registro clínico sem dono e ela se recusa a chutar. **Não apague nada.** Vá para o Apêndice A, resolva, e rode a 2 de novo — ela pode ser repetida à vontade.
-
-**A migração 3 ou a 9 mostrou `WARNING`.**
-Não é erro. A correção foi aplicada. O aviso diz que existe coisa antiga para revisar (vínculo de grupo cruzado, ou conta sem perfil). Anote e siga — trate depois com calma.
-
-**Qualquer coisa que diga `ERROR` fora do caso da migração 2.**
-Pare. Não rode a próxima. Me mande a mensagem.
-
-**Interrompeu no meio e voltou depois.**
-Todas são repetíveis, mas as migrações 1, 4 e 7 **abortam de propósito** se encontrarem resquício inseguro — e o erro parece problema novo. Anote em qual você parou.
+Acompanhe na Vercel até aparecer **Ready**. Se o build falhar, o site continua no ar com a versão anterior — sem drama, me mande o log.
 
 ---
 
-# ETAPA 4 — Publicar o código novo
+# PASSO 6 — Conferir se funcionou
 
-> ⏱️ 15 minutos. Fecha a janela aberta na etapa anterior.
+> ⏱️ 10 minutos. Não pule: é aqui que dá para descobrir problema antes de mexer nos prontuários.
 
-Este repositório aqui **não está ligado à Vercel** — você disse que ia replicar para o repositório de produção. Então:
+## 6.1 — A chave chegou?
 
-1. Leve os commits para o repositório de produção (push no branch que a Vercel observa).
-2. ⚠️ **O push já é o deploy.** Não existe "decido depois quando publicar". No instante do push, o código novo vai ao ar.
-3. Acompanhe o build na Vercel até aparecer **Ready**.
+Logado no sistema, abra no navegador:
+`https://app.psisetting.com.br/api/crypto/key`
 
-Se o build falhar, o site continua no ar com a versão anterior — sem drama, me mande o log.
+- **Aparece algo como `{"key":"..."}`** → certo, siga.
+- **Aparece erro 500** → a `CLINICAL_KEK` não chegou na Vercel. Confira se está marcada em **Production** e republique. **Não siga para o PASSO 7 assim.**
 
----
+## 6.2 — Os prontuários estão legíveis?
 
-# ETAPA 5 — Verificar que funcionou
-
-> ⏱️ 15 minutos. Não pule: é aqui que você descobre problema enquanto ainda dá para voltar.
-
-## 5.1 — A chave chega ao navegador?
-
-Logado no sistema, abra `https://app.psisetting.com.br/api/crypto/key`.
-
-- **Vê algo como `{"key":"..."}`** → funcionando.
-- **Vê erro 500** → a `CLINICAL_KEK` não chegou. Confira se está marcada em **Production** e republique. **Não siga para a Etapa 6 assim.**
-
-## 5.2 — Os prontuários continuam legíveis?
-
-Abra um paciente, um prontuário, um laudo. O texto tem que aparecer normal.
+Entre no sistema e abra um paciente, um prontuário e um laudo. Tem que aparecer tudo normal.
 
 Se aparecer `[Conteúdo protegido - Chave indisponível]`, pare e me chame.
 
-## 5.3 — A escalada de privilégio está fechada? (o teste que importa)
+## 6.3 — A falha principal está fechada?
 
-Esta era a falha mais grave: qualquer psicólogo cadastrado virava administrador com um comando e alcançava a base clínica inteira.
-
-**Teste rápido, no SQL Editor:**
+No SQL Editor:
 
 ```sql
 SELECT grantee, privilege_type
@@ -247,28 +199,9 @@ FROM information_schema.table_privileges
 WHERE table_schema='public' AND table_name='profiles' AND privilege_type='UPDATE';
 ```
 
-**Esperado:** `authenticated` **não** aparece. Se aparecer, a migração 1 não pegou.
+**O esperado é que `authenticated` NÃO apareça na lista.** Se aparecer, o arquivo 1 não pegou.
 
-**Teste definitivo, simulando o atacante.** Este prova de verdade, porque exercita a trava pelo mesmo caminho que um usuário real usaria. No SQL Editor:
-
-```sql
--- Assume a identidade de um psicólogo comum e tenta se promover.
--- Troque pelo UUID de uma conta comum (NÃO a sua, que é admin).
-BEGIN;
-SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims TO '{"sub":"COLE_O_UUID_DE_UMA_CONTA_COMUM","role":"authenticated"}';
-
-UPDATE profiles SET is_admin = true WHERE id = 'COLE_O_UUID_DE_UMA_CONTA_COMUM';
-ROLLBACK;
-```
-
-**Esperado:** um erro, algo como `permission denied` ou `Coluna privilegiada de profiles nao pode ser alterada pelo proprio usuario`.
-
-**Se o UPDATE for aceito, a trava não está funcionando — pare e me chame.**
-
-O `ROLLBACK` no final garante que nada é gravado, mesmo que passe.
-
-## 5.4 — Sobrou alguma brecha conhecida?
+## 6.4 — Sobrou alguma brecha?
 
 ```sql
 SELECT policyname, tablename FROM pg_policies
@@ -276,204 +209,162 @@ WHERE policyname IN ('laudos_storage_owner_only','logos_select_public','coupons_
    OR 'anon' = ANY(roles);
 ```
 
-**Esperado: nenhuma linha.** Resultado vazio aqui é boa notícia.
+**O esperado é nenhuma linha.** Resultado vazio aqui é boa notícia.
 
-## 5.5 — Avise as psicólogas sobre o calendário
+## 6.5 — Avise a Hellen
 
-O link antigo da agenda parou de funcionar no momento da migração 4. Isso é o efeito pretendido — aquele link entregava nome de paciente e anotação clínica para quem tivesse a URL.
+O link de calendário dela vai parar de funcionar. O da Isabella e o seu continuam normais — só o dela precisa ser renovado.
 
-Mande uma mensagem: **"o link da agenda foi renovado por segurança; entre em Configurações e gere o novo link para reassinar no celular."**
+Motivo: o link dela é o que está escrito dentro do código do projeto, então qualquer pessoa com acesso ao código conseguiria ver a agenda dela, com nome de paciente. A migração troca por um aleatório.
+
+Mensagem para ela: *"o link da agenda foi renovado por segurança. Entra em Configurações, gera o link novo e assina de novo no celular."*
 
 ---
 
-# ETAPA 6 — Recifrar os prontuários
+# PASSO 7 — Trocar a criptografia
 
-> ⏱️ 20 minutos. **É o ponto de não retorno.** Depois daqui, o banco sozinho não abre mais os prontuários — precisa do banco **mais** a `CLINICAL_KEK`.
+> ⏱️ 15 minutos. **É o ponto sem volta.** São 80 campos.
 
-## 6.1 — Confirmar que a chave é a mesma
+## 7.1 — Conferir que a chave é a mesma
 
-No seu `.env.local`, adicione a mesma chave da Etapa 0.3:
+Abra o arquivo `.env.local` (na pasta do projeto) e acrescente uma linha com a mesma chave do PASSO 2:
 
 ```
-CLINICAL_KEK=a-mesma-chave-de-64-caracteres
+CLINICAL_KEK=cole-aqui-a-mesma-chave
 ```
 
-Agora confirme que é idêntica à da Vercel, comparando a impressão digital:
+Confirme que é idêntica à da Vercel:
 
 ```bash
-node -e "console.log(require('crypto').createHash('sha256').update(process.env.CLINICAL_KEK||'').digest('hex').slice(0,16))" --env-file=.env.local
+node --env-file=.env.local -e "console.log(require('crypto').createHash('sha256').update(process.env.CLINICAL_KEK||'').digest('hex').slice(0,16))"
 ```
 
-**O resultado tem que bater com o que você anotou na Etapa 0.3.** Se não bater, **pare**. Rodar com a chave errada grava tudo sob uma chave que a aplicação não tem — e isso não tem volta.
+**O resultado tem que ser igual ao que você anotou no PASSO 2.**
 
-## 6.2 — Ensaio (não grava nada)
+Se for diferente, **pare**. Rodar com a chave errada grava tudo com uma chave que a aplicação não tem, e o ensaio não detecta isso.
+
+## 7.2 — Ensaio (não grava nada)
 
 ```bash
 npm run recifrar
 ```
 
-Ele diz quantos campos seriam convertidos. Leia a saída inteira:
+Ele mostra quantos campos seriam convertidos — deve dizer algo em torno de 80 — e termina com `Falhas: 0`.
 
-- **`Falhas: 0`** → pode seguir.
-- **Qualquer falha** → pare e me mande a saída.
+Se aparecer qualquer falha, pare e me mande o que apareceu na tela.
 
-## 6.3 — Backup de segurança extra
+## 7.3 — Testar primeiro só na sua conta
 
-Além do backup da Etapa 0.2, tire uma cópia cirúrgica das colunas cifradas. Isso permite voltar atrás sem restaurar o banco inteiro:
+Pegue seu identificador:
 
 ```sql
-CREATE TABLE backup_v1_prontuarios  AS SELECT id, conteudo FROM prontuarios  WHERE conteudo LIKE 'enc:v1:%';
-CREATE TABLE backup_v1_diario       AS SELECT id, conteudo FROM diario_bordo WHERE conteudo LIKE 'enc:v1:%';
-CREATE TABLE backup_v1_laudos       AS SELECT id, conteudo FROM laudos       WHERE conteudo LIKE 'enc:v1:%';
-CREATE TABLE backup_v1_pacientes    AS SELECT id, nome, cpf, telefone, email, endereco, contato_emergencia, observacoes_gerais FROM pacientes;
+SELECT id FROM profiles WHERE email = 'vitorrohde84@gmail.com';
 ```
 
-## 6.4 — Testar em você primeiro
-
-Pegue seu UUID (`SELECT id FROM profiles WHERE email = 'seu@email.com';`) e rode só para você:
+E rode só para você:
 
 ```bash
-npx tsx --env-file=.env.local scripts/migrate-reencrypt-v1-to-v2.ts --apply --user COLE_SEU_UUID
+npx tsx --env-file=.env.local scripts/migrate-reencrypt-v1-to-v2.ts --apply --user COLE_O_ID_AQUI
 ```
 
-Agora **abra o sistema e confira**: um paciente, um prontuário, um laudo. Tudo legível?
+**Agora abra o sistema com a sua conta e confira** se o que é seu continua legível.
 
-- **Sim** → siga.
-- **Não** → pare imediatamente. Não rode para os outros. Me chame.
+- **Tudo certo** → siga.
+- **Algo ilegível** → pare. Não rode para as outras duas. Me chame.
 
-## 6.5 — Rodar para todo mundo
+## 7.4 — Rodar para todo mundo
 
 ```bash
 npm run recifrar:aplicar
 ```
 
-⚠️ Use exatamente esse comando. **`npm run recifrar --apply` não aplica nada** — sem os dois traços o npm engole a flag e roda em ensaio, com saída parecida o bastante para enganar.
+⚠️ Use exatamente esse comando. **`npm run recifrar --apply` não funciona** — sem os dois traços, o npm engole a opção e roda só o ensaio, com uma saída parecida o bastante para enganar.
 
-No final, o script confere no próprio banco o que sobrou e imprime:
+No fim ele confere no banco e mostra:
 
 ```
 ✓ Remigração completa: nenhum campo em enc:v1: restou no banco.
 ```
 
-Se disser que sobraram campos, **rode de novo** até chegar a zero.
+Se disser que sobraram campos, rode de novo até zerar.
 
-## 6.6 — Conferência final
+## 7.5 — Conferência final
 
-```sql
-SELECT count(*) FROM user_encryption_keys;
-SELECT user_id, count(*) FROM user_encryption_keys GROUP BY user_id HAVING count(*) > 1;
-```
-
-A segunda consulta tem que vir **vazia** (ninguém pode ter duas chaves).
+Peça para a Hellen e para a Isabella abrirem o sistema e conferirem um prontuário cada. É o teste que vale.
 
 ---
 
-# Pronto. E agora?
+# Se algo der errado
 
-- **Não remova** o `LEGACY_MASTER_SECRET` de `utils/crypto.ts` ainda. Deixe algumas semanas, para o caso de aparecer dado antigo de psicólogo inativo.
-- **Nunca exclua uma conta** pelo painel do Supabase sem antes salvar `SELECT user_id, wrapped_dek FROM user_encryption_keys WHERE user_id = '<uuid>';` — a chave dela é apagada junto e o prontuário fica ilegível.
-- **A `CLINICAL_KEK` agora vive no seu `.env.local`.** Esse computador passou a guardar a chave-mestra de todos os prontuários. Trate o disco (e o backup dele) com o mesmo cuidado que o servidor.
+Com 102 linhas, quase tudo tem volta.
 
----
+| Onde deu errado | Como voltar |
+|---|---|
+| PASSOS 1 a 3 | Nada foi alterado ainda |
+| Um dos 9 arquivos de SQL | `npm run restaurar -- <arquivo> --confirmar` |
+| Depois de publicar | Vercel → Deployments → o anterior → **Rollback** |
+| Recifragem, só na sua conta | `npm run restaurar -- <arquivo> --confirmar` |
+| Recifragem geral | `npm run restaurar`, **se você tiver a chave** |
 
-# Apêndice A — Registro clínico sem dono
+Para ver os backups disponíveis:
 
-Se a migração 2 abortou, existe prontuário, paciente ou agendamento sem psicólogo responsável. Ela se recusa a adivinhar — atribuir o prontuário de um paciente ao psicólogo errado é violação de sigilo.
-
-**⚠️ Nunca use `DELETE` aqui.** A tabela `pacientes` apaga em cascata: sumir com um paciente órfão leva junto, em silêncio e sem confirmação, os prontuários, laudos, diário, agendamentos e pagamentos dele. É o erro mais caro do procedimento inteiro.
-
-**1. Guarde antes de tocar:**
-
-```sql
-CREATE TABLE quarentena_pacientes AS SELECT * FROM pacientes WHERE psicologo_id IS NULL;
+```bash
+npm run restaurar
 ```
 
-**2. Olhe o que é:**
+Para desfazer usando o backup de hoje:
 
-```sql
-SELECT * FROM pacientes WHERE psicologo_id IS NULL;
+```bash
+npm run restaurar -- backup-2026-09-17T19-03-27.json --confirmar
 ```
 
-Nome real ou dado de teste? Tem prontuário vinculado? Muitas vezes o filho já tem dono e revela a resposta:
-
-```sql
-SELECT DISTINCT pr.psicologo_id
-FROM prontuarios pr WHERE pr.paciente_id = 'ID_DO_PACIENTE_ORFAO';
-```
-
-**3. Corrija um por um** — nunca em massa:
-
-```sql
-UPDATE pacientes SET psicologo_id = 'UUID_DO_PSICOLOGO' WHERE id = 'ID_DO_PACIENTE';
-```
-
-**4. Rode a migração 2 de novo.** Ela pode ser repetida à vontade.
-
-Se tiver dúvida sobre de quem é algum registro, **pare e me pergunte**. Deixar órfão é bem menos grave que atribuir errado.
-
----
-
-# Apêndice B — Se algo der errado
-
-| Onde | Dá para voltar? | Como |
-|---|---|---|
-| Etapas 0 a 2 | Sim, nada foi alterado | — |
-| Migrações 1 a 9 | Sim | Restaurar o backup da Etapa 0.2. As migrações são repetíveis. |
-| Deploy (Etapa 4) | Sim | Vercel → Deployments → deploy anterior → **Rollback** |
-| Recifragem, só você (6.4) | Sim | Restaurar as tabelas `backup_v1_*` da Etapa 6.3 |
-| Recifragem geral (6.5) | **Só com a KEK** | O banco sozinho não basta mais |
-
-**A pergunta que define tudo:** você ainda tem a `CLINICAL_KEK` guardada em dois lugares fora do servidor?
-
-- **Sim** → nenhum problema deste procedimento é irreversível de verdade.
-- **Não** → pare o que estiver fazendo e guarde agora, antes de qualquer outra coisa.
+E, no pior cenário de todos — chave perdida e banco recifrado — ainda restam os CSVs que a Hellen e a Isabella baixaram no PASSO 1. O conteúdo clínico não se perde; seria trabalhoso recadastrar, mas nada de paciente desaparece. **É por isso que o PASSO 1 não é opcional.**
 
 ---
 
 # Checklist
 
 ```
-ETAPA 0 — Preparação
-[ ] 0.1 Lista de admins/VIPs salva em arquivo, com data
-[ ] 0.1 Reconheço todos os admins da lista
-[ ] 0.2 Backup feito, horário anotado, conclusão confirmada
-[ ] 0.3 CLINICAL_KEK gerada UMA vez
-[ ] 0.3 Chave guardada em dois lugares fora do servidor
-[ ] 0.3 Impressão digital de 16 caracteres anotada
+PASSO 1 — Cópias
+[ ] Hellen baixou o CSV dela
+[ ] Isabella baixou o CSV dela
+[ ] O arquivo JSON está copiado fora deste computador
 
-ETAPA 1 — Variáveis
-[ ] CLINICAL_KEK na Vercel, nos 3 ambientes, sem NEXT_PUBLIC_
-[ ] MERCADO_PAGO_WEBHOOK_SECRET na Vercel, sem espaço nas pontas
+PASSO 2 — Chave
+[ ] Chave gerada UMA vez
+[ ] Guardada no gerenciador de senhas
+[ ] Guardada num segundo lugar fora do computador
+[ ] Impressão digital de 16 caracteres anotada
 
-ETAPA 2 — Conferência
-[ ] 2.1 Registros órfãos: todos zero (ou Apêndice A resolvido)
-[ ] 2.2 Laudos fora do padrão de pasta: nenhum
-[ ] 2.3 Max rows anotado
+PASSO 3 — Vercel
+[ ] CLINICAL_KEK criada, nos 3 ambientes, sem NEXT_PUBLIC_
+[ ] MERCADO_PAGO_WEBHOOK_SECRET criada, sem espaços
 
-ETAPA 3 — Migrações (fora do horário de atendimento)
-[ ] 1  privilegio_profiles          [ ] 6  convites
-[ ] 2  integridade_tenant           [ ] 7  pagamentos
-[ ] 3  grupos_cross_tenant          [ ] 8  chaves_por_usuario
-[ ] 4  superficie_publica           [ ] 9  trigger_perfil
-[ ] 5  rate_limit_compartilhado
+PASSO 4 — SQL (fora do horário de atendimento)
+[ ] 1    [ ] 4    [ ] 7
+[ ] 2    [ ] 5    [ ] 8
+[ ] 3    [ ] 6    [ ] 9
 
-ETAPA 4 — Deploy
-[ ] Push no repositório de produção
+PASSO 5 — Publicar
+[ ] Push feito
 [ ] Build Ready na Vercel
 
-ETAPA 5 — Verificação
-[ ] 5.1 /api/crypto/key responde com a chave
-[ ] 5.2 Prontuário e laudo legíveis na tela
-[ ] 5.3 authenticated NÃO tem UPDATE em profiles
-[ ] 5.4 Consulta de policies perigosas: vazia
-[ ] 5.5 Psicólogas avisadas sobre o link do calendário
+PASSO 6 — Conferir
+[ ] /api/crypto/key respondeu com a chave
+[ ] Prontuário e laudo legíveis
+[ ] authenticated NÃO tem UPDATE em profiles
+[ ] Consulta de brechas: vazia
+[ ] Hellen avisada sobre o link da agenda
 
-ETAPA 6 — Recifragem (ponto de não retorno)
-[ ] 6.1 Impressão digital da chave bate com a anotada
-[ ] 6.2 Ensaio com Falhas: 0
-[ ] 6.3 Tabelas backup_v1_* criadas
-[ ] 6.4 Testado só na minha conta, e continua legível
-[ ] 6.5 npm run recifrar:aplicar (com os dois traços!)
-[ ] 6.5 "Remigração completa" confirmado
-[ ] 6.6 Ninguém com duas chaves
+PASSO 7 — Criptografia (ponto sem volta)
+[ ] Impressão digital confere com a anotada
+[ ] Ensaio com Falhas: 0
+[ ] Testado só na minha conta e continua legível
+[ ] npm run recifrar:aplicar (com os dois traços!)
+[ ] "Remigração completa" apareceu
+[ ] Hellen e Isabella confirmaram que está tudo normal
 ```
+
+---
+
+**Dúvida em qualquer ponto, pare e pergunte.** Nada aqui tem pressa, e a única coisa que realmente não tem volta é perder a chave do PASSO 2.
