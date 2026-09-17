@@ -16,7 +16,7 @@ const LaudoConfigModal = dynamic(
 );
 import { LaudoPrint } from "./laudo-print";
 import { getLaudoSignedUrl } from "@/utils/supabase/storage";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 
 interface Laudo {
   id: string;
@@ -84,7 +84,7 @@ export function LaudoList() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let pac: any = l.pacientes;
           let pacNome = Array.isArray(pac) ? pac[0]?.nome : pac?.nome;
-          if (pacNome && pacNome.startsWith("enc:v1:")) {
+          if (pacNome && ehCifrado(pacNome)) {
             pacNome = await decryptClinicalData(pacNome, user.id);
           }
 

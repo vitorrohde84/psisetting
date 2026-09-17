@@ -11,7 +11,7 @@ const ProntuarioFormModal = dynamic(
   { ssr: false }
 );
 import { downloadPdf } from "@/utils/pdf-export";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 
 interface Prontuario {
   id: string;
@@ -94,7 +94,7 @@ export function ProntuarioList() {
       const list: PacienteResumo[] = await Promise.all(
         pacsRes.data.map(async (p) => {
           let pacNome = p.nome;
-          if (pacNome && pacNome.startsWith("enc:v1:")) {
+          if (pacNome && ehCifrado(pacNome)) {
             pacNome = await decryptClinicalData(pacNome, user.id);
           }
           const stat = statsMap.get(p.id) || { total: 0, ultimaData: null };

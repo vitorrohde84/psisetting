@@ -255,6 +255,21 @@ export function ehFormatoLegado(valor: unknown): boolean {
   return typeof valor === "string" && valor.startsWith(CIPHER_PREFIX_V1);
 }
 
+/**
+ * true se o valor está cifrado em QUALQUER formato (v1 ou v2).
+ *
+ * Existe porque havia 17 pontos no app testando `.startsWith("enc:v1:")` na
+ * mão. Ao introduzir o v2, todos eles parariam de reconhecer o dado novo como
+ * cifrado — e a tela mostraria "enc:v2:9f3a..." no lugar do texto. Sempre que
+ * precisar saber se algo está cifrado, use isto, nunca o prefixo direto.
+ */
+export function ehCifrado(valor: unknown): boolean {
+  return (
+    typeof valor === "string" &&
+    (valor.startsWith(CIPHER_PREFIX_V1) || valor.startsWith(CIPHER_PREFIX_V2))
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PIN do Diário de Bordo
 // ─────────────────────────────────────────────────────────────────────────

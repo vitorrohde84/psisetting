@@ -5,7 +5,7 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { decryptClinicalData } from "./crypto";
+import { decryptClinicalData , ehCifrado } from "./crypto";
 
 function escapeCSV(val: any): string {
   if (val === null || val === undefined) return '""';
@@ -102,7 +102,7 @@ export async function generateFullSystemBackupCSV(
     const decryptedAgendamentos = await Promise.all(
       (agendsRes.data || []).map(async (a) => {
         let obsDec = a.observacoes;
-        if (obsDec && obsDec.startsWith("enc:v1:")) {
+        if (obsDec && ehCifrado(obsDec)) {
           obsDec = await decryptClinicalData(obsDec, userId);
         }
         return {
@@ -131,7 +131,7 @@ export async function generateFullSystemBackupCSV(
     const decryptedLaudos = await Promise.all(
       (laudosRes.data || []).map(async (l) => {
         let cont = l.conteudo;
-        if (l.tipo_documento === "text" && cont && cont.startsWith("enc:v1:")) {
+        if (l.tipo_documento === "text" && cont && ehCifrado(cont)) {
           cont = await decryptClinicalData(cont, userId);
         }
         return {

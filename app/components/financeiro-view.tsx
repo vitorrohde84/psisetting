@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle, TrendingUp, CalendarDays } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -67,10 +67,10 @@ export function FinanceiroView() {
           let pacNome = (p.pacientes as any)?.nome || "Paciente";
           let pacCpf = (p.pacientes as any)?.cpf || "";
 
-          if (pacNome && pacNome.startsWith("enc:v1:")) {
+          if (pacNome && ehCifrado(pacNome)) {
             pacNome = await decryptClinicalData(pacNome, user.id);
           }
-          if (pacCpf && pacCpf.startsWith("enc:v1:")) {
+          if (pacCpf && ehCifrado(pacCpf)) {
             pacCpf = await decryptClinicalData(pacCpf, user.id);
           }
 

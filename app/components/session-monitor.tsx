@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { Bell, FileText, DollarSign, X, ChevronUp, ChevronDown } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
 import { PagamentoFormModal } from "./pagamento-form-modal";
@@ -60,7 +60,7 @@ export function SessionMonitor() {
     const enhancedAgs = await Promise.all(
       (agsRes.data || []).map(async (ag) => {
         let pacNome = (ag.pacientes as any)?.nome || "Paciente";
-        if (user && pacNome && pacNome.startsWith("enc:v1:")) {
+        if (user && pacNome && ehCifrado(pacNome)) {
           pacNome = await decryptClinicalData(pacNome, user.id);
         }
 

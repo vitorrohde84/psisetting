@@ -26,7 +26,7 @@ const DiarioFormModal = dynamic(
   () => import("./diario-form-modal").then((m) => m.DiarioFormModal),
   { ssr: false }
 );
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { analyzeClinicalEvolutions } from "@/utils/clinical-analyzer";
 
 interface Diario {
@@ -108,7 +108,7 @@ export function DiarioList() {
       const list: PacienteResumo[] = await Promise.all(
         pacsRes.data.map(async (p) => {
           let pacNome = p.nome;
-          if (pacNome && pacNome.startsWith("enc:v1:")) {
+          if (pacNome && ehCifrado(pacNome)) {
             pacNome = await decryptClinicalData(pacNome, user.id);
           }
           const stat = statsMap.get(p.id) || { total: 0, ultimaData: null };

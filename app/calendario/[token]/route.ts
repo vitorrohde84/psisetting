@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 
 /**
@@ -81,7 +81,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const decryptedAgendamentos = await Promise.all(
       (agendamentos || []).map(async (ag) => {
         let pacNome = (ag.pacientes as { nome?: string })?.nome || "Paciente";
-        if (pacNome && pacNome.startsWith("enc:v1:")) {
+        if (pacNome && ehCifrado(pacNome)) {
           pacNome = await decryptClinicalData(pacNome, psicologoId);
         }
         return {
@@ -109,7 +109,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 }
 
 function formatShortPatientName(fullName: string): string {
-  if (!fullName || fullName.startsWith("enc:v1:")) return "Paciente";
+  if (!fullName || ehCifrado(fullName)) return "Paciente";
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0] || "Paciente";
 

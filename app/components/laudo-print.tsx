@@ -14,7 +14,7 @@ import {
   Settings
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { decryptClinicalData } from "@/utils/crypto";
+import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { LaudoConfigModal } from "./laudo-config-modal";
 
 interface LaudoPrintProps {
@@ -96,19 +96,19 @@ export function LaudoPrint({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        if (pacienteNome && pacienteNome.startsWith("enc:v1:")) {
+        if (pacienteNome && ehCifrado(pacienteNome)) {
           setDecryptedNome(await decryptClinicalData(pacienteNome, user.id));
         } else {
           setDecryptedNome(pacienteNome);
         }
 
-        if (pacienteCpf && pacienteCpf.startsWith("enc:v1:")) {
+        if (pacienteCpf && ehCifrado(pacienteCpf)) {
           setDecryptedCpf(await decryptClinicalData(pacienteCpf, user.id));
         } else {
           setDecryptedCpf(pacienteCpf);
         }
 
-        if (conteudo && conteudo.startsWith("enc:v1:")) {
+        if (conteudo && ehCifrado(conteudo)) {
           setDecryptedConteudo(await decryptClinicalData(conteudo, user.id));
         } else {
           setDecryptedConteudo(conteudo);
