@@ -146,6 +146,15 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
       data_vencimento: form.data_vencimento,
       status: form.status,
       forma_pagamento: form.forma_pagamento,
+      // O painel inicial soma "Recebido no mês" filtrando por data_pagamento
+      // (app/(dashboard)/page.tsx), mas NADA no sistema preenchia esta coluna.
+      // O número da tela de entrada era R$ 0,00 desde sempre — dos 4
+      // pagamentos marcados como pagos, nenhum tinha data. Agora o momento do
+      // recebimento é registrado, e baixar o status limpa a data.
+      data_pagamento:
+        form.status === "pago"
+          ? new Date().toISOString().slice(0, 10)
+          : null,
     };
 
     let result;

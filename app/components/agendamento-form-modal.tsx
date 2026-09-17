@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
+import { deveCriarEvolucao, valorDaCobranca } from "@/utils/agenda-regras";
 import { X, Save, Loader2, Search } from "lucide-react";
 import type { Agendamento } from "./agenda-view";
 
@@ -27,6 +28,8 @@ interface FormData {
   modalidade: string;
   status: string;
   observacoes: string;
+  /** Vazio = não cria cobrança. Nunca preenchido pelo sistema sem ela ver. */
+  valor: string;
 }
 
 export function AgendamentoFormModal({
@@ -47,6 +50,7 @@ export function AgendamentoFormModal({
     modalidade: agendamento?.modalidade || prefillData?.modalidade || "presencial",
     status: agendamento?.status || prefillData?.status || "agendado",
     observacoes: agendamento?.observacoes || prefillData?.observacoes || "",
+    valor: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -112,6 +116,34 @@ export function AgendamentoFormModal({
     }
     fetchPacientes();
   }, [agendamento, prefillData]);
+
+  // Sugere o valor da sessão a partir do ÚLTIMO valor realmente cobrado deste
+  // paciente. É histórico dela, não um número escolhido pelo sistema — e fica
+  // visível no formulário para ser conferido ou trocado. Sem histórico, o campo
+  // permanece vazio e nenhuma cobrança é criada.
+  useEffect(() => {
+    if (isEditing || !form.paciente_id) return;
+
+    let cancelado = false;
+    (async () => {
+      const { data } = await supabase
+        .from("pagamentos")
+        .select("valor")
+        .eq("paciente_id", form.paciente_id)
+        .order("data_vencimento", { ascending: false })
+        .limit(1);
+
+      const ultimo = data?.[0]?.valor;
+      if (!cancelado && ultimo != null) {
+        setForm((prev) => (prev.valor ? prev : { ...prev, valor: String(ultimo) }));
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.paciente_id, isEditing]);
 
   // Filter patients by search
   const filteredPacientes = pacienteSearch
@@ -236,43 +268,88 @@ export function AgendamentoFormModal({
       return;
     }
 
-    // --- AUTO-PRONTUÁRIO INTEGRATION ---
-    if (form.observacoes.trim() && result.data) {
+    // --- AUTO-PRONTUÁRIO ---
+    //
+    // Três defeitos corrigidos aqui em 17/09/2026. Todos ativos em produção,
+    // sobre prontuário de paciente real:
+    //
+    // 1. GRAVAVA EM TEXTO PURO. Usava `form.observacoes.trim()` cru, embora
+    //    `encryptedObs` já estivesse pronto três dezenas de linhas acima. Foi
+    //    esta linha que produziu os 13 prontuários sem criptografia que a
+    //    auditoria encontrou — e continuaria produzindo.
+    //
+    // 2. SOBRESCREVIA EVOLUÇÃO. O `.update()` substituía o prontuário
+    //    existente. Bastava abrir o agendamento para corrigir o horário e a
+    //    evolução escrita pela psicóloga era apagada, sem aviso nem histórico.
+    //    Agora nunca sobrescreve: registro clínico só se edita em Prontuários.
+    //
+    // 3. FABRICAVA SESSÃO FUTURA. Com recorrência, `result.data` traz todas as
+    //    ocorrências, e o laço criava um prontuário para cada uma — registro de
+    //    sessão que ainda não aconteceu. Agora só a data de hoje ou anterior.
+    if (form.observacoes.trim() && encryptedObs && result.data) {
+      const hoje = new Date().toISOString().slice(0, 10);
+
       for (const ag of result.data) {
         const { data: existing } = await supabase
           .from("prontuarios")
           .select("id")
           .eq("agendamento_id", ag.id)
-          .single();
+          .maybeSingle();
 
-        const pPayload = {
+        // A decisão mora em utils/agenda-regras.ts, coberta por teste.
+        const criar = deveCriarEvolucao({
+          dataAgendamento: ag.data,
+          hoje,
+          jaExisteEvolucao: !!existing,
+          temObservacao: !!form.observacoes.trim(),
+        });
+
+        if (!criar) continue;
+
+        const { error: pErr } = await supabase.from("prontuarios").insert({
           paciente_id: ag.paciente_id,
           agendamento_id: ag.id,
           data: ag.data,
-          conteudo: form.observacoes.trim(),
-        };
+          psicologo_id: user.id,
+          conteudo: encryptedObs,
+        });
 
-        if (existing) {
-          await supabase.from("prontuarios").update(pPayload).eq("id", existing.id);
-        } else {
-          await supabase.from("prontuarios").insert(pPayload);
+        if (pErr) {
+          console.error("Falha ao criar evolução a partir da agenda:", pErr);
         }
       }
     }
     // ------------------------------------
 
-    // --- AUTO-PAGAMENTO INTEGRATION ---
-    if (!isEditing && result.data) {
+    // --- AUTO-PAGAMENTO ---
+    //
+    // Antes: `valor: 150, // Valor padrão a ser ajustado no financeiro`.
+    // Todo agendamento criava em silêncio uma cobrança de R$ 150 que ninguém
+    // tinha combinado. No banco auditado, 18 dos 25 lançamentos eram esse 150
+    // inventado — o "financeiro" era, em boa parte, ficção do próprio código,
+    // e o total a receber que ele exibia não correspondia a nada.
+    //
+    // Agora o valor é explícito: vem do campo do formulário, pré-preenchido com
+    // o último valor cobrado daquele paciente (histórico real dela, não um
+    // número escolhido pelo programa). Em branco, nenhuma cobrança é criada.
+    // Em branco, inválido ou zero devolve null e nenhuma cobrança é criada.
+    const valorSessao = valorDaCobranca(form.valor);
+
+    if (!isEditing && result.data && valorSessao !== null) {
       for (const ag of result.data) {
-        const pagPayload = {
+        const { error: pagErr } = await supabase.from("pagamentos").insert({
           paciente_id: ag.paciente_id,
           agendamento_id: ag.id,
-          valor: 150, // Valor padrão a ser ajustado no financeiro
+          psicologo_id: user.id,
+          valor: valorSessao,
           data_vencimento: ag.data,
           status: "pendente",
           forma_pagamento: "pix",
-        };
-        await supabase.from("pagamentos").insert(pagPayload);
+        });
+
+        if (pagErr) {
+          console.error("Falha ao criar lançamento financeiro:", pagErr);
+        }
       }
     }
     // ------------------------------------
@@ -453,6 +530,36 @@ export function AgendamentoFormModal({
               <option value="cancelado">Cancelado</option>
             </select>
           </div>
+
+          {/* Valor da sessão — só aparece ao criar, não ao editar.
+              Antes, o sistema criava sozinho uma cobrança de R$ 150 sem
+              perguntar nada. Agora o valor é dela, visível e opcional. */}
+          {!isEditing && (
+            <div>
+              <label htmlFor="ag-valor" className={labelClass}>
+                Valor da sessão{" "}
+                <span className="font-normal text-text-muted">
+                  — deixe em branco para não gerar cobrança
+                </span>
+              </label>
+              <input
+                id="ag-valor"
+                name="valor"
+                type="text"
+                inputMode="decimal"
+                value={form.valor}
+                onChange={handleChange}
+                placeholder="Ex: 150"
+                className={inputClass}
+              />
+              {isRecurring && form.valor.trim() && (
+                <p className="mt-1.5 text-xs text-text-muted">
+                  Será lançada uma cobrança para cada uma das{" "}
+                  {recurrenceCount + 1} sessões.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Observações / Prontuário */}
           <div>
