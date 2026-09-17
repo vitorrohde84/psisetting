@@ -183,10 +183,21 @@ async function cifrarV2(texto: string, chave: CryptoKey): Promise<string> {
 }
 
 async function main() {
-  if (!SUPABASE_URL || !SERVICE_KEY || !KEK_HEX) {
-    console.error(
-      "Faltam variáveis: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e CLINICAL_KEK."
-    );
+  const faltando = [
+    !SUPABASE_URL && "NEXT_PUBLIC_SUPABASE_URL",
+    !SERVICE_KEY && "SUPABASE_SERVICE_ROLE_KEY",
+    !KEK_HEX && "CLINICAL_KEK",
+  ].filter(Boolean);
+
+  if (faltando.length > 0) {
+    console.error(`\nFalta definir em .env.local: ${faltando.join(", ")}\n`);
+    if (faltando.includes("CLINICAL_KEK")) {
+      console.error(
+        "Para gerar a CLINICAL_KEK:\n" +
+          '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+          "Guarde uma cópia fora do servidor antes de continuar.\n"
+      );
+    }
     process.exit(1);
   }
 
