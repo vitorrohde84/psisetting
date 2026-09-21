@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 
 interface MercadoPagoBrickProps {
   amount: number;
@@ -161,10 +162,7 @@ export function MercadoPagoBrick({ amount, couponCode, onSuccess }: MercadoPagoB
   return (
     <div className="space-y-3">
       {loading && (
-        <div className="flex flex-col items-center justify-center py-10 space-y-2 text-text-muted">
-          <Loader2 size={24} className="animate-spin text-primary" />
-          <p className="text-xs font-medium">Carregando gateway seguro...</p>
-        </div>
+        <Carregando tamanho="sm" mensagem="Carregando gateway seguro…" className="py-10" />
       )}
 
       {error && (

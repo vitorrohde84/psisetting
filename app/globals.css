@@ -58,6 +58,51 @@ body {
   }
 }
 
+/* ===== Carregamento: xícara de chá ===== */
+/* Ver app/components/carregando.tsx. Só transform e opacity: roda liso até
+   em celular fraco, sem repintar a página. */
+.ps-cha-vapor {
+  fill: none;
+  stroke: var(--color-brand-setting);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: ps-cha-vapor 2.7s ease-out infinite;
+}
+
+@keyframes ps-cha-vapor {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scaleY(0.5);
+  }
+  35% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scaleY(1.1);
+  }
+}
+
+/* Movimento reduzido: o vapor fica parado e só respira na opacidade. */
+@media (prefers-reduced-motion: reduce) {
+  .ps-cha-vapor {
+    animation: ps-cha-vapor-calmo 3.2s ease-in-out infinite;
+  }
+}
+
+@keyframes ps-cha-vapor-calmo {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 /* ===== Focus Ring (accessibility) ===== */
 *:focus-visible {
   outline: 2px solid var(--color-primary);

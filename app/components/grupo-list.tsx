@@ -20,6 +20,7 @@ import {
   History,
   FileText,
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 import { GrupoFormModal, GrupoData } from "./grupo-form-modal";
 import { GrupoSessaoModal, GrupoMembroInfo } from "./grupo-sessao-modal";
@@ -240,10 +241,11 @@ export function GrupoList() {
 
       {/* Lista de Grupos */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-surface border border-border rounded-2xl">
-          <Loader2 size={32} className="animate-spin text-primary mb-3" />
-          <p className="text-sm text-text-muted">Carregando grupos terapêuticos...</p>
-        </div>
+        <Carregando
+          dadosClinicos
+          mensagem="Carregando grupos terapêuticos…"
+          className="py-20 bg-surface border border-border rounded-2xl"
+        />
       ) : grupos.length === 0 ? (
         <div className="text-center py-16 px-4 bg-surface border border-border rounded-2xl space-y-4">
           <div className="inline-flex p-4 rounded-2xl bg-primary/10 text-primary mb-2">

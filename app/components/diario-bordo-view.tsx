@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Send,
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import { hashDiarioPin, verifyDiarioPin } from "@/utils/crypto";
 import { DiarioList } from "./diario-list";
 
@@ -296,11 +297,7 @@ export function DiarioBordoView() {
   };
 
   if (loadingAuth) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={24} className="animate-spin text-primary" />
-      </div>
-    );
+    return <Carregando className="py-24" />;
   }
 
   // Mascarar e-mail para exibição segura (ex: psih***@gmail.com)

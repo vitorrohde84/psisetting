@@ -27,6 +27,7 @@ import {
   RefreshCw,
   KeyRound,
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import { generateFullSystemBackupCSV } from "@/utils/export-backup";
 import { AlterarPinModal } from "./alterar-pin-modal";
 
@@ -315,11 +316,7 @@ export function ConfiguracoesView() {
   }
 
   if (loadingProfile) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={24} className="animate-spin text-primary" />
-      </div>
-    );
+    return <Carregando className="py-24" />;
   }
 
   return (

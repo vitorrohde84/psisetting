@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Users,
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
 const DiarioFormModal = dynamic(
@@ -286,10 +287,7 @@ export function DiarioList() {
         {/* Patient Grid */}
         <div className="bg-surface rounded-2xl border border-border shadow-xs overflow-hidden">
           {loadingPacientes ? (
-            <div className="flex flex-col items-center justify-center py-20 text-text-muted">
-              <Loader2 className="animate-spin mb-3 text-primary" size={24} />
-              <p className="text-sm">Carregando pacientes…</p>
-            </div>
+            <Carregando dadosClinicos mensagem="Carregando pacientes…" className="py-20" />
           ) : filteredPacientes.length === 0 ? (
             <div className="p-12 text-center">
               <BookOpen className="mx-auto text-text-muted/30 mb-3" size={40} />
@@ -530,10 +528,7 @@ export function DiarioList() {
 
         {/* Linha do Tempo das Anotações do Diário do Paciente */}
         {loadingDiarios ? (
-          <div className="flex flex-col items-center justify-center py-16 text-text-muted">
-            <Loader2 className="animate-spin mb-3 text-primary" size={24} />
-            <p className="text-sm">Carregando anotações clínicas…</p>
-          </div>
+          <Carregando dadosClinicos mensagem="Carregando anotações clínicas…" className="py-16" />
         ) : displayedDiarios.length === 0 ? (
           <div className="p-12 text-center border border-dashed border-border/60 rounded-xl">
             <BookOpen className="mx-auto text-text-muted/30 mb-3" size={36} />

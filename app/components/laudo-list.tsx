@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
 const LaudoFormModal = dynamic(
@@ -244,10 +245,7 @@ export function LaudoList() {
       {/* List */}
       <div className="bg-surface rounded-xl border border-border/60 overflow-hidden min-h-[400px]">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-64">
-            <Loader2 size={28} className="animate-spin text-primary mb-3" />
-            <p className="text-sm text-text-muted">Carregando documentos...</p>
-          </div>
+          <Carregando dadosClinicos mensagem="Carregando documentos…" className="h-64" />
         ) : laudos.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center px-4">
             <FolderOpen size={36} className="text-border mb-3" />

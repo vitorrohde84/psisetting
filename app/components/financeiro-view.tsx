@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Plus, Loader2, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle2, Circle, TrendingUp, CalendarDays } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
 const PagamentoFormModal = dynamic(
@@ -308,9 +309,7 @@ export function FinanceiroView() {
         </div>
         
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-48">
-            <Loader2 size={28} className="animate-spin text-primary mb-3" />
-          </div>
+          <Carregando dadosClinicos className="h-48" />
         ) : pagamentosDoMes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center px-4">
             <Wallet size={36} className="text-border mb-3" />

@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2, ShieldCheck } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -204,15 +205,7 @@ export function PacienteList() {
       {/* List */}
       <div className="bg-surface rounded-xl border border-border/60">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3">
-              <svg className="animate-spin h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <p className="text-sm text-text-muted">Carregando pacientes...</p>
-            </div>
-          </div>
+          <Carregando dadosClinicos mensagem="Carregando pacientes…" className="py-16" />
         ) : filteredPacientes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-6 max-w-md mx-auto space-y-4">
             {search ? (

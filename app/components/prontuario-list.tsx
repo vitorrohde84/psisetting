@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, Plus, FileText, Pencil, Calendar, Clock, Loader2, ArrowLeft, Printer, Users, UsersRound, Download, ShieldCheck } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
 const ProntuarioFormModal = dynamic(
@@ -268,10 +269,7 @@ export function ProntuarioList() {
 
         <div className="bg-surface rounded-xl border border-border/60 overflow-hidden min-h-[400px]">
           {loadingPacientes ? (
-            <div className="flex flex-col items-center justify-center h-64">
-              <Loader2 size={28} className="animate-spin text-primary mb-3" />
-              <p className="text-sm text-text-muted">Carregando pacientes...</p>
-            </div>
+            <Carregando dadosClinicos mensagem="Carregando pacientes…" className="h-64" />
           ) : filteredPacientes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6 max-w-md mx-auto space-y-4">
               {search ? (
@@ -427,10 +425,7 @@ export function ProntuarioList() {
 
         {/* Conteúdo */}
         {loadingProntuarios ? (
-          <div className="flex flex-col items-center justify-center py-20 no-print">
-            <Loader2 size={32} className="animate-spin text-primary mb-4" />
-            <p className="text-sm text-text-muted">Carregando prontuário...</p>
-          </div>
+          <Carregando dadosClinicos mensagem="Carregando prontuário…" className="py-20 no-print" />
         ) : prontuariosPaciente.length === 0 ? (
           <div className="text-center py-20 no-print">
             <p className="text-text-muted">Nenhuma evolução registrada para esta paciente.</p>

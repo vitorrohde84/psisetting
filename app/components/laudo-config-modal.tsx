@@ -15,6 +15,7 @@ import {
   FileCheck,
   Sparkles
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 
 interface LaudoConfigModalProps {
   onClose: () => void;
@@ -213,9 +214,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
 
         {/* Content / Form */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={24} className="animate-spin text-primary" />
-          </div>
+          <Carregando className="py-20" />
         ) : (
           <form onSubmit={handleSave} className="p-5 space-y-4 overflow-y-auto flex-1">
             {/* Tratamento / Título Profissional */}

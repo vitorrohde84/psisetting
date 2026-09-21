@@ -24,6 +24,7 @@ import {
   DollarSign,
   CheckCircle2,
 } from "lucide-react";
+import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
 const AgendamentoFormModal = dynamic(
@@ -615,9 +616,7 @@ export function AgendaView() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 size={24} className="animate-spin text-primary" />
-        </div>
+        <Carregando dadosClinicos className="py-20" />
       ) : view === "calendar" ? (
         /* ======== CALENDAR VIEW ======== */
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
