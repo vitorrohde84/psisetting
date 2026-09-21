@@ -6,6 +6,10 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Política de Privacidade e Proteção de Dados | PsiSetting",
   description: "Política de Privacidade, segurança e tratamento de dados da plataforma PsiSetting em conformidade com a LGPD e normativas do CFP.",
+  // A página também responde em app.psisetting.com.br; a versão oficial é a do www.
+  alternates: {
+    canonical: "https://www.psisetting.com.br/privacidade",
+  },
 };
 
 export default function PrivacidadePage() {

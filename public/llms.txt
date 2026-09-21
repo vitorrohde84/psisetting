@@ -21,7 +21,7 @@ Eliminar a sobrecarga burocrática do profissional de psicologia — prontuário
 
 ## Segurança e Conformidade
 
-- Criptografia AES-256 ponta a ponta nos dados clínicos.
+- Criptografia AES-256-GCM dos dados clínicos na aplicação, com chave individual por profissional.
 - Conformidade com LGPD (Lei Geral de Proteção de Dados).
 - Alinhado com resoluções do CFP (Conselho Federal de Psicologia).
 - Isolamento total de dados por profissional (Row Level Security / multi-tenant).
@@ -33,7 +33,7 @@ Psicólogos clínicos autônomos, psicoterapeutas e pequenas clínicas de saúde
 
 ## Plano
 
-- **Profissional**: 7 dias de teste gratuito, depois R$ 29,90/mês — Pacientes e prontuários ilimitados, sem fidelidade, cancele quando quiser.
+- **Profissional**: 7 dias de teste gratuito, depois R$ 34,90/mês — Pacientes e prontuários ilimitados, sem fidelidade, cancele quando quiser.
 
 ## Contato
 

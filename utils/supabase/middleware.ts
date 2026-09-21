@@ -12,6 +12,11 @@ export async function updateSession(request: NextRequest) {
 
   // 1. ROTEAMENTO ULTRA-RÁPIDO PARA LANDING PAGE (Sem chamar Supabase Auth)
   if (isLandingHost) {
+    // /landing é o endereço interno da página inicial (ver o rewrite abaixo).
+    // Acessado direto, seria uma segunda cópia da home para o Google.
+    if (pathname === "/landing" || pathname.startsWith("/landing/")) {
+      return NextResponse.redirect(new URL("https://www.psisetting.com.br/"), 308);
+    }
     if (pathname === "/") {
       return NextResponse.rewrite(new URL("/landing", request.url));
     }
@@ -43,7 +48,10 @@ export async function updateSession(request: NextRequest) {
     pathname === "/apple-icon.png" ||
     pathname === "/logo.png" ||
     pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml";
+    pathname === "/sitemap.xml" ||
+    // Sem esta linha o llms.txt redirecionava para o login: o arquivo feito
+    // para os robôs de IA nunca chegou a eles.
+    pathname === "/llms.txt";
 
   const isPublicPath =
     isCalendarPath ||

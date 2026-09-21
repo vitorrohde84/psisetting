@@ -6,6 +6,10 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Termos de Uso | PsiSetting",
   description: "Termos e Condições de Uso da plataforma PsiSetting para psicólogos clínicos.",
+  // A página também responde em app.psisetting.com.br; a versão oficial é a do www.
+  alternates: {
+    canonical: "https://www.psisetting.com.br/termos",
+  },
 };
 
 export default function TermosPage() {

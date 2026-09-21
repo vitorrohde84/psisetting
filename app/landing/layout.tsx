@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
+// Título e descrição são o que aparece no resultado do Google. Antes eram o
+// slogan, que não contém nenhum termo que um psicólogo digite ao procurar um
+// sistema. O slogan continua no topo da página e no compartilhamento.
 export const metadata: Metadata = {
-  title: "PsiSetting — Seu setting clínico organizado, protegido e em um só lugar",
+  title: "Sistema para Psicólogos com Prontuário Eletrônico | PsiSetting",
   description:
-    "Um sistema que entende como uma sessão de psicoterapia realmente acontece. Prontuário protegido, gestão da clínica e documentos conforme a Resolução CFP nº 06/2019.",
+    "Sistema para psicólogos com prontuário eletrônico criptografado, agenda, financeiro e os 5 documentos da Resolução CFP 06/2019. Teste grátis por 7 dias.",
   alternates: {
     canonical: "https://www.psisetting.com.br",
   },
@@ -39,9 +42,9 @@ export const metadata: Metadata = {
     shortcut: "/logo.png",
     apple: "/logo.png",
   },
-  verification: {
-    google: "GOOGLE_SITE_VERIFICATION_CODE",
-  },
+  // Sem `verification`: estava no ar com o texto de exemplo
+  // "GOOGLE_SITE_VERIFICATION_CODE", que não verifica nada. A verificação do
+  // Search Console é feita pelo DNS do domínio, que cobre www e app de uma vez.
 };
 
 export default function LandingLayout({

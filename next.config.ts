@@ -69,6 +69,21 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // app.psisetting.com.br é o sistema, não a vitrine: nada dele deve
+        // aparecer no Google nem competir com www.psisetting.com.br — login,
+        // termos e privacidade respondem nos dois hosts. O noindex só funciona
+        // se o robô conseguir ler a página, por isso o robots.txt continua
+        // liberando o rastreamento.
+        source: "/:path*",
+        has: [{ type: "host", value: "app.psisetting.com.br" }],
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex",
+          },
+        ],
+      },
     ];
   },
 };
