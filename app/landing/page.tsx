@@ -87,6 +87,22 @@ function Reveal({
   );
 }
 
+/**
+ * Entrada do topo da página, só com CSS (classe .ps-hero-in em globals.css).
+ *
+ * O Reveal depende de JavaScript: até a página hidratar, o conteúdo fica com
+ * opacity 0. No topo isso escondia o título — o maior elemento da primeira
+ * tela, que o Google mede como LCP — até o JavaScript da landing inteira
+ * carregar. A animação por CSS começa no primeiro paint.
+ */
+function HeroIn({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
+  return (
+    <div className="ps-hero-in" style={{ animationDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
 /* ──────────────────────────── JSON-LD ──────────────────────────── */
 
 const jsonLdOrganization = {
@@ -353,6 +369,11 @@ export default function LandingPage() {
   // Interactive Privacy Simulator State
   const [isPrivacyActive, setIsPrivacyActive] = useState(false);
 
+  // "Ver Demonstração": destaca o simulador e liga o Modo Privacidade sozinho
+  const demoRef = useRef<HTMLDivElement>(null);
+  const [demoHighlight, setDemoHighlight] = useState(false);
+  const demoTimers = useRef<number[]>([]);
+
   // Interactive CFP Model Tab State
   const [activeCfpTab, setActiveCfpTab] = useState(cfpModels[0].id);
 
@@ -364,6 +385,50 @@ export default function LandingPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // O site institucional não é o app. Versões anteriores registravam o service
+  // worker também aqui; remove o que ficou no navegador de quem já visitou.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || window.location.hostname.startsWith("app.")) return;
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+      .catch(() => {});
+    if ("caches" in window) {
+      caches
+        .keys()
+        .then((keys) =>
+          keys.filter((key) => key.startsWith("psisetting-cache")).forEach((key) => caches.delete(key))
+        )
+        .catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const timers = demoTimers.current;
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, []);
+
+  function handleVerDemonstracao(event: React.MouseEvent<HTMLAnchorElement>) {
+    const simulador = demoRef.current;
+    if (!simulador) return; // sem o card, o link âncora segue funcionando sozinho
+    event.preventDefault();
+
+    const reduzirMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    simulador.scrollIntoView({ behavior: reduzirMovimento ? "instant" : "smooth", block: "center" });
+
+    // No computador o simulador já está ao lado do botão, então só rolar até ele
+    // não mudava nada na tela. A demonstração parte do texto visível e liga o
+    // desfoque, para a pessoa ver nomes e anotações sumindo.
+    demoTimers.current.forEach((timer) => window.clearTimeout(timer));
+    demoTimers.current.length = 0;
+    setIsPrivacyActive(false);
+    setDemoHighlight(true);
+    demoTimers.current.push(
+      window.setTimeout(() => setIsPrivacyActive(true), 700),
+      window.setTimeout(() => setDemoHighlight(false), 2600)
+    );
+  }
 
   const selectedCfpModel = cfpModels.find((m) => m.id === activeCfpTab) || cfpModels[0];
 
@@ -396,7 +461,7 @@ export default function LandingPage() {
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/landing" className="shrink-0 flex items-center gap-2">
+          <Link href="/" className="shrink-0 flex items-center gap-2">
             <PsiSettingBrand size="md" />
           </Link>
 
@@ -525,27 +590,31 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
             {/* LADO ESQUERDO: Headline & Proposta de Valor */}
             <div className="lg:col-span-6 space-y-6">
-              <Reveal>
+              <HeroIn>
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-wide shadow-2xs">
                   <Sparkles size={14} className="text-secondary" />
                   <span>Desenvolvido e validado em colaboração com psicóloga clínica atuante</span>
                 </div>
-              </Reveal>
+              </HeroIn>
 
-              <Reveal delay={80}>
+              <HeroIn delay={80}>
                 <h1 className="text-3xl sm:text-4xl lg:text-[2.85rem] font-serif font-bold text-text leading-[1.18] tracking-tight">
+                  {/* O termo de busca fica dentro do H1: o slogan sozinho não tem nenhuma palavra que alguém digite no Google. */}
+                  <span className="block mb-3 font-sans text-xs sm:text-sm font-semibold uppercase tracking-[0.14em] text-primary">
+                    Sistema para psicólogos
+                  </span>
                   Seu <span className="text-primary font-serif italic">setting</span> clínico organizado, protegido e em um só lugar.
                 </h1>
-              </Reveal>
+              </HeroIn>
 
-              <Reveal delay={160}>
+              <HeroIn delay={160}>
                 <p className="text-base sm:text-lg text-text-muted leading-relaxed max-w-xl">
-                  Um sistema que entende como uma sessão de psicoterapia realmente acontece. Prontuários protegidos, gestão da clínica e documentos psicológicos estruturados conforme a Resolução CFP nº 06/2019.
+                  Um sistema que entende como uma sessão de psicoterapia realmente acontece. Prontuário eletrônico protegido, agenda, financeiro e documentos psicológicos estruturados conforme a Resolução CFP nº 06/2019.
                 </p>
-              </Reveal>
+              </HeroIn>
 
               {/* 3 Pilares em Pílulas */}
-              <Reveal delay={220}>
+              <HeroIn delay={220}>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
                   <div className="flex items-center gap-2 p-2 rounded-xl bg-surface border border-border/80 text-xs font-semibold text-text">
                     <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
@@ -566,10 +635,10 @@ export default function LandingPage() {
                     <span>Documentos CFP</span>
                   </div>
                 </div>
-              </Reveal>
+              </HeroIn>
 
               {/* Botões CTA */}
-              <Reveal delay={280}>
+              <HeroIn delay={280}>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
                   <Link
                     href="/login"
@@ -580,6 +649,7 @@ export default function LandingPage() {
                   </Link>
                   <a
                     href="#demonstracao"
+                    onClick={handleVerDemonstracao}
                     className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-surface border border-border text-text font-semibold hover:bg-background hover:border-primary/40 transition-all text-base shadow-2xs"
                   >
                     <Eye size={17} className="text-primary" />
@@ -590,13 +660,17 @@ export default function LandingPage() {
                   <Sparkles size={13} className="text-amber-600 shrink-0" />
                   <span>7 dias de teste grátis · Sem cartão de crédito · Plano Único de R$ 34,90/mês</span>
                 </p>
-              </Reveal>
+              </HeroIn>
             </div>
 
             {/* LADO DIREITO: HUB INTERATIVO (SIMULADOR DO MODO PRIVACIDADE) */}
-            <div className="lg:col-span-6" id="demonstracao">
-              <Reveal delay={200}>
-                <div className="relative rounded-3xl bg-surface border border-border/80 shadow-[0_12px_40px_rgba(0,0,0,0.08)] p-6 sm:p-7 overflow-hidden">
+            <div className="lg:col-span-6" id="demonstracao" ref={demoRef}>
+              <HeroIn delay={200}>
+                <div
+                  className={`relative rounded-3xl bg-surface border shadow-[0_12px_40px_rgba(0,0,0,0.08)] p-6 sm:p-7 overflow-hidden transition-[box-shadow,border-color] duration-500 ${
+                    demoHighlight ? "border-primary/50 ring-4 ring-primary/25" : "border-border/80"
+                  }`}
+                >
                   {/* Top Bar do Card Interativo */}
                   <div className="flex items-center justify-between pb-4 border-b border-border/60">
                     <div className="flex items-center gap-2.5">
@@ -734,7 +808,7 @@ export default function LandingPage() {
                     </button>
                   </div>
                 </div>
-              </Reveal>
+              </HeroIn>
             </div>
           </div>
         </div>
