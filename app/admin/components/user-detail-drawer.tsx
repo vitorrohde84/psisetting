@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from "lucide-react";
+import { linkWhatsApp } from "@/utils/whatsapp";
 
 interface UserDetailDrawerProps {
   user: any | null;
@@ -57,9 +58,9 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
 
   const currentBadge = statusBadges[user.calculatedStatus] || statusBadges.trialing;
 
-  const rawPhone = (user.telefone || "").replace(/\D/g, "");
   const whatsappMsg = `Olá Psi. ${user.nome || ""}, tudo bem? Sou da equipe do PsiSetting! Vi que você começou seus testes no sistema e gostaria de saber se precisa de algum apoio inicial para configurar seus pacientes e laudos.`;
-  const whatsappLink = rawPhone ? `https://wa.me/55${rawPhone}?text=${encodeURIComponent(whatsappMsg)}` : null;
+  // Antes o 55 era prefixado sempre: telefone cadastrado com +55 virava 5555… e o link não abria.
+  const whatsappLink = linkWhatsApp(user.telefone, whatsappMsg);
 
   const initials = (user.nome || "P")
     .split(" ")

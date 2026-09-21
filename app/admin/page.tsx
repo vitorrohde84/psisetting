@@ -36,6 +36,7 @@ import {
   Phone,
   Crown,
 } from "lucide-react";
+import { linkWhatsApp } from "@/utils/whatsapp";
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTabType>("overview");
@@ -768,9 +769,8 @@ export default function AdminDashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {atRiskUsers.map((u) => {
-                    const rawPhone = (u.telefone || "").replace(/\D/g, "");
                     const msg = `Olá Psi. ${u.nome || ""}, tudo bem? Sou da equipe do PsiSetting! Vi que você começou seus testes no sistema e gostaria de saber se precisa de algum apoio para importar seus pacientes ou emitir seus laudos. Estou à disposição!`;
-                    const whatsappLink = rawPhone ? `https://wa.me/55${rawPhone}?text=${encodeURIComponent(msg)}` : null;
+                    const whatsappLink = linkWhatsApp(u.telefone, msg);
 
                     return (
                       <div key={u.id} className="p-4 rounded-2xl bg-background/50 border border-amber-500/30 space-y-3 shadow-2xs">

@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
+import { BotaoWhatsApp } from "@/app/components/botao-whatsapp";
 import { PacienteFormModal } from "@/app/components/paciente-form-modal";
 import type { Paciente } from "@/app/components/paciente-list";
 
@@ -320,6 +321,8 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
               <Pencil size={15} />
               Editar
             </button>
+            {/* No cabeçalho, não ao lado do telefone: no bloco de contato (4 colunas) o número quebrava em duas linhas em tela de notebook */}
+            <BotaoWhatsApp telefone={paciente.telefone} comRotulo />
           </div>
         </div>
 

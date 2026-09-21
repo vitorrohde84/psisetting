@@ -6,6 +6,7 @@ import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
 import { Search, UserPlus, Phone, MoreVertical, Eye, Pencil, X, Trash2, ShieldCheck } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
+import { BotaoWhatsApp } from "@/app/components/botao-whatsapp";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -246,7 +247,7 @@ export function PacienteList() {
         ) : (
           <>
             {/* Table header - desktop */}
-            <div className="hidden sm:grid grid-cols-[1fr_140px_100px_100px_48px] gap-4 px-5 py-3 bg-background/60 border-b border-border/40 text-xs font-medium text-text-muted uppercase tracking-wider rounded-t-xl">
+            <div className="hidden sm:grid grid-cols-[1fr_170px_100px_100px_48px] gap-4 px-5 py-3 bg-background/60 border-b border-border/40 text-xs font-medium text-text-muted uppercase tracking-wider rounded-t-xl">
               <span>Nome</span>
               <span>Telefone</span>
               <span>CPF</span>
@@ -259,7 +260,7 @@ export function PacienteList() {
               {filteredPacientes.map((paciente, idx) => (
                 <div
                   key={paciente.id}
-                  className={`group relative sm:grid sm:grid-cols-[1fr_140px_100px_100px_48px] sm:gap-4
+                  className={`group relative sm:grid sm:grid-cols-[1fr_170px_100px_100px_48px] sm:gap-4
                              flex flex-col gap-1.5
                              px-5 py-3.5 hover:bg-background/40 transition-colors
                              ${idx === filteredPacientes.length - 1 ? 'rounded-b-[11px]' : ''}`}
@@ -284,10 +285,11 @@ export function PacienteList() {
                     </Link>
                   </div>
 
-                  {/* Telefone */}
-                  <div className="flex items-center gap-1.5 sm:gap-0 text-sm text-text-muted pl-11 sm:pl-0 sensitive-data">
-                    <Phone size={13} className="sm:hidden text-text-muted/50" />
-                    {formatPhone(paciente.telefone)}
+                  {/* Telefone — o desfoque do Modo Privacidade fica só no número: o botão do WhatsApp precisa continuar clicável */}
+                  <div className="flex items-center gap-1.5 text-sm text-text-muted pl-11 sm:pl-0 min-w-0">
+                    <Phone size={13} className="sm:hidden text-text-muted/50 shrink-0" />
+                    <span className="sensitive-data truncate">{formatPhone(paciente.telefone)}</span>
+                    <BotaoWhatsApp telefone={paciente.telefone} />
                   </div>
 
                   {/* CPF - desktop only */}
