@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Lora } from "next/font/google";
 import "./globals.css";
-import { PwaRegister } from "@/app/components/pwa-register";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,11 +27,8 @@ export const metadata: Metadata = {
   description:
     "Gestão de consultório descomplicada: prontuários criptografados, 5 modelos CFP, agenda integrada e controle financeiro completo. Experimente grátis.",
   applicationName: "PsiSetting",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "PsiSetting",
-  },
+  // Manifesto e appleWebApp (o que torna a página instalável) NÃO ficam aqui:
+  // este layout também serve a landing de www.psisetting.com.br. Ver utils/pwa.ts.
   formatDetection: {
     telephone: false,
   },
@@ -93,7 +89,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-text font-sans">
         {children}
-        <PwaRegister />
       </body>
     </html>
   );

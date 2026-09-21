@@ -7,8 +7,13 @@ import { SubscriptionBanner } from "@/app/components/subscription-banner";
 import { SubscriptionModal } from "@/app/components/subscription-modal";
 import { AnnouncementBanner } from "@/app/components/announcement-banner";
 import { isEmailAdmin } from "@/utils/admin-auth";
+import { PwaRegister } from "@/app/components/pwa-register";
+import { PWA_METADATA } from "@/utils/pwa";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = PWA_METADATA;
 
 export default async function DashboardLayout({
   children,
@@ -96,6 +101,7 @@ export default async function DashboardLayout({
 
         <SessionMonitor />
         <SubscriptionModal />
+        <PwaRegister />
       </div>
     </SubscriptionProvider>
   );
