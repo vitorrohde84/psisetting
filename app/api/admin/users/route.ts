@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/utils/admin-auth";
+import { isEmailAdmin, requireAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { calcularAcesso } from "@/utils/acesso-assinatura";
+import { carregarAssinaturasAdmin } from "@/utils/assinatura-admin";
 
 export async function GET(request: Request) {
   try {
@@ -41,27 +43,30 @@ export async function GET(request: Request) {
       }
     });
 
-    // 3. Processar e classificar cada usuário
-    const processedUsers = (profiles || []).map((p) => {
-      const trialEnds = p.trial_ends_at ? new Date(p.trial_ends_at) : null;
-      let calculatedStatus: "active" | "trialing" | "expired" | "vip" | "past_due" = "trialing";
-      let trialDaysLeft = 0;
+    // 3. Cupom em uso e forma do último pagamento de cada conta.
+    const assinaturas = await carregarAssinaturasAdmin(adminClient);
 
-      if (p.is_vip) {
-        calculatedStatus = "vip";
-      } else if (p.subscription_status === "active") {
-        calculatedStatus = "active";
-      } else if (p.subscription_status === "past_due") {
-        calculatedStatus = "past_due";
-      } else {
-        if (trialEnds) {
-          const diffMs = trialEnds.getTime() - now.getTime();
-          trialDaysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-          calculatedStatus = diffMs > 0 ? "trialing" : "expired";
-        } else {
-          calculatedStatus = "expired";
-        }
-      }
+    // 4. Processar e classificar cada usuário — pela mesma regra de acesso que
+    // o sistema aplica (as datas). Antes o painel classificava pelo status
+    // gravado e mostrava "Assinante Ativo" para quem pagou uma vez há meses.
+    const statusPorSituacao = {
+      vip: "vip",
+      ativo: "active",
+      teste: "trialing",
+      vencido: "expired",
+    } as const;
+
+    const processedUsers = (profiles || []).map((p) => {
+      // Admin conta como VIP, como em /api/subscription/status.
+      const acesso = calcularAcesso({
+        isVip: p.is_vip || p.is_admin || isEmailAdmin(p.email),
+        trialEndsAt: p.trial_ends_at,
+        currentPeriodEnd: p.current_period_end,
+        agora: now,
+      });
+      const calculatedStatus = statusPorSituacao[acesso.situacao];
+      const trialDaysLeft = acesso.diasRestantesTeste;
+      const assinatura = assinaturas[p.id];
 
       const totalPatients = patientMap[p.id] || 0;
       
@@ -74,13 +79,18 @@ export async function GET(request: Request) {
         ...p,
         calculatedStatus,
         trialDaysLeft,
+        diasParaVencer: acesso.diasParaVencer,
+        acessoAte: acesso.acessoAte,
+        cupomEmUso: assinatura?.cupomEmUso ?? null,
+        ultimoMeio: assinatura?.ultimoMeio ?? null,
+        ultimoPagamentoEm: assinatura?.ultimoPagamentoEm ?? null,
         totalPatients,
         daysSinceCreation,
         isAtRisk,
       };
     });
 
-    // 4. Aplicar Filtros em Memória
+    // 5. Aplicar Filtros em Memória
     let filteredUsers = processedUsers;
 
     if (search) {

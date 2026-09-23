@@ -22,7 +22,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Aqui: leitura e escrita por service_role, limite conferido de verdade, e
  * incremento atômico via função no banco.
+ *
+ * Desde a entrega 1 (23/09), o resgate de cupom de DESCONTO não passa mais por
+ * aqui: ele é gravado na aprovação do pagamento, dentro de
+ * processar_pagamento_aprovado (utils/pagamento-aprovado.ts). registrarResgate
+ * ficou para VIP e dias de teste, que são concedidos na hora.
  */
+
+/**
+ * Uma mensagem só para código inexistente, pausado, vencido ou esgotado.
+ * Mensagens diferentes contariam a quem testa códigos quais deles existem —
+ * inclusive os de VIP vitalício, que é exatamente o que a A11 fechou.
+ */
+export const MENSAGEM_CUPOM_INVALIDO = "Cupom inválido ou expirado.";
 
 interface ResolverParams {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,10 +51,35 @@ export type ResolverResultado =
       couponId: string;
       code: string;
       tipo: string;
+      valor: number;
       valorFinal: number;
       trialDays: number;
       vip: boolean;
+      /** null = para sempre. */
+      duracaoMeses: number | null;
+      paraSempre: boolean;
     };
+
+/** Normaliza o código como ele é gravado: sem espaços e em maiúsculas. */
+export function normalizarCodigo(code: unknown): string {
+  return String(code ?? "").trim().toUpperCase();
+}
+
+/**
+ * Duração gravada no cupom. Antes da migração 20260923120000 as colunas não
+ * existem (undefined): aí o cupom vale como sempre valeu, 1 mensalidade.
+ */
+export function duracaoDoCupom(coupon: {
+  duracao_meses?: number | null;
+  para_sempre?: boolean | null;
+}): { duracaoMeses: number | null; paraSempre: boolean } {
+  if (coupon.para_sempre === true) return { duracaoMeses: null, paraSempre: true };
+  const meses = Number(coupon.duracao_meses);
+  return {
+    duracaoMeses: Number.isInteger(meses) && meses >= 1 ? meses : 1,
+    paraSempre: false,
+  };
+}
 
 export async function resolverDescontoDeCupom({
   adminClient,
@@ -50,10 +87,10 @@ export async function resolverDescontoDeCupom({
   userId,
   basePrice,
 }: ResolverParams): Promise<ResolverResultado> {
-  const cleanCode = String(code).trim().toUpperCase();
+  const cleanCode = normalizarCodigo(code);
 
   if (!cleanCode || cleanCode.length > 64) {
-    return { valido: false, motivo: "Código inválido." };
+    return { valido: false, motivo: MENSAGEM_CUPOM_INVALIDO };
   }
 
   const { data: coupon } = await adminClient
@@ -63,17 +100,17 @@ export async function resolverDescontoDeCupom({
     .eq("active", true)
     .maybeSingle();
 
-  if (!coupon) {
-    return { valido: false, motivo: "Cupom inválido ou expirado." };
+  if (!coupon || coupon.arquivado_em) {
+    return { valido: false, motivo: MENSAGEM_CUPOM_INVALIDO };
   }
 
   if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-    return { valido: false, motivo: "Cupom inválido ou expirado." };
+    return { valido: false, motivo: MENSAGEM_CUPOM_INVALIDO };
   }
 
   // Agora é conferível de verdade, porque uses_count passou a ser incrementado.
   if (coupon.max_uses != null && (coupon.uses_count ?? 0) >= coupon.max_uses) {
-    return { valido: false, motivo: "Este cupom atingiu o limite de usos." };
+    return { valido: false, motivo: MENSAGEM_CUPOM_INVALIDO };
   }
 
   // Um resgate por pessoa. O UNIQUE(coupon_id, profile_id) no banco é a trava
@@ -104,17 +141,20 @@ export async function resolverDescontoDeCupom({
     couponId: coupon.id,
     code: cleanCode,
     tipo,
+    valor,
     valorFinal: Number(valorFinal.toFixed(2)),
     trialDays: tipo === "trial_days" ? valor : 0,
     vip: tipo === "vip",
+    ...duracaoDoCupom(coupon),
   };
 }
 
 /**
- * Registra o resgate e incrementa o contador de forma atômica.
- * A ordem importa: o INSERT em coupon_redemptions tem UNIQUE(coupon_id,
- * profile_id), então ele é a trava contra resgate duplo. Só depois de ele
- * passar é que o contador sobe.
+ * Registra o resgate de cupom de VIP ou de dias de teste e incrementa o
+ * contador de forma atômica. A ordem importa: o INSERT em coupon_redemptions
+ * tem UNIQUE(coupon_id, profile_id), então ele é a trava contra resgate duplo.
+ * Só depois de ele passar é que o contador sobe. A foto das condições é
+ * preenchida pelo trigger do banco.
  */
 export async function registrarResgate({
   adminClient,

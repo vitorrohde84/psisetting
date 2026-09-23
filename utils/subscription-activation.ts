@@ -29,7 +29,7 @@ interface AtivarParams {
   userId: string;
   /** Identificador do pagamento no Mercado Pago. Chave de idempotência. */
   paymentId: string;
-  origem: "process-payment" | "pix-check" | "webhook";
+  origem: "process-payment" | "pix-check" | "webhook" | "reconciliacao";
   diasPeriodo?: number;
 }
 
@@ -60,18 +60,23 @@ export async function ativarAssinatura({
     throw eventoError;
   }
 
-  // 2. Base da extensão: nunca encurta um período já pago.
+  // 2. Base da extensão: nunca encurta um período já pago nem o teste em
+  //    andamento. Antes, trial_ends_at era sobrescrito com o fim do período:
+  //    quem tinha 90 dias de teste por cupom e pagava no dia 1 caía para 30.
+  //    Desde a entrega 1 este é o caminho de RESERVA — o normal é a função
+  //    processar_pagamento_aprovado do banco (utils/pagamento-aprovado.ts).
   const { data: perfil } = await adminClient
     .from("profiles")
-    .select("current_period_end")
+    .select("current_period_end, trial_ends_at")
     .eq("id", userId)
     .single();
 
   const agora = new Date();
-  const fimAtual = perfil?.current_period_end
-    ? new Date(perfil.current_period_end)
-    : null;
-  const base = fimAtual && fimAtual > agora ? fimAtual : agora;
+  const futuros = [perfil?.current_period_end, perfil?.trial_ends_at]
+    .filter(Boolean)
+    .map((d) => new Date(String(d)).getTime())
+    .filter((t) => Number.isFinite(t) && t > agora.getTime());
+  const base = futuros.length ? new Date(Math.max(...futuros)) : agora;
   const novoFim = new Date(base.getTime() + diasPeriodo * 24 * 60 * 60 * 1000);
 
   // 3. Escrita com service_role.
@@ -80,7 +85,6 @@ export async function ativarAssinatura({
     .update({
       subscription_status: "active",
       current_period_end: novoFim.toISOString(),
-      trial_ends_at: novoFim.toISOString(),
     })
     .eq("id", userId);
 

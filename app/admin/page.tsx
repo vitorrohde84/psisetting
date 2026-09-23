@@ -35,8 +35,26 @@ import {
   Sparkles,
   Phone,
   Crown,
+  ChevronDown,
+  Ban,
 } from "lucide-react";
 import { linkWhatsApp } from "@/utils/whatsapp";
+import { PRECO_BASE, ehTipoDesconto, descreverDesconto, formatarReais } from "@/utils/preco-desconto";
+import {
+  descreverBeneficio,
+  descreverUsoDoCupom,
+  formatarData,
+  situacaoDoResgate,
+  type CupomAdmin,
+  type Situacao,
+} from "./cupom-lista";
+
+const CORES_SITUACAO: Record<Situacao, string> = {
+  em_uso: "bg-emerald-50 text-emerald-900 border-emerald-200",
+  encerrado: "bg-rose-50 text-rose-800 border-rose-200",
+  concluido: "bg-stone-100 text-stone-700 border-stone-200",
+  resgatado: "bg-stone-100 text-stone-700 border-stone-200",
+};
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTabType>("overview");
@@ -46,7 +64,7 @@ export default function AdminDashboardPage() {
   // Estados de Dados
   const [metrics, setMetrics] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<CupomAdmin[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(["overview", "users"]));
@@ -55,6 +73,17 @@ export default function AdminDashboardPage() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
+
+  // Cupons: lista "Ver quem usa" aberta e confirmação de encerrar desconto.
+  // A confirmação fica na própria linha (não num confirm() do navegador) para
+  // o texto dizer quem passa a pagar quanto; encerrar para todos pede o código.
+  const [cuponsAbertos, setCuponsAbertos] = useState<Set<string>>(new Set());
+  const [confirmarEncerrar, setConfirmarEncerrar] = useState<
+    { tipo: "resgate" | "cupom"; id: string } | null
+  >(null);
+  const [codigoConfirmacao, setCodigoConfirmacao] = useState("");
+  const [pausarJunto, setPausarJunto] = useState(true);
+  const [encerrando, setEncerrando] = useState(false);
 
   // Filtros de Usuários (Filtro instantâneo no cliente)
   const [userSearch, setUserSearch] = useState("");
@@ -167,36 +196,106 @@ export default function AdminDashboardPage() {
     }
   }
 
-  // Alternar Status do Cupom
-  async function handleToggleCoupon(id: string, currentActive: boolean) {
+  // Pausar/ativar sem recarregar nem avisar; devolve se deu certo.
+  async function alterarAtivoDoCupom(id: string, active: boolean): Promise<boolean> {
     try {
       const res = await fetch("/api/admin/coupons", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, active: !currentActive }),
+        body: JSON.stringify({ id, active }),
       });
-
-      if (res.ok) {
-        showToast(currentActive ? "Cupom desativado." : "Cupom ativado com sucesso!");
-        loadAllData();
-      }
-    } catch (err) {
+      if (res.ok) return true;
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Erro ao alterar status do cupom.");
+    } catch {
       alert("Erro ao alterar status do cupom.");
     }
+    return false;
   }
 
-  // Deletar Cupom
+  // Alternar Status do Cupom
+  async function handleToggleCoupon(c: CupomAdmin) {
+    if (!(await alterarAtivoDoCupom(c.id, !c.active))) return;
+
+    // Pausar só fecha a porta para gente nova. Dizer isso evita o admin achar
+    // que pausou o desconto de quem já usa.
+    if (!c.active) showToast("Cupom ativado com sucesso!");
+    else if (ehTipoDesconto(c.discount_type)) showToast("Cupom pausado. Quem já usa continua com o desconto.");
+    else showToast("Cupom pausado. Ninguém novo consegue usar.");
+    loadAllData();
+  }
+
+  // Excluir Cupom (a rota arquiva, e só aceita cupom que ninguém usou)
   async function handleDeleteCoupon(id: string, code: string) {
-    if (!confirm(`Deseja realmente excluir o cupom '${code}'?`)) return;
+    if (
+      !confirm(
+        `Excluir o cupom '${code}'? Ele sai da lista e o código não pode ser reaproveitado em outro cupom.`
+      )
+    )
+      return;
 
     try {
-      const res = await fetch(`/api/admin/coupons?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/coupons?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
         showToast("Cupom excluído.");
         loadAllData();
+      } else {
+        // Antes o erro era ignorado: o cupom continuava na lista sem explicação.
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Erro ao excluir cupom.");
       }
-    } catch (err) {
+    } catch {
       alert("Erro ao excluir cupom.");
+    }
+  }
+
+  function alternarQuemUsa(id: string) {
+    setCuponsAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function pedirConfirmacaoEncerrar(tipo: "resgate" | "cupom", id: string) {
+    setConfirmarEncerrar({ tipo, id });
+    setCodigoConfirmacao("");
+    setPausarJunto(true);
+  }
+
+  // Encerrar desconto: de uma pessoa (resgate_id) ou de todos do cupom (cupom_id).
+  async function handleEncerrarDesconto(
+    corpo: { resgate_id: string } | { cupom_id: string },
+    mensagem: string,
+    pausarCupomId?: string
+  ) {
+    setEncerrando(true);
+    try {
+      // Pausa ANTES de encerrar: senão alguém ainda consegue resgatar no meio.
+      if (pausarCupomId && !(await alterarAtivoDoCupom(pausarCupomId, false))) return;
+
+      const res = await fetch("/api/admin/coupons/encerrar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || "Erro ao encerrar o desconto.");
+        if (pausarCupomId) loadAllData(); // a pausa já valeu
+        return;
+      }
+
+      setConfirmarEncerrar(null);
+      setCodigoConfirmacao("");
+      showToast(mensagem);
+      loadAllData();
+    } catch {
+      alert("Falha de conexão ao encerrar o desconto.");
+    } finally {
+      setEncerrando(false);
     }
   }
 
@@ -416,7 +515,7 @@ export default function AdminDashboardPage() {
                     R$ {metrics?.finance?.mrr ? metrics.finance.mrr.toFixed(2).replace(".", ",") : "0,00"}
                   </p>
                   <p className="text-xs text-text-muted">
-                    <strong>{metrics?.finance?.activeSubscribers || 0}</strong> assinantes ativos (R$ 34,90/mês)
+                    <strong>{metrics?.finance?.activeSubscribers || 0}</strong> assinantes ativos (já com os descontos de cupom)
                   </p>
                 </div>
 
@@ -512,7 +611,8 @@ export default function AdminDashboardPage() {
                     <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/70">
                       <div className="flex items-center gap-2.5">
                         <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                        <span className="font-semibold text-text">Testes Expirados (Modo Leitura)</span>
+                        {/* Inclui quem pagou e deixou vencer, não só teste expirado. */}
+                        <span className="font-semibold text-text">Acesso Vencido (Modo Leitura)</span>
                       </div>
                       <span className="font-bold text-text font-serif text-sm">
                         {metrics?.users?.expiredTrials || 0}
@@ -590,7 +690,7 @@ export default function AdminDashboardPage() {
                   <option value="all">Todos os Status ({users.length})</option>
                   <option value="active">🟢 Assinantes Ativos</option>
                   <option value="trialing">🟡 Em Teste (Trial)</option>
-                  <option value="expired">🔴 Testes Expirados</option>
+                  <option value="expired">🔴 Acesso Vencido</option>
                   <option value="vip">🟣 Acesso VIP</option>
                   <option value="risk">⚠️ Em Risco</option>
                 </select>
@@ -614,12 +714,15 @@ export default function AdminDashboardPage() {
                     const statusBadges: Record<string, { label: string; bg: string }> = {
                       active: { label: "Assinante Ativo", bg: "bg-emerald-50 text-emerald-900 border-emerald-200" },
                       trialing: { label: `Trial (${u.trialDaysLeft}d)`, bg: "bg-blue-50 text-blue-900 border-blue-200" },
-                      expired: { label: "Expirado (Leitura)", bg: "bg-amber-50 text-amber-900 border-amber-200" },
+                      expired: { label: "Acesso vencido (Leitura)", bg: "bg-amber-50 text-amber-900 border-amber-200" },
                       vip: { label: "Acesso VIP", bg: "bg-purple-50 text-purple-900 border-purple-200" },
                       past_due: { label: "Atrasado", bg: "bg-rose-50 text-rose-900 border-rose-200" },
                     };
 
                     const currentBadge = statusBadges[u.calculatedStatus] || statusBadges.trialing;
+                    const cupom = u.cupomEmUso;
+                    const etiqueta =
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-border bg-background text-text-muted whitespace-nowrap";
 
                     return (
                       <div
@@ -639,13 +742,41 @@ export default function AdminDashboardPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-3 shrink-0 flex-wrap">
                           <div className="text-right hidden sm:block text-xs">
                             <p className="font-semibold text-text">{u.totalPatients || 0} pacientes</p>
                             <p className="text-[10px] text-text-muted">
                               {u.created_at ? new Date(u.created_at).toLocaleDateString("pt-BR") : ""}
                             </p>
                           </div>
+
+                          {(cupom || u.ultimoMeio) && (
+                            <div className="flex items-center gap-1.5">
+                              {cupom && (
+                                <span
+                                  className={etiqueta}
+                                  title={`Cupom em uso: ${descreverDesconto(cupom.tipo, cupom.valor)} · paga R$ ${formatarReais(cupom.valorFinal)}/mês`}
+                                >
+                                  <Tag size={10} className="text-primary" />
+                                  <span className="font-mono font-bold text-text">{cupom.codigo}</span>
+                                  <span>
+                                    ·{" "}
+                                    {cupom.paraSempre || cupom.restantes === null
+                                      ? "para sempre"
+                                      : `${cupom.restantes} ${cupom.restantes === 1 ? "restante" : "restantes"}`}
+                                  </span>
+                                </span>
+                              )}
+                              {u.ultimoMeio && (
+                                <span
+                                  className={etiqueta}
+                                  title={`Último pagamento em ${formatarData(u.ultimoPagamentoEm)}`}
+                                >
+                                  {u.ultimoMeio === "pix" ? "PIX" : "Cartão"}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           {u.is_admin || u.email === "vitorrohde84@gmail.com" ? (
                             <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-primary/20 bg-primary/10 text-primary">
@@ -690,55 +821,237 @@ export default function AdminDashboardPage() {
                   <p className="py-12 text-center text-xs text-text-muted">Nenhum cupom cadastrado ainda.</p>
                 ) : (
                   coupons.map((c) => {
-                    let benefitText = `+${c.trial_days || c.discount_value || 30} dias grátis de teste`;
-                    if (c.discount_type === "percent") {
-                      const finalPrice = Math.max(1, 34.9 - (34.9 * Number(c.discount_value)) / 100).toFixed(2).replace(".", ",");
-                      benefitText = `${c.discount_value}% OFF (R$ ${finalPrice}/mês)`;
-                    } else if (c.discount_type === "fixed") {
-                      const finalPrice = Math.max(1, 34.9 - Number(c.discount_value)).toFixed(2).replace(".", ",");
-                      benefitText = `R$ ${Number(c.discount_value).toFixed(2).replace(".", ",")} OFF (R$ ${finalPrice}/mês)`;
-                    } else if (c.discount_type === "vip") {
-                      benefitText = "Acesso VIP Vitalício (100% Grátis)";
-                    }
+                    const cupomDeDesconto = ehTipoDesconto(c.discount_type);
+                    const usuarios = c.usuarios ?? [];
+                    const totalResgates = c.totalResgates ?? 0;
+                    const emUso = c.emUso ?? 0;
+                    const aberto = cuponsAbertos.has(c.id);
+                    const jaUsado = totalResgates > 0;
+                    const confirmandoTodos =
+                      confirmarEncerrar?.tipo === "cupom" && confirmarEncerrar.id === c.id;
 
                     return (
-                      <div key={c.id} className="py-3.5 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-3 py-1 rounded-xl border border-primary/20">
-                            {c.code}
-                          </span>
-                          <div>
-                            <p className="font-semibold text-xs text-text">{benefitText}</p>
-                            <p className="text-[11px] text-text-muted">
-                              {c.uses_count || 0} resgatados {c.max_uses ? `de ${c.max_uses} disponíveis` : "(Ilimitado)"}
-                            </p>
+                      <div key={c.id} className="py-3.5 px-2 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-3 py-1 rounded-xl border border-primary/20 shrink-0">
+                              {c.code}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-xs text-text">{descreverBeneficio(c)}</p>
+                              <p className="text-[11px] text-text-muted">{descreverUsoDoCupom(c)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            {jaUsado && (
+                              <button
+                                type="button"
+                                onClick={() => alternarQuemUsa(c.id)}
+                                aria-expanded={aberto}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-background hover:bg-surface border border-border text-xs font-semibold text-text transition-colors cursor-pointer"
+                              >
+                                <span>Ver quem usa</span>
+                                <ChevronDown
+                                  size={13}
+                                  className={`text-text-muted transition-transform ${aberto ? "rotate-180" : ""}`}
+                                />
+                              </button>
+                            )}
+
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.active ? "bg-emerald-50 text-emerald-900 border border-emerald-200" : "bg-stone-100 text-stone-700"}`}>
+                              {c.active ? "Ativo" : "Pausado"}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCoupon(c)}
+                              className="px-2.5 py-1 rounded-lg bg-background hover:bg-surface border border-border text-xs font-semibold text-text transition-colors cursor-pointer"
+                            >
+                              {c.active ? "Pausar" : "Ativar"}
+                            </button>
+
+                            {/* O title fica no span: botão desabilitado não mostra dica em todo navegador. */}
+                            <span
+                              title={
+                                jaUsado
+                                  ? "Cupom já usado — pause em vez de excluir. Pausado, ninguém novo usa e quem já usa continua com o benefício."
+                                  : "Excluir Cupom"
+                              }
+                            >
+                              <button
+                                type="button"
+                                disabled={jaUsado}
+                                onClick={() => handleDeleteCoupon(c.id, c.code)}
+                                aria-label={jaUsado ? "Excluir indisponível: cupom já usado" : "Excluir Cupom"}
+                                className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </span>
                           </div>
                         </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.active ? "bg-emerald-50 text-emerald-900 border border-emerald-200" : "bg-stone-100 text-stone-700"}`}>
-                          {c.active ? "Ativo" : "Inativo"}
-                        </span>
+                        {/* ── Quem usa este cupom ── */}
+                        {aberto && jaUsado && (
+                          <div className="rounded-xl bg-background border border-border/70 p-3 space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                                Quem usa {c.code}
+                              </p>
+                              {cupomDeDesconto && emUso > 0 && !confirmandoTodos && (
+                                <button
+                                  type="button"
+                                  onClick={() => pedirConfirmacaoEncerrar("cupom", c.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface hover:bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                                >
+                                  <Ban size={12} />
+                                  <span>Encerrar para todos</span>
+                                </button>
+                              )}
+                            </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleToggleCoupon(c.id, c.active)}
-                          className="px-2.5 py-1 rounded-lg bg-background hover:bg-surface border border-border text-xs font-semibold text-text transition-colors cursor-pointer"
-                        >
-                          {c.active ? "Pausar" : "Ativar"}
-                        </button>
+                            {/* Confirmação forte: digitar o código, como em apagar repositório. */}
+                            {confirmandoTodos && (
+                              <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200 space-y-2.5">
+                                <p className="text-[11px] text-rose-950 leading-relaxed">
+                                  <strong>
+                                    Encerrar o desconto de {emUso} {emUso === 1 ? "pessoa" : "pessoas"}?
+                                  </strong>{" "}
+                                  A partir da próxima mensalidade, {emUso === 1 ? "ela paga" : "todas pagam"} o preço
+                                  cheio (R$ {formatarReais(PRECO_BASE)}/mês). Não dá para desfazer.
+                                </p>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCoupon(c.id, c.code)}
-                          className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Excluir Cupom"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                                {c.active && (
+                                  <label className="flex items-start gap-2 text-[11px] text-rose-950 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={pausarJunto}
+                                      onChange={(e) => setPausarJunto(e.target.checked)}
+                                      className="mt-0.5 accent-rose-600"
+                                    />
+                                    <span>Pausar o cupom também, para ninguém novo conseguir usar.</span>
+                                  </label>
+                                )}
+
+                                <div className="space-y-1">
+                                  <label
+                                    htmlFor={`confirmar-${c.id}`}
+                                    className="block text-[11px] font-semibold text-rose-950"
+                                  >
+                                    Para confirmar, digite <span className="font-mono">{c.code}</span>:
+                                  </label>
+                                  <input
+                                    id={`confirmar-${c.id}`}
+                                    type="text"
+                                    value={codigoConfirmacao}
+                                    onChange={(e) => setCodigoConfirmacao(e.target.value.toUpperCase())}
+                                    autoComplete="off"
+                                    className="w-full px-3 py-1.5 rounded-lg bg-surface border border-rose-200 text-xs font-mono font-bold text-text uppercase focus:border-rose-400 outline-hidden"
+                                  />
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={encerrando || codigoConfirmacao.trim() !== c.code}
+                                    onClick={() =>
+                                      handleEncerrarDesconto(
+                                        { cupom_id: c.id },
+                                        c.active && pausarJunto
+                                          ? `Desconto encerrado para todos que usavam ${c.code}, e o cupom foi pausado.`
+                                          : `Desconto encerrado para todos que usavam ${c.code}.`,
+                                        c.active && pausarJunto ? c.id : undefined
+                                      )
+                                    }
+                                    className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {encerrando ? <Loader2 size={13} className="animate-spin" /> : "Encerrar para todos"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmarEncerrar(null)}
+                                    className="px-3 py-1.5 rounded-lg bg-surface border border-border text-text text-xs font-semibold hover:bg-background transition-colors cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <ul className="divide-y divide-border/50">
+                              {usuarios.map((u) => {
+                                const situacao = situacaoDoResgate(u, cupomDeDesconto);
+                                const nome = u.nome || u.email || "Sem nome";
+                                const confirmandoEsta =
+                                  confirmarEncerrar?.tipo === "resgate" && confirmarEncerrar.id === u.resgateId;
+
+                                return (
+                                  <li key={u.resgateId} className="py-2 space-y-2">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-text truncate">{u.nome || "Sem nome"}</p>
+                                        <p className="text-[11px] text-text-muted truncate">{u.email}</p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${CORES_SITUACAO[situacao.situacao]}`}>
+                                          {situacao.texto}
+                                        </span>
+                                        <span className="text-[10.5px] text-text-muted">
+                                          desde {formatarData(u.desde)}
+                                        </span>
+                                        {cupomDeDesconto && u.emUso && !confirmandoEsta && (
+                                          <button
+                                            type="button"
+                                            onClick={() => pedirConfirmacaoEncerrar("resgate", u.resgateId)}
+                                            className="px-2 py-0.5 rounded-lg bg-surface hover:bg-rose-50 border border-rose-200 text-rose-700 text-[10.5px] font-semibold transition-colors cursor-pointer"
+                                          >
+                                            Encerrar desconto
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {confirmandoEsta && (
+                                      <div className="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 space-y-2">
+                                        <p className="text-[11px] text-rose-950 leading-relaxed">
+                                          <strong>Encerrar o desconto de {nome}?</strong> A partir da próxima
+                                          mensalidade, a pessoa paga o preço cheio (R$ {formatarReais(PRECO_BASE)}/mês).
+                                          Não dá para desfazer.
+                                        </p>
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={encerrando}
+                                            onClick={() =>
+                                              handleEncerrarDesconto(
+                                                { resgate_id: u.resgateId },
+                                                `Desconto de ${nome} encerrado. A partir da próxima mensalidade, paga o preço cheio.`
+                                              )
+                                            }
+                                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                                          >
+                                            {encerrando ? <Loader2 size={12} className="animate-spin" /> : "Sim, encerrar"}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmarEncerrar(null)}
+                                            className="px-3 py-1 rounded-lg bg-surface border border-border text-text text-[11px] font-semibold hover:bg-background transition-colors cursor-pointer"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
+                    );
                   })
                 )}
               </div>

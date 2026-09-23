@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/utils/admin-auth";
+import { isEmailAdmin, requireAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { calcularAcesso } from "@/utils/acesso-assinatura";
+import { carregarAssinaturasAdmin, precoMensalDaConta } from "@/utils/assinatura-admin";
 
 export async function GET() {
   try {
@@ -26,28 +28,10 @@ export async function GET() {
       return NextResponse.json({ error: "Erro ao buscar métricas de usuários." }, { status: 500 });
     }
 
-    // 2. Buscar resgates de cupons para aplicar descontos reais no MRR
-    let userCouponDiscountMap: Record<string, number> = {};
-    try {
-      const { data: redemptions } = await adminClient
-        .from("coupon_redemptions")
-        .select("profile_id, coupons (discount_type, discount_value)");
-
-      (redemptions || []).forEach((r: any) => {
-        if (r.profile_id && r.coupons) {
-          const type = r.coupons.discount_type;
-          const val = Number(r.coupons.discount_value) || 0;
-          if (type === "percent" && val > 0) {
-            const discount = (BASE_PRICE * val) / 100;
-            userCouponDiscountMap[r.profile_id] = Math.max(1, BASE_PRICE - discount);
-          } else if (type === "fixed" && val > 0) {
-            userCouponDiscountMap[r.profile_id] = Math.max(1, BASE_PRICE - val);
-          }
-        }
-      });
-    } catch {
-      // Ignora se não houver resgates
-    }
+    // 2. Preço real de cada conta: a mesma regra do preço cobrado (foto do
+    // resgate e mensalidades restantes). Antes, cada resgate era ligado ao
+    // cupom ATUAL e dava desconto para sempre na receita.
+    const assinaturas = await carregarAssinaturasAdmin(adminClient);
 
     const allProfiles = profiles || [];
     const totalUsers = allProfiles.length;
@@ -67,23 +51,27 @@ export async function GET() {
       if (createdAt && createdAt >= sevenDaysAgo) newUsersLast7Days++;
       if (createdAt && createdAt >= thirtyDaysAgo) newUsersLast30Days++;
 
-      if (p.is_vip) {
+      // Pagamento recusado ou estornado: informação à parte, não decide acesso.
+      if (p.subscription_status === "past_due") pastDue++;
+
+      // Mesma regra de acesso do sistema: as datas, não o status gravado.
+      // Admin conta como VIP, como em /api/subscription/status.
+      const acesso = calcularAcesso({
+        isVip: p.is_vip || p.is_admin || isEmailAdmin(p.email),
+        trialEndsAt: p.trial_ends_at,
+        currentPeriodEnd: p.current_period_end,
+        agora: now,
+      });
+
+      if (acesso.situacao === "vip") {
         vips++;
-      } else if (p.subscription_status === "active") {
+      } else if (acesso.situacao === "ativo") {
         activeSubscribers++;
-        // Se o usuário possui cupom de desconto resgatado, usa o preço real dele
-        const userPrice = userCouponDiscountMap[p.id] || (p as any).subscription_price || BASE_PRICE;
-        calculatedMrr += Number(userPrice);
-      } else if (p.subscription_status === "past_due") {
-        pastDue++;
+        calculatedMrr += precoMensalDaConta(assinaturas[p.id]);
+      } else if (acesso.situacao === "teste") {
+        activeTrials++;
       } else {
-        // Status trialing ou indefinido
-        const trialEnds = p.trial_ends_at ? new Date(p.trial_ends_at) : null;
-        if (trialEnds && trialEnds > now) {
-          activeTrials++;
-        } else {
-          expiredTrials++;
-        }
+        expiredTrials++;
       }
     });
 

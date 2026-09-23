@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { preApprovalClient, paymentClient } from "@/utils/mercadopago";
-import {
-  ativarAssinatura,
-  definirStatusAssinatura,
-} from "@/utils/subscription-activation";
+import { definirStatusAssinatura } from "@/utils/subscription-activation";
+import { erroPermanente, processarPagamentoAprovado, reverterPagamento } from "@/utils/pagamento-aprovado";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Webhook do Mercado Pago.
@@ -120,12 +120,11 @@ export async function POST(request: Request) {
         const userId = sub.external_reference;
 
         if (sub.status === "authorized") {
-          await ativarAssinatura({
-            adminClient: supabaseAdmin,
-            userId,
-            paymentId: `preapproval:${sub.id}:${sub.last_modified ?? ""}`,
-            origem: "webhook",
-          });
+          // Só registra a assinatura. Os DIAS vêm de cada cobrança aprovada,
+          // pelo tópico "payment" (idempotente por payment_id). Antes, cada
+          // aviso de preapproval com last_modified novo somava +30 dias sem
+          // pagamento nenhum — e com o acesso decidido pelas datas, isso viraria
+          // acesso de verdade.
           await supabaseAdmin
             .from("profiles")
             .update({
@@ -153,22 +152,30 @@ export async function POST(request: Request) {
     if (topic === "payment") {
       const payment = await paymentClient.get({ id: resourceId });
 
-      if (payment && payment.external_reference) {
+      // external_reference que não é id de conta = pagamento de outro produto
+      // na mesma conta do Mercado Pago. Não é nosso: ignora.
+      if (payment && payment.external_reference && UUID.test(payment.external_reference)) {
         const userId = payment.external_reference;
 
         if (payment.status === "approved") {
-          // Idempotente e, agora, gravando current_period_end.
-          await ativarAssinatura({
+          // Idempotente: dias e mensalidade de cupom numa transação só.
+          await processarPagamentoAprovado({
             adminClient: supabaseAdmin,
             userId,
-            paymentId: String(payment.id),
+            payment,
             origem: "webhook",
           });
-        } else if (
-          payment.status === "rejected" ||
-          payment.status === "refunded" ||
-          payment.status === "charged_back"
-        ) {
+        } else if (payment.status === "refunded" || payment.status === "charged_back") {
+          // Com o acesso decidido pelas datas, só marcar "past_due" não tirava
+          // nada: quem estornava continuava com os dias. Aqui eles voltam.
+          await reverterPagamento({
+            adminClient: supabaseAdmin,
+            paymentId: String(payment.id),
+            userId,
+            motivo: payment.status,
+          });
+        } else if (payment.status === "rejected") {
+          // Recusa não tira dias já pagos; o status fica como informação.
           await definirStatusAssinatura({
             adminClient: supabaseAdmin,
             userId,
@@ -180,8 +187,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
+    if (erroPermanente(error)) {
+      // Reenviar não resolve (conta sem perfil, usuário apagado): registra e
+      // encerra, em vez de fazer o Mercado Pago tentar de novo por dias.
+      console.error("Webhook do Mercado Pago com erro permanente (não será reenviado):", error);
+      return NextResponse.json({ received: true });
+    }
     console.error("Erro no webhook do Mercado Pago:", error);
-    // 200 evita retentativa infinita por erro de payload, mas o log registra.
-    return NextResponse.json({ received: true });
+    // A notificação já passou pela assinatura: o erro é nosso (banco, rede).
+    // 500 faz o Mercado Pago reenviar — seguro, porque o processamento é
+    // idempotente. Antes respondia 200 e a ativação se perdia para sempre.
+    return NextResponse.json({ error: "Falha ao processar a notificação." }, { status: 500 });
   }
 }

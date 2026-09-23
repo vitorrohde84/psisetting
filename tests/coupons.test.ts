@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolverDescontoDeCupom, registrarResgate } from "../utils/coupons";
+import { resolverDescontoDeCupom, registrarResgate, MENSAGEM_CUPOM_INVALIDO } from "../utils/coupons";
 
 /**
  * Testes da regra de cupom — A11 da auditoria de 17/09/2026.
@@ -140,7 +140,69 @@ describe("resolverDescontoDeCupom", () => {
     });
 
     expect(r.valido).toBe(false);
-    if (!r.valido) expect(r.motivo).toMatch(/limite/i);
+    // Mesma mensagem de um código inexistente: uma resposta diferente contaria
+    // a quem testa códigos quais deles existem (A11).
+    if (!r.valido) expect(r.motivo).toBe(MENSAGEM_CUPOM_INVALIDO);
+  });
+
+  it("cupom sem as colunas novas (antes da migração) vale 1 mensalidade", async () => {
+    const r = await resolverDescontoDeCupom({
+      adminClient: fakeClient({
+        cupons: {
+          ANTIGO: { id: "c6", code: "ANTIGO", active: true, discount_type: "percent", discount_value: 20 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      code: "ANTIGO",
+      userId: "u1",
+      basePrice: BASE,
+    });
+    expect(r.valido).toBe(true);
+    if (r.valido) {
+      expect(r.duracaoMeses).toBe(1);
+      expect(r.paraSempre).toBe(false);
+    }
+  });
+
+  it("cupom arquivado ('excluído') não é aceito", async () => {
+    const r = await resolverDescontoDeCupom({
+      adminClient: fakeClient({
+        cupons: {
+          FORA: {
+            id: "c7", code: "FORA", active: true, discount_type: "percent", discount_value: 20,
+            arquivado_em: "2026-09-20T00:00:00Z",
+          },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      code: "FORA",
+      userId: "u1",
+      basePrice: BASE,
+    });
+    expect(r.valido).toBe(false);
+  });
+
+  it("cupom para sempre devolve duração null", async () => {
+    const r = await resolverDescontoDeCupom({
+      adminClient: fakeClient({
+        cupons: {
+          SEMPRE: {
+            id: "c8", code: "SEMPRE", active: true, discount_type: "fixed", discount_value: 5,
+            duracao_meses: null, para_sempre: true,
+          },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      code: "SEMPRE",
+      userId: "u1",
+      basePrice: BASE,
+    });
+    expect(r.valido).toBe(true);
+    if (r.valido) {
+      expect(r.paraSempre).toBe(true);
+      expect(r.duracaoMeses).toBeNull();
+      expect(r.valorFinal).toBeCloseTo(29.9, 2);
+    }
   });
 
   it("RECUSA segundo resgate pelo mesmo usuário — o furo era poder apagar o resgate", async () => {

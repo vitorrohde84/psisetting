@@ -17,8 +17,27 @@ import {
   Trash2,
   AlertTriangle,
   RotateCcw,
+  Tag,
 } from "lucide-react";
 import { linkWhatsApp } from "@/utils/whatsapp";
+import { PRECO_BASE, descreverDesconto, formatarReais } from "@/utils/preco-desconto";
+
+/**
+ * Datas da assinatura no fuso de Brasília. O fim do período pago é um instante
+ * (ex.: 02h UTC), e no fuso do navegador de quem está fora do Brasil ele cairia
+ * no dia anterior.
+ */
+function formatarData(iso: string | null | undefined, curta = false): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(
+    "pt-BR",
+    curta
+      ? { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" }
+      : { timeZone: "America/Sao_Paulo" }
+  );
+}
 
 interface UserDetailDrawerProps {
   user: any | null;
@@ -48,10 +67,25 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
     }
   }
 
+  const pagoAte = formatarData(user.current_period_end);
+  const pagoAteCurto = formatarData(user.current_period_end, true);
+  const ultimoPagamento = formatarData(user.ultimoPagamentoEm);
+  const cupom = user.cupomEmUso;
+  const diasParaVencer: number | null = user.diasParaVencer ?? null;
+  // Os dias que faltam contam até o fim do ACESSO (o maior entre pago e teste
+  // por cupom), que pode ser depois do "Pago até". Mostrados com a data certa.
+  const acessoAteCurto = formatarData(user.acessoAte ?? user.current_period_end, true);
+
+  // Sem preço no selo: com cupom, o valor muda de pessoa para pessoa (fica na
+  // seção Assinatura).
   const statusBadges: Record<string, { label: string; bg: string }> = {
-    active: { label: "Assinante Ativo (R$ 34,90/mês)", bg: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+    active: {
+      label: pagoAteCurto ? `Assinante ativo · pago até ${pagoAteCurto}` : "Assinante ativo",
+      bg: "bg-emerald-50 border-emerald-200 text-emerald-900",
+    },
     trialing: { label: `Período de Testes (${user.trialDaysLeft} dias restantes)`, bg: "bg-blue-50 border-blue-200 text-blue-900" },
-    expired: { label: "Teste Expirado (Modo Leitura)", bg: "bg-amber-50 border-amber-200 text-amber-900" },
+    // Inclui quem pagou e deixou vencer, não só quem saiu do teste.
+    expired: { label: "Acesso vencido (Modo Leitura)", bg: "bg-amber-50 border-amber-200 text-amber-900" },
     vip: { label: "Acesso VIP / Cortesia Vitalícia", bg: "bg-purple-50 border-purple-200 text-purple-900" },
     past_due: { label: "Pagamento Pendente / Atrasado", bg: "bg-rose-50 border-rose-200 text-rose-900" },
   };
@@ -180,6 +214,72 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                 <p className="font-semibold text-text">
                   {user.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString("pt-BR") : "—"}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Assinatura: até quando está pago, por onde pagou e quanto paga */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+              Assinatura
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
+                <p className="text-text-muted text-[10.5px]">Pago até</p>
+                <p className="font-semibold text-text">{pagoAte ?? "Nenhum período pago"}</p>
+                {pagoAte && user.calculatedStatus === "active" && diasParaVencer !== null && (
+                  <p className="text-[10.5px] text-text-muted">
+                    {diasParaVencer === 1 ? "falta 1 dia" : `faltam ${diasParaVencer} dias`} de acesso
+                    {acessoAteCurto && acessoAteCurto !== pagoAteCurto ? ` (até ${acessoAteCurto}, com dias de teste por cupom)` : ""}
+                  </p>
+                )}
+                {pagoAte && user.calculatedStatus === "expired" && (
+                  <p className="text-[10.5px] text-amber-800 font-semibold">vencido</p>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
+                <p className="text-text-muted text-[10.5px]">Último pagamento</p>
+                <p className="font-semibold text-text">{ultimoPagamento ?? "Nenhum registrado"}</p>
+                {ultimoPagamento && user.ultimoMeio && (
+                  <p className="text-[10.5px] text-text-muted">
+                    {user.ultimoMeio === "pix" ? "por PIX" : "no cartão"}
+                  </p>
+                )}
+              </div>
+
+              <div className="col-span-2 p-3 rounded-xl bg-background border border-border/80 space-y-1">
+                <p className="text-text-muted text-[10.5px]">Cupom em uso</p>
+                {cupom ? (
+                  <>
+                    <p className="font-semibold text-text flex items-center gap-1.5 flex-wrap">
+                      <Tag size={12} className="text-primary" />
+                      <span className="font-mono font-bold">{cupom.codigo}</span>
+                      <span className="text-text-muted font-normal">·</span>
+                      <span>{descreverDesconto(cupom.tipo, cupom.valor)}</span>
+                    </p>
+                    <p className="text-[11px] text-text-muted leading-relaxed">
+                      Paga <strong className="text-emerald-800">R$ {formatarReais(cupom.valorFinal)}/mês</strong>
+                      {cupom.paraSempre || cupom.restantes === null ? (
+                        <> · para sempre</>
+                      ) : (
+                        <>
+                          {" "}
+                          · mais {cupom.restantes}{" "}
+                          {cupom.restantes === 1 ? "mensalidade" : "mensalidades"} com desconto, depois R${" "}
+                          {formatarReais(PRECO_BASE)}/mês
+                        </>
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <p className="font-semibold text-text">
+                    {user.calculatedStatus === "vip"
+                      ? "Não se aplica (VIP)"
+                      : `Nenhum — preço cheio (R$ ${formatarReais(PRECO_BASE)}/mês)`}
+                  </p>
+                )}
               </div>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { paymentClient } from "@/utils/mercadopago";
 import { checkRateLimit } from "@/utils/rate-limit";
-import { ativarAssinatura } from "@/utils/subscription-activation";
+import { processarPagamentoAprovado } from "@/utils/pagamento-aprovado";
 
 /**
  * Confirma um pagamento PIX e ativa a assinatura.
@@ -77,22 +77,28 @@ export async function GET(request: Request) {
     }
 
     const isApproved = payment.status === "approved";
+    let dias: number | undefined;
+    let observacao: string | null | undefined;
 
     if (isApproved) {
-      // ativarAssinatura é idempotente: registra o payment_id processado e,
-      // numa segunda chamada com o mesmo id, não estende o período de novo.
-      await ativarAssinatura({
+      // Idempotente: dias e mensalidade de cupom são registrados uma vez só,
+      // qualquer que seja o caminho que chegar primeiro (este, o webhook ou a
+      // reconciliação).
+      ({ dias, observacao } = await processarPagamentoAprovado({
         adminClient: createAdminClient(),
         userId: user.id,
-        paymentId: String(payment.id),
+        payment,
         origem: "pix-check",
-      });
+      }));
     }
 
     return NextResponse.json({
       status: payment.status,
       approved: isApproved,
       status_detail: payment.status_detail,
+      // Dias realmente concedidos (menos de 30 quando o desconto não coube na aprovação).
+      dias,
+      observacao,
     });
   } catch (error: unknown) {
     console.error("Erro ao verificar pagamento PIX:", error);
