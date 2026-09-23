@@ -53,6 +53,15 @@ function formatDate(dateStr: string | null) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("pt-BR");
 }
 
+/** created_at é data com hora (timestamptz): formatDate, que junta T00:00:00, daria "Invalid Date". */
+function formatarDataHora(valor: string | null) {
+  if (!valor) return "—";
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
 function formatTime(timeStr: string) {
   return timeStr.slice(0, 5);
 }
@@ -104,6 +113,10 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
   const [laudos, setLaudos] = useState<any[]>([]);
   const [pagamentos, setPagamentos] = useState<any[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
+  // Falha ao carregar uma aba NÃO pode virar "Nenhum ... registrado": foi assim
+  // que a aba Laudos passou meses vazia (a consulta pedia uma coluna que não
+  // existe e o erro era descartado).
+  const [tabErro, setTabErro] = useState<string | null>(null);
 
   const fetchPaciente = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -144,17 +157,26 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
   const fetchTabData = useCallback(
     async (tab: TabKey) => {
       setTabLoading(true);
+      setTabErro(null);
+      const falhou = (erro: unknown) => {
+        console.error(`Erro ao carregar a aba ${tab} do paciente:`, erro);
+        setTabErro("Não foi possível carregar esta aba agora.");
+      };
 
       switch (tab) {
         case "agendamentos": {
           const { data: { user } } = await supabase.auth.getUser();
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("agendamentos")
             .select("id, data, horario, modalidade, status, observacoes")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
             .order("horario", { ascending: false })
             .limit(50);
+          if (error) {
+            falhou(error);
+            break;
+          }
           if (data && user) {
             const decrypted = await Promise.all(
               data.map(async (a) => {
@@ -173,13 +195,17 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         }
         case "prontuarios": {
           const { data: { user } } = await supabase.auth.getUser();
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("prontuarios")
             .select("id, data, conteudo, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
             .order("created_at", { ascending: false })
             .limit(50);
+          if (error) {
+            falhou(error);
+            break;
+          }
           if (data && user) {
             const decrypted = await Promise.all(
               data.map(async (p) => ({
@@ -195,33 +221,48 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         }
         case "diario": {
           // Only fetch metadata, not the sensitive content (per SPEC.md)
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("diario_bordo")
             .select("id, data, created_at")
             .eq("paciente_id", pacienteId)
             .order("data", { ascending: false })
             .order("created_at", { ascending: false })
             .limit(50);
+          if (error) {
+            falhou(error);
+            break;
+          }
           setDiario(data || []);
           break;
         }
         case "laudos": {
-          const { data } = await supabase
+          // A tabela laudos não tem data_emissao: pedir essa coluna fazia a
+          // consulta inteira falhar. A data do documento é o created_at, a mesma
+          // que a tela de Laudos usa.
+          const { data, error } = await supabase
             .from("laudos")
-            .select("id, titulo, tipo_documento, data_emissao, created_at")
+            .select("id, titulo, tipo_documento, created_at")
             .eq("paciente_id", pacienteId)
-            .order("data_emissao", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(50);
+          if (error) {
+            falhou(error);
+            break;
+          }
           setLaudos(data || []);
           break;
         }
         case "financeiro": {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("pagamentos")
             .select("id, valor, data_vencimento, status, forma_pagamento, created_at")
             .eq("paciente_id", pacienteId)
             .order("data_vencimento", { ascending: false })
             .limit(50);
+          if (error) {
+            falhou(error);
+            break;
+          }
           setPagamentos(data || []);
           break;
         }
@@ -395,6 +436,17 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
         <div className="p-4 min-h-[200px]">
           {tabLoading ? (
             <Carregando tamanho="sm" dadosClinicos className="py-12" />
+          ) : tabErro ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <p className="text-sm text-text-muted">{tabErro}</p>
+              <button
+                type="button"
+                onClick={() => fetchTabData(activeTab)}
+                className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-text hover:bg-background transition-colors cursor-pointer"
+              >
+                Tentar de novo
+              </button>
+            </div>
           ) : (
             <>
               {/* Agendamentos tab */}
@@ -608,11 +660,17 @@ function TabLaudos({ items }: { items: any[] }) {
               {laudo.titulo || "Laudo sem título"}
             </span>
             <span className="text-xs text-text-muted">
-              {formatDate(laudo.data_emissao)}
+              {formatarDataHora(laudo.created_at)}
             </span>
           </div>
           {laudo.tipo_documento && (
-            <span className="text-xs text-text-muted">{laudo.tipo_documento}</span>
+            <span className="text-xs text-text-muted">
+              {laudo.tipo_documento === "upload"
+                ? "PDF anexado"
+                : laudo.tipo_documento === "text"
+                ? "Documento redigido"
+                : laudo.tipo_documento}
+            </span>
           )}
         </div>
       ))}
