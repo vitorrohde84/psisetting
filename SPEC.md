@@ -31,10 +31,13 @@
      - *Relatório Psicológico*
      - *Laudo Psicológico (Avaliação Psicológica / Pericial)*
    * Geração e impressão A4 em folha timbrada clássica, sem quebra de páginas, com controle de cabeçalho, logo personalizado, título profissional, cidade/data e assinatura com CRP.
+   * **Nenhum documento usa dados de outra pessoa como padrão.** Nome (ou nome completo), CRP e cidade são obrigatórios para emitir: sem eles a impressão é barrada com o aviso "Preencher agora" (`utils/dados-profissionais.ts`). Telefone e endereço são opcionais e somem do rodapé quando vazios.
+   * Ao salvar um documento redigido, o psicólogo confirma o **Termo de Responsabilidade na Emissão de Documentos**: os modelos são ferramenta de apoio, e o conteúdo é de responsabilidade de quem emite.
 
 3. **Agenda Clínica & Sincronização:**
    * Controle completo de sessões online e presenciais (horários, recorrência, duração e status).
    * **Feed iCal/Webcal individual:** Sincronização em tempo real com **Apple Calendar (iPhone/Mac)** e **Google Agenda (Android/Web)** com privacidade avançada (título compacto no formato *Primeiro Nome + Iniciais*, ex: `Antoniela A. R. (Presencial)`).
+   * **Supervisões:** aba própria na Agenda, com papel ("Eu supervisiono" / "Sou supervisionado(a)"), colega (nome e WhatsApp, sem acesso ao sistema), valor e "pago" dentro da própria aba (não entra no Financeiro). Aparecem também no calendário principal e no feed, só como "Supervisão (Online/Presencial)".
 
 4. **Gestão de Pacientes:**
    * Fichas cadastrais completas, CPF formatado, contatos de emergência e histórico clínico com isolamento total por profissional.
@@ -43,7 +46,17 @@
    * Acompanhamento de honorários, sessões avulsas, pacotes mensais, status de pagamento e relatórios de faturamento.
 
 6. **Diário de Bordo / Insights Clínicos:**
-   * Bloco seguro e de alta confidencialidade para anotações reflexivas e hipóteses de trabalho do psicólogo entre sessões.
+   * Bloco seguro e de alta confidencialidade para anotações reflexivas e hipóteses de trabalho do psicólogo entre sessões. **Não é parte do prontuário** do paciente — a diferença é explicada dentro do sistema (`app/components/explicacao-registro.tsx`).
+   * **Comentários de supervisão** em cada anotação, escritos pelo próprio psicólogo depois da supervisão, cifrados como a anotação.
+
+7. **Assinatura, pagamento e cupons:**
+   * **Acesso decidido pelas datas** (`utils/acesso-assinatura.ts`): VIP ou admin, período pago no futuro, ou teste no futuro. Fora disso, Modo Somente Leitura. O `subscription_status` gravado é só informação.
+   * Pagamento avulso por PIX ou cartão: cada pagamento aprovado soma 30 dias a partir do maior entre agora, fim do período pago e fim do teste. Não há débito automático. Aviso 5 dias antes de vencer.
+   * Preço calculado **só no servidor** (`utils/preco-assinatura.ts`), o mesmo para a tela e para a cobrança; a tela envia o valor que mostrou e o servidor recusa (409) se diferir.
+   * **Cupom de desconto** (% ou R$) com duração: N mensalidades ou para sempre. Os meses contam mensalidades pagas com desconto. O resgate guarda a **foto** das condições: pausar, vencer ou editar o cupom não muda nada para quem já usa. Descontos não se somam (vale o menor preço). O admin pode encerrar o desconto de alguém.
+   * O direito ao desconto é conferido de novo na **aprovação**, numa transação só (`processar_pagamento_aprovado`). Se o desconto já não cabe, os dias saem proporcionais ao valor pago, pelo preço cheio.
+   * Estorno ou chargeback devolve os dias daquele pagamento; a mensalidade de cupom não volta.
+   * Pagamento aprovado que não virou dias (webhook perdido, cartão em análise, PIX pago com o modal fechado) é recuperado pela **reconciliação** com o Mercado Pago quando a conta está vencida.
 
 ---
 
@@ -91,7 +104,8 @@
 * Nenhuma `service_role key` é exposta no frontend. Nenhum segredo usa o prefixo `NEXT_PUBLIC_` — tudo com esse prefixo é embutido no JavaScript servido ao navegador.
 * Acesso estritamente restrito: cada psicólogo acessa unicamente os seus registros (`psicologo_id = auth.uid()`), com RLS cobrindo as quatro operações em `USING` **e** `WITH CHECK`.
 * Colunas de privilégio (`is_admin`, `is_vip`, `subscription_status`, `email`, `calendar_token`) **não são graváveis pelo próprio usuário**: há `REVOKE` de coluna e trigger de guarda. Autorização nunca depende de dado que o usuário edita.
-* Feeds de calendário externos nunca expõem dados sensíveis (apenas horário, modalidade e primeiro nome com iniciais). Nome completo e anotações clínicas **não entram** no `.ics`.
+* Feeds de calendário externos nunca expõem dados sensíveis (apenas horário, modalidade e primeiro nome com iniciais). Nome completo e anotações clínicas **não entram** no `.ics`. Supervisões entram só como "Supervisão (modalidade)", sem o nome do colega.
+* Criar pagamento no Mercado Pago é sempre por `criarPagamento` (`utils/mercadopago.ts`), com cliente novo por chamada: no SDK 3.4, as opções de uma chamada ficam gravadas na configuração compartilhada e a chave de idempotência vazaria para o pagamento seguinte.
 
 ### 5.1 O que a criptografia protege — e contra quem NÃO protege
 
