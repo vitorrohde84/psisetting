@@ -12,6 +12,7 @@ const ProntuarioFormModal = dynamic(
   { ssr: false }
 );
 import { downloadPdf } from "@/utils/pdf-export";
+import { ExplicacaoRegistro } from "./explicacao-registro";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 
 interface Prontuario {
@@ -254,6 +255,10 @@ export function ProntuarioList() {
             <Plus size={18} />
             Novo Prontuário
           </button>
+        </div>
+
+        <div className="mb-6">
+          <ExplicacaoRegistro tipo="prontuario" />
         </div>
 
         <div className="bg-surface rounded-xl border border-border/60 p-4 mb-6 flex items-center">

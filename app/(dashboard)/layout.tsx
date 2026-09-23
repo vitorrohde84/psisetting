@@ -11,6 +11,7 @@ import { PwaRegister } from "@/app/components/pwa-register";
 import { PWA_METADATA } from "@/utils/pwa";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
+import { camposFaltando, juntarRotulos } from "@/utils/dados-profissionais";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = PWA_METADATA;
@@ -32,13 +33,17 @@ export default async function DashboardLayout({
   // Fetch profile with logo_url, crp, and is_admin
   const { data: profile } = await supabase
     .from("profiles")
-    .select("nome, crp, logo_url, is_admin")
+    .select("nome, nome_completo, crp, cidade, logo_url, is_admin")
     .eq("id", user.id)
     .single();
 
   const userName = profile?.nome || user.email?.split("@")[0] || "Profissional";
   const userEmail = user.email || "";
-  const isProfileIncomplete = !profile?.crp || !profile?.nome;
+  // Mesma regra que libera a impressão de documentos: sem nome, CRP ou cidade
+  // o laudo não sai. Antes o aviso ignorava a cidade, e a pessoa só descobria
+  // na hora de imprimir.
+  const camposPendentes = camposFaltando(profile);
+  const isProfileIncomplete = camposPendentes.length > 0;
   const isAdmin = Boolean(profile?.is_admin) || isEmailAdmin(user.email);
 
   // Construct public logo URL if available
@@ -77,10 +82,10 @@ export default async function DashboardLayout({
                     </div>
                     <div>
                       <p className="font-medium text-text">
-                        Configure seu perfil profissional (CRP e Logotipo)
+                        Complete seu perfil profissional: {juntarRotulos(camposPendentes)}
                       </p>
                       <p className="text-xs text-text-muted">
-                        Seus laudos e recibos serão gerados automaticamente com seus dados profissionais.
+                        Sem esses dados não é possível emitir laudos, declarações e atestados.
                       </p>
                     </div>
                   </div>

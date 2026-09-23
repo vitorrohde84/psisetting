@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
+import { camposFaltando, juntarRotulos, type CampoFaltando } from "@/utils/dados-profissionais";
 import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
@@ -52,7 +53,15 @@ export function LaudoList() {
 
   // Printing state
   const [printingLaudo, setPrintingLaudo] = useState<Laudo | null>(null);
-  
+
+  // Emissão barrada por falta de dados profissionais (nome, CRP, cidade).
+  // O laudo pedido fica guardado para a impressão continuar sozinha depois que
+  // a pessoa salvar os dados — sem precisar achar o documento e clicar de novo.
+  const [conferindoPerfil, setConferindoPerfil] = useState<string | null>(null);
+  const [avisoFaltando, setAvisoFaltando] = useState<CampoFaltando[] | null>(null);
+  const impressaoPendente = useRef<Laudo | null>(null);
+  const salvouConfiguracao = useRef(false);
+
   // Loading URLs state
   const [openingUrls, setOpeningUrls] = useState<Record<string, boolean>>({});
 
@@ -166,8 +175,80 @@ export function LaudoList() {
     window.open(signedUrl, "_blank", "noopener,noreferrer");
   }
 
-  function handlePrint(laudo: Laudo) {
+  // Lê o perfil na hora (não do cache da tela): a pessoa pode ter preenchido
+  // os dados em Configurações depois que esta lista abriu.
+  // null = não deu para conferir (sessão ou rede).
+  async function carregarFaltando(): Promise<CampoFaltando[] | null> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("nome, nome_completo, crp, cidade")
+      .eq("id", user.id)
+      .single();
+    if (error || !data) return null;
+    return camposFaltando(data);
+  }
+
+  // Imprimir com nome, CRP ou cidade vazios gera um documento sem autor
+  // identificado. Barra aqui, antes de abrir a visualização, e diz o que falta.
+  async function handlePrint(laudo: Laudo) {
     if (laudo.tipo_documento !== "text") return;
+
+    setConferindoPerfil(laudo.id);
+    const faltando = await carregarFaltando();
+    setConferindoPerfil(null);
+
+    if (faltando === null) {
+      alert("Não foi possível conferir seus dados profissionais. Tente novamente.");
+      return;
+    }
+    if (faltando.length > 0) {
+      impressaoPendente.current = laudo;
+      setAvisoFaltando(faltando);
+      return;
+    }
+    setPrintingLaudo(laudo);
+  }
+
+  function abrirConfiguracao() {
+    salvouConfiguracao.current = false;
+    setShowConfigModal(true);
+  }
+
+  function desistirDaImpressao() {
+    impressaoPendente.current = null;
+    setAvisoFaltando(null);
+  }
+
+  // Chamado quando o modal de configuração fecha. A retomada fica no fechamento,
+  // e não no onSaved, porque o modal também chama onSaved ao trocar o logo (com
+  // os campos ainda sem salvar) e fica aberto por cima de qualquer aviso; ao
+  // salvar os dados ele mesmo fecha logo depois de mostrar o "salvo".
+  async function aoFecharConfiguracao() {
+    setShowConfigModal(false);
+
+    // Pega e limpa na hora: o modal pode chamar onClose duas vezes (botão
+    // fechar + o fechamento automático após salvar) e a impressão abriria duas.
+    const laudo = impressaoPendente.current;
+    impressaoPendente.current = null;
+    if (!laudo) return;
+    // Fechou sem salvar: desistiu de emitir agora.
+    if (!salvouConfiguracao.current) return;
+
+    const faltando = await carregarFaltando();
+    if (faltando === null) {
+      alert("Não foi possível conferir seus dados profissionais. Tente novamente.");
+      return;
+    }
+    if (faltando.length > 0) {
+      impressaoPendente.current = laudo;
+      setAvisoFaltando(faltando);
+      return;
+    }
     setPrintingLaudo(laudo);
   }
 
@@ -182,7 +263,7 @@ export function LaudoList() {
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
-            onClick={() => setShowConfigModal(true)}
+            onClick={abrirConfiguracao}
             className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl
                        border border-border bg-surface hover:bg-background text-text text-sm font-medium
                        active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0 shadow-xs"
@@ -308,11 +389,16 @@ export function LaudoList() {
                     ) : (
                       <button
                         onClick={() => handlePrint(laudo)}
+                        disabled={conferindoPerfil === laudo.id}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                                   bg-background border border-border text-text hover:bg-surface hover:text-primary transition-colors cursor-pointer"
+                                   bg-background border border-border text-text hover:bg-surface hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
                         title="Visualizar, baixar em PDF ou imprimir laudo"
                       >
-                        <FileText size={16} />
+                        {conferindoPerfil === laudo.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <FileText size={16} />
+                        )}
                         Visualizar / Salvar PDF
                       </button>
                     )}
@@ -345,11 +431,56 @@ export function LaudoList() {
 
       {showConfigModal && (
         <LaudoConfigModal
-          onClose={() => setShowConfigModal(false)}
+          onClose={aoFecharConfiguracao}
           onSaved={() => {
+            salvouConfiguracao.current = true;
             fetchLaudos();
           }}
         />
+      )}
+
+      {/* Aviso: faltam dados profissionais para emitir o documento */}
+      {avisoFaltando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-text/20 backdrop-blur-sm"
+            onClick={desistirDaImpressao}
+          />
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="aviso-dados-titulo"
+            aria-describedby="aviso-dados-texto"
+            className="relative w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border/60 p-6"
+          >
+            <h3 id="aviso-dados-titulo" className="text-lg font-serif font-medium text-text mb-2">
+              Faltam seus dados profissionais
+            </h3>
+            <p id="aviso-dados-texto" className="text-sm text-text-muted mb-6">
+              Para emitir documentos, preencha: <strong className="text-text">{juntarRotulos(avisoFaltando)}</strong>.
+              Eles vão na assinatura e na linha de data do documento.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={desistirDaImpressao}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer"
+              >
+                Agora não
+              </button>
+              <button
+                onClick={() => {
+                  // Mantém a impressão pendente: ao salvar, ela continua.
+                  setAvisoFaltando(null);
+                  abrirConfiguracao();
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <Settings size={16} />
+                Preencher agora
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Hidden Print Container (renders on top of everything when printingLaudo is set) */}

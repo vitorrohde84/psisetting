@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { X, Save, Loader2, Search, FileUp, FileText, Sparkles, Check, AlertCircle } from "lucide-react";
 import { uploadLaudoPdf } from "@/utils/supabase/storage";
 import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 import { CFP_TEMPLATES, LaudoTemplate } from "@/utils/laudo-templates";
+import { camposFaltando, juntarRotulos, texto, type CampoFaltando } from "@/utils/dados-profissionais";
+import { marcadoresPendentes, resumirMarcadores } from "@/utils/marcadores-documento";
+import { LaudoConfigModal } from "./laudo-config-modal";
 
 interface PacienteOption {
   id: string;
@@ -17,6 +20,28 @@ interface PacienteOption {
 interface LaudoFormModalProps {
   onClose: () => void;
   onSaved: () => void;
+}
+
+// Nome e CRP vão para o texto dos modelos; `faltando` diz o que impede a
+// impressão. Campo vazio fica undefined para o modelo usar os próprios
+// marcadores ([Nome da Psicóloga], [Registro CRP]) em vez de um texto genérico
+// que passaria despercebido na revisão.
+interface PerfilDocumento {
+  nome?: string;
+  crp?: string;
+  faltando: CampoFaltando[];
+}
+
+// "Revisar documento" devolve a pessoa ao texto já no primeiro campo em
+// aberto, selecionado — é o que ela vai querer preencher.
+function focarPrimeiroMarcador(campo: HTMLTextAreaElement | null) {
+  if (!campo) return;
+  const primeiro = marcadoresPendentes(campo.value)[0];
+  if (primeiro) {
+    const inicio = campo.value.indexOf(primeiro);
+    campo.setSelectionRange(inicio, inicio + primeiro.length);
+  }
+  campo.focus();
 }
 
 export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
@@ -33,7 +58,17 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
   const [conteudoText, setConteudoText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [psicologoProfile, setPsicologoProfile] = useState<{ nome: string; crp: string } | null>(null);
+  const [psicologoProfile, setPsicologoProfile] = useState<PerfilDocumento | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  // Último texto que um modelo montou. Se o conteúdo ainda é esse (ninguém
+  // editou), dá para remontar com os dados profissionais recém-salvos.
+  const textoDoModelo = useRef<string | null>(null);
+
+  // Termo de responsabilidade: abre a cada "Salvar Documento" no modo redigido.
+  const [termoAberto, setTermoAberto] = useState(false);
+  const termoRef = useRef<HTMLDivElement>(null);
+  const revisarRef = useRef<HTMLButtonElement>(null);
+  const conteudoRef = useRef<HTMLTextAreaElement>(null);
 
   // Patients Search
   const [pacientes, setPacientes] = useState<PacienteOption[]>([]);
@@ -41,23 +76,29 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
   const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
   const [selectedPacienteName, setSelectedPacienteName] = useState("");
 
+  async function carregarPerfil(userId: string): Promise<PerfilDocumento | null> {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("nome, nome_completo, crp, cidade")
+      .eq("id", userId)
+      .single();
+    if (!prof) return null;
+    const perfil: PerfilDocumento = {
+      nome: texto(prof.nome_completo) || texto(prof.nome) || undefined,
+      crp: texto(prof.crp) || undefined,
+      faltando: camposFaltando(prof),
+    };
+    setPsicologoProfile(perfil);
+    return perfil;
+  }
+
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       // Fetch psychologist profile
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("nome, nome_completo, crp")
-        .eq("id", user.id)
-        .single();
-      if (prof) {
-        setPsicologoProfile({
-          nome: prof.nome_completo || prof.nome || "Psicóloga Responsável",
-          crp: prof.crp || "CRP",
-        });
-      }
+      await carregarPerfil(user.id);
 
       // Fetch patients
       const { data } = await supabase
@@ -97,14 +138,14 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
     if (selectedTemplateId) {
       const tmpl = CFP_TEMPLATES.find((t) => t.id === selectedTemplateId);
       if (tmpl) {
-        setConteudoText(
-          tmpl.buildConteudo({
-            pacienteNome: p.nome,
-            pacienteCpf: p.cpf,
-            psicologoNome: psicologoProfile?.nome,
-            psicologoCrp: psicologoProfile?.crp,
-          })
-        );
+        const content = tmpl.buildConteudo({
+          pacienteNome: p.nome,
+          pacienteCpf: p.cpf,
+          psicologoNome: psicologoProfile?.nome,
+          psicologoCrp: psicologoProfile?.crp,
+        });
+        setConteudoText(content);
+        textoDoModelo.current = content;
       }
     }
   }
@@ -112,7 +153,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
   function applyTemplate(tmpl: LaudoTemplate) {
     setSelectedTemplateId(tmpl.id);
     setTitulo(tmpl.titulo);
-    
+
     const selectedPac = pacientes.find((p) => p.id === pacienteId);
     const content = tmpl.buildConteudo({
       pacienteNome: selectedPac?.nome,
@@ -121,9 +162,77 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
       psicologoCrp: psicologoProfile?.crp,
     });
     setConteudoText(content);
+    textoDoModelo.current = content;
     setMode("text");
   }
 
+  // Depois de preencher os dados pelo aviso: o modelo foi montado com os
+  // marcadores no lugar do nome e do CRP. Se o texto ainda é o que o modelo
+  // gerou, remonta com os dados novos; texto já editado fica como está — não
+  // se apaga o que a pessoa escreveu.
+  async function aoSalvarDadosProfissionais() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const perfil = await carregarPerfil(user.id);
+    if (!perfil || !selectedTemplateId || conteudoText !== textoDoModelo.current) return;
+
+    const tmpl = CFP_TEMPLATES.find((t) => t.id === selectedTemplateId);
+    if (!tmpl) return;
+    const selectedPac = pacientes.find((p) => p.id === pacienteId);
+    const content = tmpl.buildConteudo({
+      pacienteNome: selectedPac?.nome,
+      pacienteCpf: selectedPac?.cpf,
+      psicologoNome: perfil.nome,
+      psicologoCrp: perfil.crp,
+    });
+    setConteudoText(content);
+    textoDoModelo.current = content;
+  }
+
+  // O aviso aparece só depois que um modelo foi aplicado: é quando o texto já
+  // depende desses dados. O rascunho continua podendo ser salvo — quem barra é
+  // a impressão, na lista de documentos.
+  const avisoDadosFaltando =
+    mode === "text" && selectedTemplateId !== null && psicologoProfile && psicologoProfile.faltando.length > 0
+      ? psicologoProfile.faltando
+      : null;
+
+  // Foco no botão que não compromete ("Revisar documento"): um Enter distraído
+  // não aceita a responsabilidade. Esc revisa; Tab circula só dentro do termo.
+  useEffect(() => {
+    if (!termoAberto) return;
+    revisarRef.current?.focus();
+
+    function aoTeclar(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setTermoAberto(false);
+        focarPrimeiroMarcador(conteudoRef.current);
+        return;
+      }
+      if (e.key !== "Tab" || !termoRef.current) return;
+      const botoes = termoRef.current.querySelectorAll<HTMLButtonElement>("button");
+      const primeiro = botoes[0];
+      const ultimo = botoes[botoes.length - 1];
+      if (!termoRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        primeiro.focus();
+      } else if (e.shiftKey && document.activeElement === primeiro) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    }
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [termoAberto]);
+
+  // Validações primeiro: faltando paciente, título ou conteúdo, mostra o erro
+  // de sempre e o termo nem abre. Documento redigido passa pelo termo a cada
+  // salvamento; PDF anexado não — chega pronto e assinado, sem modelo do
+  // sistema, e segue direto para o upload.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -146,6 +255,25 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
       return;
     }
 
+    if (mode === "text") {
+      setTermoAberto(true);
+      return;
+    }
+    await salvarDocumento();
+  }
+
+  function revisarDocumento() {
+    setTermoAberto(false);
+    focarPrimeiroMarcador(conteudoRef.current);
+  }
+
+  // O aceite não é gravado: o termo é um lembrete na hora de emitir.
+  async function aceitarTermo() {
+    setTermoAberto(false);
+    await salvarDocumento();
+  }
+
+  async function salvarDocumento() {
     setSaving(true);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -363,6 +491,30 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
                 </div>
               </div>
 
+              {avisoDadosFaltando && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs sm:text-[13px] text-amber-950 flex items-start gap-2"
+                >
+                  <AlertCircle size={15} className="text-amber-800 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5">
+                    <p>
+                      <strong>Faltam seus dados profissionais:</strong> {juntarRotulos(avisoDadosFaltando)}.
+                      O texto do modelo sai com esses campos em branco (entre colchetes) e o
+                      documento só poderá ser impresso depois que você preenchê-los. O rascunho
+                      pode ser salvo normalmente.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfigModal(true)}
+                      className="font-semibold underline underline-offset-2 hover:text-amber-800 cursor-pointer"
+                    >
+                      Preencher agora
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className={labelClass}>
                   Conteúdo do Documento <span className="text-danger">*</span>
@@ -371,6 +523,7 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
                   O cabeçalho, dados do paciente e sua assinatura com CRP serão formatados automaticamente na impressão.
                 </p>
                 <textarea
+                  ref={conteudoRef}
                   required={mode === "text"}
                   rows={13}
                   value={conteudoText}
@@ -465,6 +618,112 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Fora do <form>: o modal de configuração tem o próprio form, e o submit
+          dele subiria pela árvore do React até o handleSubmit deste. */}
+      {showConfigModal && (
+        <LaudoConfigModal
+          onClose={() => setShowConfigModal(false)}
+          onSaved={aoSalvarDadosProfissionais}
+        />
+      )}
+
+      {termoAberto && (
+        <TermoResponsabilidade
+          conteudo={conteudoText}
+          termoRef={termoRef}
+          revisarRef={revisarRef}
+          onRevisar={revisarDocumento}
+          onAceitar={aceitarTermo}
+        />
+      )}
+    </div>
+  );
+}
+
+interface TermoResponsabilidadeProps {
+  conteudo: string;
+  termoRef: React.RefObject<HTMLDivElement | null>;
+  revisarRef: React.RefObject<HTMLButtonElement | null>;
+  onRevisar: () => void;
+  onAceitar: () => void;
+}
+
+function TermoResponsabilidade({ conteudo, termoRef, revisarRef, onRevisar, onAceitar }: TermoResponsabilidadeProps) {
+  // Campos de modelo ainda em aberto. Não bloqueia: a pessoa decide se salva
+  // assim — o termo só garante que ela viu.
+  const marcadores = marcadoresPendentes(conteudo);
+  const { exibir, restantes } = resumirMarcadores(marcadores);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-text/20 backdrop-blur-sm" onClick={onRevisar} />
+      <div
+        ref={termoRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="termo-responsabilidade-titulo"
+        aria-describedby={
+          marcadores.length > 0
+            ? "termo-responsabilidade-texto termo-responsabilidade-marcadores"
+            : "termo-responsabilidade-texto"
+        }
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-surface rounded-2xl shadow-xl border border-border/60 p-6"
+      >
+        <h3 id="termo-responsabilidade-titulo" className="text-lg font-serif font-medium text-text mb-3">
+          Termo de Responsabilidade na Emissão de Documentos
+        </h3>
+        <p id="termo-responsabilidade-texto" className="text-sm text-text-muted leading-relaxed mb-5">
+          Os modelos oferecidos pelo PsiSetting são apenas um ponto de partida. O conteúdo e as
+          informações deste documento são de responsabilidade do(a) psicólogo(a) que o emite, a
+          quem cabe revisar e conferir tudo antes da emissão, conforme as normas do Conselho
+          Federal de Psicologia (Resolução CFP nº 06/2019) e o Código de Ética Profissional do
+          Psicólogo.
+        </p>
+
+        {marcadores.length > 0 && (
+          <div
+            id="termo-responsabilidade-marcadores"
+            className="mb-5 p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs sm:text-[13px] text-amber-950 flex items-start gap-2"
+          >
+            <AlertCircle size={15} className="text-amber-800 shrink-0 mt-0.5" />
+            <div className="space-y-1.5 min-w-0">
+              <p>
+                <strong>O texto ainda tem campos a completar:</strong>
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5 break-words">
+                {exibir.map((m, i) => (
+                  <li key={`${i}-${m}`}>{m}</li>
+                ))}
+              </ul>
+              {restantes > 0 && <p>e mais {restantes}.</p>}
+              <p>Para completá-los antes de salvar, clique em “Revisar documento”.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+          <button
+            ref={revisarRef}
+            type="button"
+            onClick={onRevisar}
+            className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            Revisar documento
+          </button>
+          <button
+            type="button"
+            onClick={onAceitar}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium
+                       hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <Check size={16} />
+            Estou de acordo e me responsabilizo
+          </button>
+        </div>
       </div>
     </div>
   );

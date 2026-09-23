@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
+import { dataCurta } from "@/utils/assinatura-tela";
 import { MercadoPagoBadge } from "./mercadopago-badge";
 import { useRouter } from "next/navigation";
 import {
@@ -48,7 +49,7 @@ interface Profile {
 export function ConfiguracoesView() {
   const supabase = createClient();
   const router = useRouter();
-  const { openSubscriptionModal } = useSubscription();
+  const { openSubscriptionModal, situacao, currentPeriodEnd, trialEndsAt } = useSubscription();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [exportingBackup, setExportingBackup] = useState(false);
@@ -400,7 +401,7 @@ export function ConfiguracoesView() {
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   required
-                  placeholder="Ex: Hellen Limberger"
+                  placeholder="Ex: Maria Silva"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -415,7 +416,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={nomeCompleto}
                   onChange={(e) => setNomeCompleto(e.target.value)}
-                  placeholder="Ex: Hellen Ketlyn Limberger Silva"
+                  placeholder="Ex: Maria Aparecida da Silva"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -432,7 +433,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={crp}
                   onChange={(e) => setCrp(e.target.value)}
-                  placeholder="Ex: CRP 07/45016"
+                  placeholder="Ex: CRP 00/00000"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -446,7 +447,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={telefone}
                   onChange={(e) => setTelefone(e.target.value)}
-                  placeholder="Ex: (55) 99654-7714"
+                  placeholder="Ex: (00) 00000-0000"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -462,7 +463,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={cidade}
                   onChange={(e) => setCidade(e.target.value)}
-                  placeholder="Ex: Santa Maria, RS"
+                  placeholder="Ex: Sua cidade, UF"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -476,7 +477,7 @@ export function ConfiguracoesView() {
                   type="text"
                   value={endereco}
                   onChange={(e) => setEndereco(e.target.value)}
-                  placeholder="Ex: Rua General Osório, 0000 - Centro, Santa Maria - RS"
+                  placeholder="Ex: Rua, número - Bairro, Cidade - UF"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -535,7 +536,7 @@ export function ConfiguracoesView() {
           </div>
           <div className="p-5 space-y-4">
             <p className="text-sm text-text-muted">
-              Esta imagem será impressa automaticamente no cabeçalho de todos os laudos, recibos e documentos emitidos.
+              Esta imagem será impressa automaticamente no cabeçalho de todos os laudos e documentos emitidos.
             </p>
 
             <div className="flex items-center gap-4">
@@ -664,8 +665,16 @@ export function ConfiguracoesView() {
                 Plano & Assinatura
               </h3>
             </div>
+            {/* Sem preço fixo aqui: quem tem cupom em uso paga outro valor, e o
+                modal de assinatura mostra o preço certo de cada conta. */}
             <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
-              R$ 34,90/mês
+              {situacao === "vip"
+                ? "Acesso VIP"
+                : situacao === "ativo"
+                ? `Ativo até ${dataCurta(currentPeriodEnd) ?? "—"}`
+                : situacao === "teste"
+                ? `Teste até ${dataCurta(trialEndsAt) ?? "—"}`
+                : "Acesso vencido"}
             </span>
           </div>
 
@@ -687,7 +696,15 @@ export function ConfiguracoesView() {
                 onClick={openSubscriptionModal}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
               >
-                <span>Assinar / Ver Opções</span>
+                <span>
+                  {situacao === "ativo"
+                    ? "Renovar"
+                    : situacao === "vencido"
+                    ? "Reativar acesso"
+                    : situacao === "vip"
+                    ? "Ver plano"
+                    : "Assinar / Ver Opções"}
+                </span>
               </button>
             </div>
 

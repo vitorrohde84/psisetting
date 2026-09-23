@@ -11,10 +11,13 @@ import {
   FileText,
   PenTool,
   ShieldCheck,
-  Settings
+  Settings,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
+import { camposFaltando, itensRodape, juntarRotulos, texto } from "@/utils/dados-profissionais";
 import { LaudoConfigModal } from "./laudo-config-modal";
 
 interface LaudoPrintProps {
@@ -59,6 +62,9 @@ export function LaudoPrint({
   const [canShare, setCanShare] = useState(false);
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  // Leitura do perfil que falhou. Sem ela, "perfil null" ficava igual a
+  // "carregando" para sempre — e o documento podia sair sem nome, CRP e cidade.
+  const [erroPerfil, setErroPerfil] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const [decryptedNome, setDecryptedNome] = useState(pacienteNome);
@@ -67,20 +73,27 @@ export function LaudoPrint({
 
   const supabase = createClient();
 
+  // Falha (sem sessão, erro do banco, rede) apaga o perfil em vez de manter o
+  // anterior: sem perfil conferido o documento fica bloqueado, e é melhor pedir
+  // "Tentar de novo" do que emitir com dados que podem ter acabado de mudar.
+  // Numa recarga bem-sucedida (depois de salvar em "Personalizar"), o perfil
+  // antigo fica na tela até o novo chegar, sem piscar o bloqueio.
   const loadProfile = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
+      if (!user) throw new Error("Sessão não encontrada.");
+      const { data, error } = await supabase
         .from("profiles")
         .select("nome, nome_completo, crp, telefone, genero, cidade, endereco, logo_url")
         .eq("id", user.id)
         .single();
-      if (data) {
-        setProfile(data);
-      }
+      if (error || !data) throw error ?? new Error("Perfil não encontrado.");
+      setProfile(data);
+      setErroPerfil(false);
     } catch (e) {
       console.error("Erro ao carregar perfil para laudo:", e);
+      setProfile(null);
+      setErroPerfil(true);
     }
   }, []);
 
@@ -122,12 +135,28 @@ export function LaudoPrint({
     loadProfile();
   }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo, loadProfile]);
 
-  const nomeTopo = propNome || profile?.nome || "Hellen Limberger";
-  const nomeAssinatura = profile?.nome_completo || propNome || profile?.nome || "Hellen Ketlyn Limberger Silva";
-  const crpProfissional = propCrp || profile?.crp || "CRP 07/45016";
-  const telefoneProfissional = propTelefone || profile?.telefone || "(55) 99654-7714";
-  const cidadeProfissional = profile?.cidade || "Santa Maria, RS";
-  const enderecoProfissional = propEndereco || profile?.endereco || "Santa Maria - RS";
+  // Sem valor padrão: o que não estiver no perfil fica em branco. Um "exemplo"
+  // aqui sai impresso como se fosse o nome, o CRP e o contato de quem assina.
+  const nomeTopo = texto(propNome) || texto(profile?.nome) || texto(profile?.nome_completo);
+  const nomeAssinatura = texto(profile?.nome_completo) || texto(propNome) || texto(profile?.nome);
+  const crpProfissional = texto(propCrp) || texto(profile?.crp);
+  const telefoneProfissional = texto(propTelefone) || texto(profile?.telefone);
+  const cidadeProfissional = texto(profile?.cidade);
+  const enderecoProfissional = texto(propEndereco) || texto(profile?.endereco);
+  const rodape = itensRodape({ endereco: enderecoProfissional, telefone: telefoneProfissional });
+
+  // A lista de laudos já não abre esta tela com dado obrigatório faltando, mas
+  // aqui ainda dá para apagar o CRP em "Personalizar" e imprimir em seguida.
+  // Perfil ainda não lido (carregando ou leitura que falhou) NÃO conta como
+  // conferido: camposFaltando(null) devolve tudo faltando, e o documento fica
+  // bloqueado até o perfil chegar — senão sairia sem nome, CRP e cidade.
+  const perfilConferido = profile !== null;
+  const faltando = camposFaltando(
+    perfilConferido
+      ? { nome: nomeTopo, nome_completo: nomeAssinatura, crp: crpProfissional, cidade: cidadeProfissional }
+      : null
+  );
+  const bloqueado = faltando.length > 0;
 
   const tituloProfissional =
     profile?.genero === "M"
@@ -160,16 +189,33 @@ export function LaudoPrint({
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
   }
 
+  function tentarCarregarPerfilDeNovo() {
+    setErroPerfil(false);
+    loadProfile();
+  }
+
+  // Os botões já ficam desabilitados sem perfil conferido; a conferência aqui
+  // repete a regra para um clique que chegue antes do re-render.
   function handlePrintOrSave() {
+    if (!perfilConferido) return;
+    if (bloqueado) {
+      setShowConfigModal(true);
+      return;
+    }
     window.print();
   }
 
   async function handleShare() {
+    if (!perfilConferido) return;
+    if (bloqueado) {
+      setShowConfigModal(true);
+      return;
+    }
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title: titulo || "Laudo Psicológico",
-          text: `Laudo Psicológico - ${decryptedNome}\nEmitido por ${nomeTopo} (${crpProfissional})`,
+          text: `Laudo Psicológico - ${decryptedNome}\nEmitido por ${nomeTopo}${crpProfissional ? ` (${crpProfissional})` : ""}`,
         });
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
@@ -183,10 +229,13 @@ export function LaudoPrint({
 
   if (!mounted) return null;
 
+  // A classe "bloqueado" no #print-root vale também para o Ctrl+P / menu
+  // Imprimir do navegador, que não passa pelos botões: o CSS de impressão
+  // abaixo troca o documento pelo aviso de dados faltando.
   const content = (
     <div
       id="print-root"
-      className="fixed inset-0 z-[1000] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center"
+      className={`fixed inset-0 z-[1000] bg-stone-900/70 backdrop-blur-sm overflow-y-auto flex flex-col items-center${bloqueado ? " bloqueado" : ""}`}
     >
       {/* ===== BARRA SUPERIOR DE AÇÕES (Oculta na impressão) ===== */}
       <nav
@@ -252,9 +301,11 @@ export function LaudoPrint({
             {canShare && (
               <button
                 onClick={handleShare}
+                disabled={!perfilConferido}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium
-                           bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all cursor-pointer"
-                title="Compartilhar"
+                           bg-stone-100 hover:bg-stone-200 text-stone-700 active:scale-95 transition-all cursor-pointer
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                title={perfilConferido ? "Compartilhar" : "Aguarde: conferindo nome, CRP e cidade"}
               >
                 <Share2 size={16} />
                 <span className="hidden sm:inline">Compartilhar</span>
@@ -264,16 +315,82 @@ export function LaudoPrint({
             {/* Salvar PDF / Imprimir */}
             <button
               onClick={handlePrintOrSave}
+              disabled={!perfilConferido}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold
-                         bg-primary text-white hover:bg-primary-dark active:scale-95 shadow-sm transition-all cursor-pointer"
-              title="Salvar como PDF ou Imprimir documento"
+                         bg-primary text-white hover:bg-primary-dark active:scale-95 shadow-sm transition-all cursor-pointer
+                         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary disabled:active:scale-100"
+              title={
+                perfilConferido
+                  ? "Salvar como PDF ou Imprimir documento"
+                  : "Aguarde: conferindo nome, CRP e cidade"
+              }
             >
-              <Download size={16} />
+              {perfilConferido || erroPerfil ? (
+                <Download size={16} />
+              ) : (
+                <Loader2 size={16} className="animate-spin" />
+              )}
               <span>Salvar PDF / Imprimir</span>
             </button>
           </div>
         </div>
+
+        {/* Sem perfil lido não há como saber se o documento teria autor: a
+            emissão espera, e a falha é dita com clareza, com como sair dela. */}
+        {erroPerfil && (
+          <div
+            role="alert"
+            className="max-w-6xl mx-auto mt-2.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs sm:text-sm text-rose-900 flex flex-wrap items-center gap-x-2 gap-y-1"
+          >
+            <AlertCircle size={15} className="text-rose-700 shrink-0" />
+            <span>
+              Não foi possível carregar seus dados profissionais (nome, CRP e cidade). O documento
+              só pode ser emitido depois de conferi-los.
+            </span>
+            <button
+              type="button"
+              onClick={tentarCarregarPerfilDeNovo}
+              className="font-semibold underline underline-offset-2 hover:text-rose-700 cursor-pointer"
+            >
+              Tentar de novo
+            </button>
+          </div>
+        )}
+
+        {perfilConferido && faltando.length > 0 && (
+          <div
+            role="alert"
+            className="max-w-6xl mx-auto mt-2.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-xs sm:text-sm text-amber-950 flex flex-wrap items-center gap-x-2 gap-y-1"
+          >
+            <AlertCircle size={15} className="text-amber-800 shrink-0" />
+            <span>
+              Para emitir documentos, preencha: <strong>{juntarRotulos(faltando)}</strong>.
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowConfigModal(true)}
+              className="font-semibold underline underline-offset-2 hover:text-amber-800 cursor-pointer"
+            >
+              Preencher agora
+            </button>
+          </div>
+        )}
       </nav>
+
+      {/* Sempre montado: leitor de tela só anuncia mudança em região que já existia. */}
+      <p role="status" className="sr-only">
+        {!perfilConferido && !erroPerfil ? "Conferindo nome, CRP e cidade antes de liberar o documento…" : ""}
+      </p>
+
+      {/* Só aparece no papel/PDF, e só quando o documento está bloqueado: é o
+          que o Ctrl+P imprime no lugar de um documento sem autor. */}
+      <div className="aviso-impressao-bloqueada hidden" aria-hidden="true">
+        <p>
+          {perfilConferido
+            ? `Preencha ${juntarRotulos(faltando)} em Configurações do Laudo para emitir este documento.`
+            : "Nome, CRP e cidade ainda não foram conferidos. Volte à tela do documento, aguarde o carregamento (ou use \"Tentar de novo\") e emita outra vez."}
+        </p>
+      </div>
 
       {/* ===== ÁREA DO DOCUMENTO A4 ===== */}
       <div className="w-full flex-1 p-4 sm:p-6 md:p-8 flex justify-center items-start">
@@ -289,7 +406,7 @@ export function LaudoPrint({
               {logoSrc ? (
                 <img
                   src={logoSrc}
-                  alt={`Logo ${nomeTopo}`}
+                  alt={nomeTopo ? `Logo ${nomeTopo}` : "Logo"}
                   className="h-16 sm:h-18 w-auto mb-2 object-contain max-w-[200px]"
                 />
               ) : (
@@ -298,17 +415,21 @@ export function LaudoPrint({
                 </div>
               )}
 
-              <h1 className="text-2xl sm:text-[24px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
-                {nomeTopo}
-              </h1>
+              {nomeTopo && (
+                <h1 className="text-2xl sm:text-[24px] font-extrabold uppercase tracking-[0.16em] text-stone-800 mb-0.5 font-serif">
+                  {nomeTopo}
+                </h1>
+              )}
               <p className="text-sm sm:text-base text-stone-500 italic mb-2 font-serif">
                 {tituloProfissional}
               </p>
-              <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
-                <p className="text-xs font-bold text-stone-600 tracking-wider">
-                  {crpProfissional}
-                </p>
-              </div>
+              {crpProfissional && (
+                <div className="inline-flex items-center justify-center px-4 py-0.5 border border-stone-300 rounded-full bg-stone-50 shadow-xs">
+                  <p className="text-xs font-bold text-stone-600 tracking-wider">
+                    {crpProfissional}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Título do Documento */}
@@ -327,7 +448,7 @@ export function LaudoPrint({
           {/* Encerramento, Assinatura e Rodapé */}
           <div className="mt-4 flex flex-col items-center justify-center pt-2 w-full">
             <p className="text-center text-stone-600 text-[10pt] mb-6 italic font-serif">
-              {cidadeProfissional ? `${cidadeProfissional}. ` : "Santa Maria, RS. "}{dateStr}.
+              {cidadeProfissional ? `${cidadeProfissional}. ` : ""}{dateStr}.
             </p>
 
             {incluirAssinatura && (
@@ -336,17 +457,19 @@ export function LaudoPrint({
                   {nomeAssinatura}
                 </p>
                 <p className="text-xs text-stone-500 italic font-serif whitespace-nowrap">
-                  {tituloProfissional} - {crpProfissional}
+                  {tituloProfissional}{crpProfissional ? ` - ${crpProfissional}` : ""}
                 </p>
               </div>
             )}
 
-            {/* Rodapé Institucional com Endereço e Contato */}
-            <div className="w-full pt-2.5 border-t border-stone-200 text-center">
-              <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
-                End: {enderecoProfissional || cidadeProfissional || "Santa Maria - RS"} &nbsp;|&nbsp; Contato: {telefoneProfissional || "(55) 99654-7714"}
-              </p>
-            </div>
+            {/* Rodapé Institucional com Endereço e Contato — só o que foi preenchido */}
+            {rodape.length > 0 && (
+              <div className="w-full pt-2.5 border-t border-stone-200 text-center">
+                <p className="text-[8.5pt] text-stone-500 font-sans tracking-wide">
+                  {rodape.join("  |  ")}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -409,20 +532,46 @@ export function LaudoPrint({
             break-after: avoid !important;
             overflow: hidden !important;
           }
+
+          /* Documento bloqueado (dado obrigatório faltando ou perfil não
+             conferido): o Ctrl+P imprime só o aviso, nunca o documento. */
+          #print-root.bloqueado #print-section {
+            display: none !important;
+          }
+
+          #print-root.bloqueado .aviso-impressao-bloqueada {
+            display: block !important;
+            width: 210mm !important;
+            padding: 40mm 24mm !important;
+            box-sizing: border-box !important;
+            font-family: Georgia, "Times New Roman", serif !important;
+            font-size: 14pt !important;
+            line-height: 1.6 !important;
+            text-align: center !important;
+            color: #000000 !important;
+          }
         }
       `}} />
-
-      {/* Modal de Personalização do Papel Timbrado */}
-      {showConfigModal && (
-        <div className="no-print">
-          <LaudoConfigModal
-            onClose={() => setShowConfigModal(false)}
-            onSaved={loadProfile}
-          />
-        </div>
-      )}
     </div>
   );
 
-  return createPortal(content, document.body);
+  // O modal vai direto para o <body>, FORA do #print-root: o backdrop-blur de
+  // lá (backdrop-filter) vira bloco de contenção para position:fixed, e com a
+  // página rolada o modal abria fora da tela. Continua no-print — e, como filho
+  // do <body> que não é o #print-root, a regra de impressão já o esconde.
+  return (
+    <>
+      {createPortal(content, document.body)}
+      {showConfigModal &&
+        createPortal(
+          <div className="no-print">
+            <LaudoConfigModal
+              onClose={() => setShowConfigModal(false)}
+              onSaved={loadProfile}
+            />
+          </div>,
+          document.body
+        )}
+    </>
+  );
 }

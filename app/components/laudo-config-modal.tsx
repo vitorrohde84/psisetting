@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { 
   X, 
@@ -24,6 +25,7 @@ interface LaudoConfigModalProps {
 
 export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
   const supabase = createClient();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,10 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
       setMessage({ type: "success", text: "Configurações do laudo salvas com sucesso!" });
       setSaving(false);
       if (onSaved) onSaved();
+      // A faixa "Complete seu perfil" vem do layout, que é componente de
+      // servidor: sem o refresh ela seguiria pedindo nome, CRP ou cidade que
+      // acabaram de ser preenchidos, até a página ser recarregada.
+      router.refresh();
       setTimeout(() => {
         onClose();
       }, 1200);
@@ -270,7 +276,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   required
-                  placeholder="Ex: Hellen Limberger"
+                  placeholder="Ex: Maria Silva"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -285,7 +291,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   type="text"
                   value={nomeCompleto}
                   onChange={(e) => setNomeCompleto(e.target.value)}
-                  placeholder="Ex: Hellen Ketlyn Limberger Silva"
+                  placeholder="Ex: Maria Aparecida da Silva"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -303,7 +309,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   type="text"
                   value={crp}
                   onChange={(e) => setCrp(e.target.value)}
-                  placeholder="Ex: CRP 07/45016"
+                  placeholder="Ex: CRP 00/00000"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -317,7 +323,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   type="text"
                   value={telefone}
                   onChange={(e) => setTelefone(e.target.value)}
-                  placeholder="Ex: (55) 99654-7714"
+                  placeholder="Ex: (00) 00000-0000"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -334,7 +340,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   type="text"
                   value={cidade}
                   onChange={(e) => setCidade(e.target.value)}
-                  placeholder="Ex: Santa Maria, RS"
+                  placeholder="Ex: Sua cidade, UF"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
@@ -348,7 +354,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
                   type="text"
                   value={endereco}
                   onChange={(e) => setEndereco(e.target.value)}
-                  placeholder="Ex: Rua General Osório, 0000 - Santa Maria - RS"
+                  placeholder="Ex: Rua, número - Bairro, Cidade - UF"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-border text-text text-sm
                              focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                 />
