@@ -6,6 +6,17 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { decryptClinicalData , ehCifrado } from "./crypto";
+import {
+  COLUNAS_SUPERVISAO,
+  linhasSupervisaoParaBackup,
+  type AnotacaoParaBackup,
+  type ComentarioSupervisao,
+} from "./diario-supervisao";
+import {
+  COLUNAS_SUPERVISAO_AGENDA,
+  linhasSupervisaoAgendaParaBackup,
+  normalizarLinha,
+} from "./supervisao-agenda";
 
 function escapeCSV(val: any): string {
   if (val === null || val === undefined) return '""';
@@ -31,6 +42,8 @@ export async function generateFullSystemBackupCSV(
       agendsRes,
       pagsRes,
       laudosRes,
+      supervisoesRes,
+      agendaSupervisoesRes,
     ] = await Promise.all([
       supabase.from("pacientes").select("*").order("nome", { ascending: true }),
       supabase.from("prontuarios").select("*").order("data", { ascending: false }),
@@ -38,6 +51,8 @@ export async function generateFullSystemBackupCSV(
       supabase.from("agendamentos").select("*").order("data", { ascending: false }),
       supabase.from("pagamentos").select("*").order("data_vencimento", { ascending: false }),
       supabase.from("laudos").select("*").order("created_at", { ascending: false }),
+      supabase.from("diario_supervisoes").select(COLUNAS_SUPERVISAO),
+      supabase.from("agenda_supervisoes").select(COLUNAS_SUPERVISAO_AGENDA).order("data", { ascending: false }),
     ]);
 
     if (pacsRes.error) throw pacsRes.error;
@@ -86,9 +101,17 @@ export async function generateFullSystemBackupCSV(
     );
 
     // 4. Descriptografa Diário de Bordo
+    // Guarda cada anotação decifrada pelo id: é assim que os comentários de
+    // supervisão, logo abaixo, são ligados à anotação e ao paciente.
+    const anotacoesPorId = new Map<string, AnotacaoParaBackup>();
     const decryptedDiarios = await Promise.all(
       (diariosRes.data || []).map(async (d) => {
         const conteudoDec = await decryptClinicalData(d.conteudo, userId);
+        anotacoesPorId.set(d.id, {
+          paciente: pacientesMap.get(d.paciente_id) || "Paciente",
+          data: d.data || "",
+          conteudo: conteudoDec,
+        });
         return {
           paciente: pacientesMap.get(d.paciente_id) || "Paciente",
           data: d.data ? new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR") : "",
@@ -97,6 +120,22 @@ export async function generateFullSystemBackupCSV(
         };
       })
     );
+
+    // 4.1 Descriptografa Comentários de Supervisão do Diário
+    // Falha nesta leitura não derruba o backup inteiro (o resto já está em
+    // mãos), mas também não some em silêncio: a seção sai com o aviso no lugar
+    // das linhas, para ninguém guardar o arquivo achando que a supervisão está lá.
+    const erroSupervisoes = supervisoesRes.error
+      ? supervisoesRes.error.message || "falha ao ler a tabela diario_supervisoes"
+      : null;
+    const supervisoesDecifradas: ComentarioSupervisao[] = await Promise.all(
+      ((supervisoesRes.data || []) as ComentarioSupervisao[]).map(async (s) => ({
+        ...s,
+        conteudo: await decryptClinicalData(s.conteudo, userId),
+        supervisor: s.supervisor ? await decryptClinicalData(s.supervisor, userId) : null,
+      }))
+    );
+    const linhasSupervisao = linhasSupervisaoParaBackup(supervisoesDecifradas, anotacoesPorId);
 
     // 5. Descriptografa Agendamentos
     const decryptedAgendamentos = await Promise.all(
@@ -116,6 +155,23 @@ export async function generateFullSystemBackupCSV(
         };
       })
     );
+
+    // 5.1 Agenda de Supervisões (aba Supervisões da Agenda)
+    // Mesmo tratamento dos comentários de supervisão do diário: falha na
+    // leitura não derruba o backup, mas a seção sai com o aviso no lugar das
+    // linhas — ninguém guarda o arquivo achando que a agenda está lá.
+    const erroAgendaSupervisoes = agendaSupervisoesRes.error
+      ? agendaSupervisoesRes.error.message || "falha ao ler a tabela agenda_supervisoes"
+      : null;
+    const agendaSupervisoesDecifradas = await Promise.all(
+      ((agendaSupervisoesRes.data || []) as Record<string, unknown>[]).map(async (linha) => {
+        const s = normalizarLinha(linha);
+        return s.observacoes && ehCifrado(s.observacoes)
+          ? { ...s, observacoes: await decryptClinicalData(s.observacoes, userId) }
+          : s;
+      })
+    );
+    const linhasAgendaSupervisoes = linhasSupervisaoAgendaParaBackup(agendaSupervisoesDecifradas);
 
     // 6. Pagamentos / Financeiro
     const decryptedPagamentos = (pagsRes.data || []).map((pg) => ({
@@ -154,6 +210,14 @@ export async function generateFullSystemBackupCSV(
     csv += createCSVRow(["Total de Pacientes:", decryptedPacientes.length]);
     csv += createCSVRow(["Total de Evoluções de Prontuário:", decryptedProntuarios.length]);
     csv += createCSVRow(["Total de Notas do Diário de Bordo:", decryptedDiarios.length]);
+    csv += createCSVRow([
+      "Total de Comentários de Supervisão:",
+      erroSupervisoes ? "não exportados (ver seção 3.1)" : linhasSupervisao.length,
+    ]);
+    csv += createCSVRow([
+      "Total de Supervisões na Agenda:",
+      erroAgendaSupervisoes ? "não exportadas (ver seção 4.1)" : linhasAgendaSupervisoes.length,
+    ]);
     csv += createCSVRow(["Conformidade Legal:", "CFP Resolução nº 01/2009 & Lei Geral de Proteção de Dados (LGPD)"]);
     csv += createCSVRow([]);
     csv += createCSVRow(["================================================================================"]);
@@ -205,12 +269,80 @@ export async function generateFullSystemBackupCSV(
     });
     csv += createCSVRow([]);
 
+    // SEÇÃO 3.1: SUPERVISÃO DO DIÁRIO (numerada como subseção para não mudar a
+    // numeração das seções que já existiam nos backups anteriores)
+    csv += createCSVRow(["--- 3.1. COMENTÁRIOS DE SUPERVISÃO (DIÁRIO DE BORDO) ---"]);
+    csv += createCSVRow([
+      "Paciente",
+      "Data da Nota",
+      "Início da Nota",
+      "Data da Supervisão",
+      "Supervisor(a)",
+      "Comentário de Supervisão",
+      "Data de Registro no Sistema",
+    ]);
+    if (erroSupervisoes) {
+      csv += createCSVRow([`ATENÇÃO: os comentários de supervisão NÃO foram exportados (${erroSupervisoes}). Tente gerar o backup novamente.`]);
+    } else {
+      linhasSupervisao.forEach((s) => {
+        csv += createCSVRow([
+          s.paciente,
+          s.dataNota,
+          s.trechoNota,
+          s.dataSupervisao,
+          s.supervisor,
+          s.comentario,
+          s.created_at ? new Date(s.created_at).toLocaleString("pt-BR") : "",
+        ]);
+      });
+    }
+    csv += createCSVRow([]);
+
     // SEÇÃO 4: AGENDAMENTOS
     csv += createCSVRow(["--- 4. HISTÓRICO DE AGENDAMENTOS & SESSÕES ---"]);
     csv += createCSVRow(["Paciente", "Data", "Horário", "Tipo de Sessão", "Status", "Valor", "Observações"]);
     decryptedAgendamentos.forEach((a) => {
       csv += createCSVRow([a.paciente, a.data, a.horario, a.tipo_sessao, a.status, a.valor, a.observacoes]);
     });
+    csv += createCSVRow([]);
+
+    // SEÇÃO 4.1: AGENDA DE SUPERVISÕES (subseção, como a 3.1, para não mudar a
+    // numeração das seções que já existiam nos backups anteriores)
+    csv += createCSVRow(["--- 4.1. AGENDA DE SUPERVISÕES ---"]);
+    csv += createCSVRow([
+      "Data",
+      "Horário",
+      "Duração",
+      "Papel",
+      "Colega",
+      "WhatsApp do Colega",
+      "Modalidade",
+      "Status",
+      "Valor",
+      "Pagamento",
+      "Faz Parte de Série",
+      "Observações",
+    ]);
+    if (erroAgendaSupervisoes) {
+      csv += createCSVRow([`ATENÇÃO: as supervisões da agenda NÃO foram exportadas (${erroAgendaSupervisoes}). Tente gerar o backup novamente.`]);
+    } else {
+      linhasAgendaSupervisoes.forEach((s) => {
+        csv += createCSVRow([
+          s.data,
+          s.horario,
+          s.duracao,
+          s.papel,
+          s.colega,
+          s.whatsapp,
+          s.modalidade,
+          s.status,
+          s.valor,
+          s.situacaoPagamento,
+          s.serie,
+          s.observacoes,
+        ]);
+      });
+    }
     csv += createCSVRow([]);
 
     // SEÇÃO 5: FINANCEIRO

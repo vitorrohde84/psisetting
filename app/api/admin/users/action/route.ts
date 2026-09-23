@@ -116,6 +116,10 @@ export async function POST(request: Request) {
         await adminClient.from("pagamentos").delete().eq("psicologo_id", userId);
         await adminClient.from("laudos").delete().eq("psicologo_id", userId);
         await adminClient.from("diario_bordo").delete().eq("psicologo_id", userId);
+        // Supervisões agendadas guardam nome e WhatsApp de terceiros (o colega):
+        // saem explicitamente, sem depender só da cascata de auth.users — que
+        // não acontece se a exclusão no Auth falhar logo abaixo.
+        await adminClient.from("agenda_supervisoes").delete().eq("psicologo_id", userId);
         await adminClient.from("pacientes").delete().eq("psicologo_id", userId);
         await adminClient.from("user_feedbacks").delete().eq("user_id", userId);
         await adminClient.from("coupon_redemptions").delete().eq("profile_id", userId);

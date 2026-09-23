@@ -23,9 +23,18 @@ import {
   FileText,
   DollarSign,
   CheckCircle2,
+  MessagesSquare,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
+import {
+  CartaoSupervisaoDia,
+  ChipSupervisaoCalendario,
+  LinhaSupervisaoLista,
+  SupervisoesAgenda,
+  carregarSupervisoes,
+} from "./supervisoes-agenda";
+import { visiveisNoCalendario, type SupervisaoAgenda } from "@/utils/supervisao-agenda";
 
 const AgendamentoFormModal = dynamic(
   () => import("./agendamento-form-modal").then((m) => m.AgendamentoFormModal),
@@ -37,6 +46,10 @@ const ProntuarioFormModal = dynamic(
 );
 const PagamentoFormModal = dynamic(
   () => import("./pagamento-form-modal").then((m) => m.PagamentoFormModal),
+  { ssr: false }
+);
+const SupervisaoAgendaFormModal = dynamic(
+  () => import("./supervisao-agenda-form-modal").then((m) => m.SupervisaoAgendaFormModal),
   { ssr: false }
 );
 
@@ -80,6 +93,22 @@ function formatTime(t: string) {
   return t.slice(0, 5);
 }
 
+/**
+ * Atendimentos e supervisões do mesmo dia numa fila só, pelo horário: o dia
+ * se lê na ordem em que acontece. No empate, o atendimento vem primeiro (o
+ * sort é estável e eles entram antes).
+ */
+type ItemDoDia =
+  | { tipo: "atendimento"; horario: string; ag: Agendamento }
+  | { tipo: "supervisao"; horario: string; sup: SupervisaoAgenda };
+
+function itensDoDia(ags: Agendamento[] = [], sups: SupervisaoAgenda[] = []): ItemDoDia[] {
+  return [
+    ...ags.map((ag) => ({ tipo: "atendimento" as const, horario: ag.horario, ag })),
+    ...sups.map((sup) => ({ tipo: "supervisao" as const, horario: sup.horario, sup })),
+  ].sort((a, b) => a.horario.localeCompare(b.horario));
+}
+
 export function AgendaView() {
   const supabase = createClient();
   const { isReadOnly, openSubscriptionModal } = useSubscription();
@@ -98,6 +127,17 @@ export function AgendaView() {
   const [loadingToken, setLoadingToken] = useState(false);
   const [syncTab, setSyncTab] = useState<"iphone" | "google">("iphone");
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Aba "Supervisões" e as supervisões do mês exibido no calendário.
+  const [aba, setAba] = useState<"atendimentos" | "supervisoes">("atendimentos");
+  const [supervisoesMes, setSupervisoesMes] = useState<SupervisaoAgenda[]>([]);
+  const [erroSupervisoesMes, setErroSupervisoesMes] = useState(false);
+  const [supervisaoModal, setSupervisaoModal] = useState<{
+    supervisao: SupervisaoAgenda | null;
+    prefillDate: string | null;
+  } | null>(null);
+  // Sobe a cada gravação feita pelo formulário: a aba Supervisões recarrega.
+  const [versaoSupervisoes, setVersaoSupervisoes] = useState(0);
 
   const loadCalendarToken = useCallback(async () => {
     setLoadingToken(true);
@@ -171,7 +211,7 @@ export function AgendaView() {
   const fetchAgendamentos = useCallback(async () => {
     setLoading(true);
 
-    const [agsRes, prontRes, pagRes] = await Promise.all([
+    const [agsRes, prontRes, pagRes, supsMes] = await Promise.all([
       supabase
         .from("agendamentos")
         .select("id, paciente_id, data, horario, duracao_minutos, modalidade, status, observacoes, psicologo_id, pacientes(nome)")
@@ -189,7 +229,13 @@ export function AgendaView() {
         .select("paciente_id, data_vencimento, agendamento_id, status")
         .gte("data_vencimento", firstDay)
         .lte("data_vencimento", lastDayStr),
+      // Supervisões do mês exibido, numa consulta só. Falha aqui (inclusive a
+      // tabela ainda não existir) não derruba os atendimentos: vira um aviso.
+      carregarSupervisoes(supabase, { de: firstDay, ate: lastDayStr }),
     ]);
+
+    setSupervisoesMes(supsMes ?? []);
+    setErroSupervisoesMes(supsMes === null);
 
     const prontSet = new Set(prontRes.data?.map(p => `${p.paciente_id}_${p.data}`));
     const pagMap = new Map();
@@ -258,6 +304,22 @@ export function AgendaView() {
     });
     return map;
   }, [agendamentos]);
+
+  // Supervisões por data. Cancelada não ocupa o dia e fica só na aba Supervisões.
+  const supsByDate = useMemo(() => {
+    const map: Record<string, SupervisaoAgenda[]> = {};
+    visiveisNoCalendario(supervisoesMes).forEach((s) => {
+      if (!map[s.data]) map[s.data] = [];
+      map[s.data].push(s);
+    });
+    return map;
+  }, [supervisoesMes]);
+
+  // Dias com algum item, para a visão "Lista".
+  const datasDoMes = useMemo(
+    () => Array.from(new Set([...Object.keys(byDate), ...Object.keys(supsByDate)])).sort(),
+    [byDate, supsByDate]
+  );
 
   // Calendar grid
   const calendarDays = useMemo(() => {
@@ -388,8 +450,33 @@ export function AgendaView() {
     setShowPagamentoModal(true);
   }
 
-  // Selected date agendamentos
-  const selectedAgs = selectedDate ? byDate[selectedDate] || [] : [];
+  // Supervisão: criar e abrir para edição. Modo somente leitura segue o
+  // "Novo Agendamento": a ação abre o modal de assinatura. Ver continua liberado
+  // (no calendário e na aba Supervisões, com as observações).
+  function handleNovaSupervisao(dateStr: string | null = null) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
+    setSupervisaoModal({ supervisao: null, prefillDate: dateStr });
+  }
+
+  function handleAbrirSupervisao(s: SupervisaoAgenda) {
+    if (isReadOnly) {
+      openSubscriptionModal();
+      return;
+    }
+    setSupervisaoModal({ supervisao: s, prefillDate: null });
+  }
+
+  async function handleSupervisaoSalva() {
+    setSupervisaoModal(null);
+    setVersaoSupervisoes((v) => v + 1);
+    await fetchAgendamentos();
+  }
+
+  // Selected date agendamentos (e supervisões, na ordem do dia)
+  const selectedItens = selectedDate ? itensDoDia(byDate[selectedDate], supsByDate[selectedDate]) : [];
 
   return (
     <>
@@ -398,7 +485,7 @@ export function AgendaView() {
         <div>
           <h2 className="text-2xl font-serif font-semibold text-text">Agenda</h2>
           <p className="mt-0.5 text-sm text-text-muted">
-            Gerencie seus agendamentos e sessões
+            Gerencie seus atendimentos e supervisões
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -415,16 +502,44 @@ export function AgendaView() {
             <span className="hidden sm:inline">Sincronizar Agenda</span>
           </button>
           <button
-            onClick={handleNew}
+            onClick={aba === "supervisoes" ? () => handleNovaSupervisao() : handleNew}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
                        bg-primary text-white text-sm font-medium
                        hover:bg-primary-dark active:scale-[0.98]
                        transition-all duration-200 cursor-pointer"
           >
             <Plus size={18} />
-            Novo Agendamento
+            {aba === "supervisoes" ? "Nova supervisão" : "Novo Agendamento"}
           </button>
         </div>
+      </div>
+
+      {/* Abas: Atendimentos (a agenda de sempre) | Supervisões */}
+      <div role="tablist" aria-label="Agenda" className="flex gap-1 border-b border-border mb-6">
+        {(
+          [
+            { valor: "atendimentos", rotulo: "Atendimentos", Icone: Calendar },
+            { valor: "supervisoes", rotulo: "Supervisões", Icone: MessagesSquare },
+          ] as const
+        ).map(({ valor, rotulo, Icone }) => (
+          <button
+            key={valor}
+            type="button"
+            role="tab"
+            id={`aba-${valor}`}
+            aria-selected={aba === valor}
+            aria-controls={`painel-${valor}`}
+            onClick={() => setAba(valor)}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 -mb-px border-b-2 text-sm font-medium transition-colors cursor-pointer ${
+              aba === valor
+                ? "border-primary text-text"
+                : "border-transparent text-text-muted hover:text-text"
+            }`}
+          >
+            <Icone size={16} className={aba === valor ? "text-primary" : ""} />
+            {rotulo}
+          </button>
+        ))}
       </div>
 
       {/* Sincronização de Calendário */}
@@ -556,328 +671,379 @@ export function AgendaView() {
 
           <p className="text-[11px] text-text-muted/70 mt-3">
             🔒 Este link é pessoal e intransferível. Somente os seus próprios agendamentos serão sincronizados.
+            As supervisões aparecem só como “Supervisão”, sem o nome do colega.
           </p>
         </div>
       )}
 
-      {/* View toggle + Month navigation */}
-      <div className="flex items-center justify-between mb-4">
-        {/* Month nav */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={prevMonth}
-            className="p-1.5 rounded-lg hover:bg-surface border border-transparent hover:border-border transition-all cursor-pointer"
-          >
-            <ChevronLeft size={18} className="text-text-muted" />
-          </button>
-          <h3 className="text-base font-medium text-text min-w-[160px] text-center">
-            {MONTHS[month]} {year}
-          </h3>
-          <button
-            onClick={nextMonth}
-            className="p-1.5 rounded-lg hover:bg-surface border border-transparent hover:border-border transition-all cursor-pointer"
-          >
-            <ChevronRight size={18} className="text-text-muted" />
-          </button>
-          <button
-            onClick={goToToday}
-            className="ml-1 px-2.5 py-1 rounded-lg text-xs font-medium text-primary bg-primary/8
-                       hover:bg-primary/15 transition-colors cursor-pointer"
-          >
-            Hoje
-          </button>
-        </div>
-
-        {/* View toggle */}
-        <div className="flex bg-surface border border-border rounded-xl p-0.5">
-          <button
-            onClick={() => setView("calendar")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              view === "calendar"
-                ? "bg-primary text-white"
-                : "text-text-muted hover:text-text"
-            }`}
-          >
-            <Calendar size={14} />
-            Calendário
-          </button>
-          <button
-            onClick={() => setView("list")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              view === "list"
-                ? "bg-primary text-white"
-                : "text-text-muted hover:text-text"
-            }`}
-          >
-            <List size={14} />
-            Lista
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <Carregando dadosClinicos className="py-20" />
-      ) : view === "calendar" ? (
-        /* ======== CALENDAR VIEW ======== */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-          {/* Calendar grid */}
-          <div className="bg-surface rounded-xl border border-border/60 overflow-hidden">
-            {/* Weekday headers */}
-            <div className="grid grid-cols-7 bg-background/60 border-b border-border/40">
-              {WEEKDAYS.map((d) => (
-                <div
-                  key={d}
-                  className="py-2 text-center text-[11px] font-semibold text-text-muted uppercase tracking-wider"
-                >
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            {/* Day cells */}
-            <div className="grid grid-cols-7">
-              {calendarDays.map((cell, i) => {
-                if (cell.day === null) {
-                  return <div key={`empty-${i}`} className="min-h-[80px] border-b border-r border-border/20 bg-background/20" />;
-                }
-
-                const dayAgs = byDate[cell.dateStr] || [];
-                const isToday = cell.dateStr === todayStr;
-                const isSelected = cell.dateStr === selectedDate;
-                const hasAgs = dayAgs.length > 0;
-
-                return (
-                  <button
-                    key={cell.dateStr}
-                    onClick={() => handleDayClick(cell.dateStr)}
-                    className={`relative min-h-[80px] p-1.5 border-b border-r border-border/20
-                               text-left transition-colors cursor-pointer
-                               ${isSelected ? "bg-primary/5 ring-1 ring-primary/30" : "hover:bg-background/60"}
-                               ${isToday ? "bg-primary/[0.03]" : ""}`}
-                  >
-                    {/* Day number */}
-                    <span
-                      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium
-                        ${isToday ? "bg-primary text-white" : "text-text"}`}
-                    >
-                      {cell.day}
-                    </span>
-
-                    {/* Appointment dots */}
-                    {hasAgs && (
-                      <div className="mt-1 space-y-0.5">
-                        {dayAgs.slice(0, 3).map((ag) => {
-                          const statusInfo = STATUS_MAP[ag.status] || STATUS_MAP.agendado;
-                          return (
-                            <div
-                              key={ag.id}
-                              className={`text-[10px] font-medium truncate px-1 py-0.5 rounded ${statusInfo.class}`}
-                            >
-                              {formatTime(ag.horario)}{" "}
-                              <span className="sensitive-data">{getPacienteName(ag).split(" ")[0]}</span>
-                            </div>
-                          );
-                        })}
-                        {dayAgs.length > 3 && (
-                          <span className="text-[10px] text-text-muted px-1">
-                            +{dayAgs.length - 3} mais
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Selected day panel */}
-          <div className="bg-surface rounded-xl border border-border/60 h-fit">
-            <div className="flex items-center justify-between p-4 border-b border-border/40">
-              <h4 className="text-sm font-medium text-text">
-                {selectedDate
-                  ? new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })
-                  : "Selecione um dia"}
-              </h4>
-              {selectedDate && (
-                <button
-                  onClick={() => handleNewOnDate(selectedDate)}
-                  className="p-1.5 rounded-lg text-primary hover:bg-primary/8 transition-colors cursor-pointer"
-                  title="Novo agendamento neste dia"
-                >
-                  <Plus size={16} />
-                </button>
-              )}
-            </div>
-
-            <div className="p-3">
-              {!selectedDate ? (
-                <p className="text-sm text-text-muted text-center py-8">
-                  Clique em um dia do calendário para ver os agendamentos
-                </p>
-              ) : selectedAgs.length === 0 ? (
-                <div className="text-center py-8">
-                  <Calendar size={24} className="text-border mx-auto mb-2" />
-                  <p className="text-sm text-text-muted mb-2">Nenhum agendamento</p>
-                  <button
-                    onClick={() => handleNewOnDate(selectedDate)}
-                    className="text-xs text-primary hover:text-primary-dark font-medium transition-colors cursor-pointer"
-                  >
-                    Criar agendamento
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedAgs.map((ag) => (
-                    <AgendamentoCard
-                      key={ag.id}
-                      ag={ag}
-                      onEdit={() => handleEdit(ag)}
-                      onReplicate={() => handleReplicate(ag)}
-                      onDelete={() => handleDelete(ag.id)}
-                      isDeleting={deleting === ag.id}
-                      onEvoluir={() => handleEvoluirProntuario(ag)}
-                      onPagamento={() => handleAdicionarPagamento(ag)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      {aba === "supervisoes" ? (
+        <div role="tabpanel" id="painel-supervisoes" aria-labelledby="aba-supervisoes">
+          <SupervisoesAgenda
+            versao={versaoSupervisoes}
+            onNova={() => handleNovaSupervisao()}
+            onEditar={handleAbrirSupervisao}
+            onAlterou={fetchAgendamentos}
+          />
         </div>
       ) : (
-        /* ======== LIST VIEW ======== */
-        <div className="bg-surface rounded-xl border border-border/60">
-          {agendamentos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Calendar size={32} className="text-border mb-3" />
-              <p className="text-sm text-text-muted">Nenhum agendamento neste mês</p>
+        <div role="tabpanel" id="painel-atendimentos" aria-labelledby="aba-atendimentos">
+          {/* View toggle + Month navigation */}
+          <div className="flex items-center justify-between mb-4">
+            {/* Month nav */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={prevMonth}
+                className="p-1.5 rounded-lg hover:bg-surface border border-transparent hover:border-border transition-all cursor-pointer"
+              >
+                <ChevronLeft size={18} className="text-text-muted" />
+              </button>
+              <h3 className="text-base font-medium text-text min-w-[160px] text-center">
+                {MONTHS[month]} {year}
+              </h3>
+              <button
+                onClick={nextMonth}
+                className="p-1.5 rounded-lg hover:bg-surface border border-transparent hover:border-border transition-all cursor-pointer"
+              >
+                <ChevronRight size={18} className="text-text-muted" />
+              </button>
+              <button
+                onClick={goToToday}
+                className="ml-1 px-2.5 py-1 rounded-lg text-xs font-medium text-primary bg-primary/8
+                           hover:bg-primary/15 transition-colors cursor-pointer"
+              >
+                Hoje
+              </button>
             </div>
-          ) : (
-            <div className="divide-y divide-border/30">
-              {Object.entries(byDate)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([date, dayAgs]) => (
-                  <div key={date}>
-                    {/* Date header */}
-                    <div className="flex items-center justify-between px-5 py-2.5 bg-background/40 border-b border-border/20">
-                      <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                        {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+
+            {/* View toggle */}
+            <div className="flex bg-surface border border-border rounded-xl p-0.5">
+              <button
+                onClick={() => setView("calendar")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  view === "calendar"
+                    ? "bg-primary text-white"
+                    : "text-text-muted hover:text-text"
+                }`}
+              >
+                <Calendar size={14} />
+                Calendário
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  view === "list"
+                    ? "bg-primary text-white"
+                    : "text-text-muted hover:text-text"
+                }`}
+              >
+                <List size={14} />
+                Lista
+              </button>
+            </div>
+          </div>
+
+          {/* Os atendimentos estão completos; só as supervisões não vieram. */}
+          {erroSupervisoesMes && !loading && (
+            <p className="mb-3 text-xs text-text-muted bg-secondary/10 border border-secondary/40 rounded-lg px-3 py-2">
+              Não foi possível carregar as supervisões deste mês. Os atendimentos estão completos.
+            </p>
+          )}
+
+          {loading ? (
+            <Carregando dadosClinicos className="py-20" />
+          ) : view === "calendar" ? (
+            /* ======== CALENDAR VIEW ======== */
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+              {/* Calendar grid */}
+              <div className="bg-surface rounded-xl border border-border/60 overflow-hidden">
+                {/* Weekday headers */}
+                <div className="grid grid-cols-7 bg-background/60 border-b border-border/40">
+                  {WEEKDAYS.map((d) => (
+                    <div
+                      key={d}
+                      className="py-2 text-center text-[11px] font-semibold text-text-muted uppercase tracking-wider"
+                    >
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div className="grid grid-cols-7">
+                  {calendarDays.map((cell, i) => {
+                    if (cell.day === null) {
+                      return <div key={`empty-${i}`} className="min-h-[80px] border-b border-r border-border/20 bg-background/20" />;
+                    }
+
+                    const dayItens = itensDoDia(byDate[cell.dateStr], supsByDate[cell.dateStr]);
+                    const isToday = cell.dateStr === todayStr;
+                    const isSelected = cell.dateStr === selectedDate;
+                    const hasAgs = dayItens.length > 0;
+
+                    return (
+                      <button
+                        key={cell.dateStr}
+                        onClick={() => handleDayClick(cell.dateStr)}
+                        className={`relative min-h-[80px] p-1.5 border-b border-r border-border/20
+                                   text-left transition-colors cursor-pointer
+                                   ${isSelected ? "bg-primary/5 ring-1 ring-primary/30" : "hover:bg-background/60"}
+                                   ${isToday ? "bg-primary/[0.03]" : ""}`}
+                      >
+                        {/* Day number */}
+                        <span
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium
+                            ${isToday ? "bg-primary text-white" : "text-text"}`}
+                        >
+                          {cell.day}
+                        </span>
+
+                        {/* Appointment dots */}
+                        {hasAgs && (
+                          <div className="mt-1 space-y-0.5">
+                            {dayItens.slice(0, 3).map((item) => {
+                              if (item.tipo === "supervisao") {
+                                return <ChipSupervisaoCalendario key={`sup-${item.sup.id}`} supervisao={item.sup} />;
+                              }
+                              const ag = item.ag;
+                              const statusInfo = STATUS_MAP[ag.status] || STATUS_MAP.agendado;
+                              return (
+                                <div
+                                  key={ag.id}
+                                  className={`text-[10px] font-medium truncate px-1 py-0.5 rounded ${statusInfo.class}`}
+                                >
+                                  {formatTime(ag.horario)}{" "}
+                                  <span className="sensitive-data">{getPacienteName(ag).split(" ")[0]}</span>
+                                </div>
+                              );
+                            })}
+                            {dayItens.length > 3 && (
+                              <span className="text-[10px] text-text-muted px-1">
+                                +{dayItens.length - 3} mais
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected day panel */}
+              <div className="bg-surface rounded-xl border border-border/60 h-fit">
+                <div className="flex items-center justify-between p-4 border-b border-border/40">
+                  <h4 className="text-sm font-medium text-text">
+                    {selectedDate
+                      ? new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", {
                           weekday: "long",
                           day: "numeric",
                           month: "long",
-                        })}
-                      </span>
-                      {date === todayStr && (
-                        <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase">
-                          Hoje
-                        </span>
+                        })
+                      : "Selecione um dia"}
+                  </h4>
+                  {selectedDate && (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => handleNovaSupervisao(selectedDate)}
+                        className="p-1.5 rounded-lg text-brand-setting hover:bg-secondary/20 transition-colors cursor-pointer"
+                        title="Nova supervisão neste dia"
+                        aria-label="Nova supervisão neste dia"
+                      >
+                        <MessagesSquare size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleNewOnDate(selectedDate)}
+                        className="p-1.5 rounded-lg text-primary hover:bg-primary/8 transition-colors cursor-pointer"
+                        title="Novo agendamento neste dia"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3">
+                  {!selectedDate ? (
+                    <p className="text-sm text-text-muted text-center py-8">
+                      Clique em um dia do calendário para ver os agendamentos
+                    </p>
+                  ) : selectedItens.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar size={24} className="text-border mx-auto mb-2" />
+                      <p className="text-sm text-text-muted mb-2">Nenhum agendamento</p>
+                      <button
+                        onClick={() => handleNewOnDate(selectedDate)}
+                        className="text-xs text-primary hover:text-primary-dark font-medium transition-colors cursor-pointer"
+                      >
+                        Criar agendamento
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedItens.map((item) =>
+                        item.tipo === "supervisao" ? (
+                          <CartaoSupervisaoDia
+                            key={`sup-${item.sup.id}`}
+                            supervisao={item.sup}
+                            onAbrir={() => handleAbrirSupervisao(item.sup)}
+                          />
+                        ) : (
+                          <AgendamentoCard
+                            key={item.ag.id}
+                            ag={item.ag}
+                            onEdit={() => handleEdit(item.ag)}
+                            onReplicate={() => handleReplicate(item.ag)}
+                            onDelete={() => handleDelete(item.ag.id)}
+                            isDeleting={deleting === item.ag.id}
+                            onEvoluir={() => handleEvoluirProntuario(item.ag)}
+                            onPagamento={() => handleAdicionarPagamento(item.ag)}
+                          />
+                        )
                       )}
                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ======== LIST VIEW ======== */
+            <div className="bg-surface rounded-xl border border-border/60">
+              {datasDoMes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Calendar size={32} className="text-border mb-3" />
+                  <p className="text-sm text-text-muted">Nenhum agendamento neste mês</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {datasDoMes.map((date) => (
+                    <div key={date}>
+                      {/* Date header */}
+                      <div className="flex items-center justify-between px-5 py-2.5 bg-background/40 border-b border-border/20">
+                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                          {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          })}
+                        </span>
+                        {date === todayStr && (
+                          <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase">
+                            Hoje
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Appointments */}
-                    {dayAgs.map((ag) => {
-                      const pacNome = getPacienteName(ag);
-                      const statusInfo = STATUS_MAP[ag.status] || STATUS_MAP.agendado;
+                      {/* Appointments (e supervisões, na ordem do dia) */}
+                      {itensDoDia(byDate[date], supsByDate[date]).map((item) => {
+                        if (item.tipo === "supervisao") {
+                          return (
+                            <LinhaSupervisaoLista
+                              key={`sup-${item.sup.id}`}
+                              supervisao={item.sup}
+                              onAbrir={() => handleAbrirSupervisao(item.sup)}
+                            />
+                          );
+                        }
+                        const ag = item.ag;
+                        const pacNome = getPacienteName(ag);
+                        const statusInfo = STATUS_MAP[ag.status] || STATUS_MAP.agendado;
 
-                      return (
-                        <div
-                          key={ag.id}
-                          className="flex items-center gap-4 px-5 py-3 hover:bg-background/40 transition-colors"
-                        >
-                          {/* Time */}
-                          <div className="shrink-0 w-14 text-center">
-                            <span className="text-sm font-semibold text-text">
-                              {formatTime(ag.horario)}
-                            </span>
-                            {ag.duracao_minutos && (
-                              <p className="text-[10px] text-text-muted">{ag.duracao_minutos}min</p>
-                            )}
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-text truncate sensitive-data">{pacNome}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {ag.modalidade && (
-                                <span className="inline-flex items-center gap-1 text-xs text-text-muted">
-                                  {ag.modalidade === "online" ? <Video size={11} /> : <MapPin size={11} />}
-                                  {ag.modalidade === "online" ? "Online" : "Presencial"}
-                                </span>
-                              )}
-                              {ag.observacoes && (
-                                <span className="text-xs text-text-muted truncate max-w-[150px]">{ag.observacoes}</span>
+                        return (
+                          <div
+                            key={ag.id}
+                            className="flex items-center gap-4 px-5 py-3 hover:bg-background/40 transition-colors"
+                          >
+                            {/* Time */}
+                            <div className="shrink-0 w-14 text-center">
+                              <span className="text-sm font-semibold text-text">
+                                {formatTime(ag.horario)}
+                              </span>
+                              {ag.duracao_minutos && (
+                                <p className="text-[10px] text-text-muted">{ag.duracao_minutos}min</p>
                               )}
                             </div>
-                          </div>
 
-                          {/* Status + Actions */}
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusInfo.class}`}>
-                              {statusInfo.label}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {/* Workflow Actions */}
-                              <button
-                                onClick={() => handleEvoluirProntuario(ag)}
-                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                  ag.has_prontuario
-                                    ? "text-success bg-success/10"
-                                    : "text-text-muted hover:text-primary hover:bg-primary/10"
-                                }`}
-                                title={ag.has_prontuario ? "Prontuário preenchido" : "Evoluir prontuário"}
-                              >
-                                {ag.has_prontuario ? <CheckCircle2 size={14} /> : <FileText size={14} />}
-                              </button>
-                              <button
-                                onClick={() => handleAdicionarPagamento(ag)}
-                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                  ag.pagamento_status === "pago"
-                                    ? "text-success bg-success/10"
-                                    : ag.has_pagamento
-                                    ? "text-warning-dark bg-warning/10"
-                                    : "text-text-muted hover:text-primary hover:bg-primary/10"
-                                }`}
-                                title={ag.pagamento_status === "pago" ? "Pago" : ag.has_pagamento ? "Pagamento pendente" : "Adicionar pagamento"}
-                              >
-                                {ag.pagamento_status === "pago" ? <CheckCircle2 size={14} /> : ag.has_pagamento ? <Clock size={14} /> : <DollarSign size={14} />}
-                              </button>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-text truncate sensitive-data">{pacNome}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {ag.modalidade && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-text-muted">
+                                    {ag.modalidade === "online" ? <Video size={11} /> : <MapPin size={11} />}
+                                    {ag.modalidade === "online" ? "Online" : "Presencial"}
+                                  </span>
+                                )}
+                                {ag.observacoes && (
+                                  <span className="text-xs text-text-muted truncate max-w-[150px]">{ag.observacoes}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Status + Actions */}
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusInfo.class}`}>
+                                {statusInfo.label}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {/* Workflow Actions */}
+                                <button
+                                  onClick={() => handleEvoluirProntuario(ag)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    ag.has_prontuario
+                                      ? "text-success bg-success/10"
+                                      : "text-text-muted hover:text-primary hover:bg-primary/10"
+                                  }`}
+                                  title={ag.has_prontuario ? "Prontuário preenchido" : "Evoluir prontuário"}
+                                >
+                                  {ag.has_prontuario ? <CheckCircle2 size={14} /> : <FileText size={14} />}
+                                </button>
+                                <button
+                                  onClick={() => handleAdicionarPagamento(ag)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    ag.pagamento_status === "pago"
+                                      ? "text-success bg-success/10"
+                                      : ag.has_pagamento
+                                      ? "text-warning-dark bg-warning/10"
+                                      : "text-text-muted hover:text-primary hover:bg-primary/10"
+                                  }`}
+                                  title={ag.pagamento_status === "pago" ? "Pago" : ag.has_pagamento ? "Pagamento pendente" : "Adicionar pagamento"}
+                                >
+                                  {ag.pagamento_status === "pago" ? <CheckCircle2 size={14} /> : ag.has_pagamento ? <Clock size={14} /> : <DollarSign size={14} />}
+                                </button>
                               
-                              <div className="w-[1px] h-4 bg-border mx-1" />
+                                <div className="w-[1px] h-4 bg-border mx-1" />
 
-                              <button
-                                onClick={() => handleEdit(ag)}
-                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-text-muted hover:bg-background transition-colors cursor-pointer"
-                                title="Editar agendamento"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleReplicate(ag)}
-                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-                                title="Replicar para próxima semana"
-                              >
-                                <Copy size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(ag.id)}
-                                disabled={deleting === ag.id}
-                                className="p-1.5 rounded-lg text-text-muted/50 hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer disabled:opacity-50"
-                                title="Cancelar agendamento"
-                              >
-                                {deleting === ag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                              </button>
+                                <button
+                                  onClick={() => handleEdit(ag)}
+                                  className="p-1.5 rounded-lg text-text-muted/50 hover:text-text-muted hover:bg-background transition-colors cursor-pointer"
+                                  title="Editar agendamento"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleReplicate(ag)}
+                                  className="p-1.5 rounded-lg text-text-muted/50 hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                                  title="Replicar para próxima semana"
+                                >
+                                  <Copy size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(ag.id)}
+                                  disabled={deleting === ag.id}
+                                  className="p-1.5 rounded-lg text-text-muted/50 hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer disabled:opacity-50"
+                                  title="Cancelar agendamento"
+                                >
+                                  {deleting === ag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -909,6 +1075,15 @@ export function AgendaView() {
           prefillData={{ paciente_id: actionPrefillData?.paciente_id || "", data_vencimento: actionPrefillData?.data_vencimento || "" }}
           onClose={() => setShowPagamentoModal(false)}
           onSaved={() => { setShowPagamentoModal(false); fetchAgendamentos(); }}
+        />
+      )}
+
+      {supervisaoModal && (
+        <SupervisaoAgendaFormModal
+          supervisao={supervisaoModal.supervisao}
+          prefillDate={supervisaoModal.prefillDate}
+          onClose={() => setSupervisaoModal(null)}
+          onSaved={handleSupervisaoSalva}
         />
       )}
     </>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
+import { descricaoNoFeed, tituloNoFeed } from "@/utils/supervisao-agenda";
 
 /**
  * RFC 5545 iCalendar feed for subscribing in Apple Calendar / iPhone.
@@ -75,6 +76,26 @@ export async function GET(request: Request, { params }: RouteParams) {
       return new NextResponse("Erro interno", { status: 500 });
     }
 
+    // Supervisões da aba Supervisões da Agenda. Mesmo princípio da A03 (ver
+    // generateICS): só se lê o que o calendário vai mostrar. colega_nome e
+    // observacoes ficam FORA do select — o que não é lido não pode vazar.
+    //
+    // Falha aqui (inclusive a tabela ainda não existir, se o código subir antes
+    // da migração 20260923140000) não derruba o feed: os atendimentos, que são
+    // o essencial, continuam saindo.
+    const { data: supervisoes, error: erroSupervisoes } = await supabase
+      .from("agenda_supervisoes")
+      .select("id, data, horario, duracao_minutos, modalidade, status")
+      .eq("psicologo_id", psicologoId)
+      .gte("data", cutoffDate)
+      .in("status", ["agendada", "realizada"])
+      .order("data", { ascending: true })
+      .order("horario", { ascending: true });
+
+    if (erroSupervisoes) {
+      console.error("iCal feed — supervisões não incluídas:", erroSupervisoes);
+    }
+
     // O nome é descriptografado apenas para ser reduzido a "Maria S." no
     // SUMMARY. Ele não sai daqui inteiro — ver A03 e o comentário na montagem
     // da DESCRIPTION. As observações clínicas não são mais lidas.
@@ -92,7 +113,11 @@ export async function GET(request: Request, { params }: RouteParams) {
     );
 
     // Generate iCalendar content
-    const icsContent = generateICS(decryptedAgendamentos, psicologoNome);
+    const icsContent = generateICS(
+      decryptedAgendamentos,
+      psicologoNome,
+      erroSupervisoes ? [] : ((supervisoes ?? []) as SupervisaoNoFeed[])
+    );
 
     return new NextResponse(icsContent, {
       status: 200,
@@ -123,8 +148,37 @@ function formatShortPatientName(fullName: string): string {
   return initials ? `${firstName} ${initials}` : firstName;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function generateICS(agendamentos: any[], psicologoNome: string): string {
+/** Só as colunas que o feed lê da agenda_supervisoes — nada de nome nem observação. */
+interface SupervisaoNoFeed {
+  id: string;
+  data: string;
+  horario: string;
+  duracao_minutos: number | null;
+  modalidade: string | null;
+  status: string;
+}
+
+/**
+ * DTSTART e DTEND a partir de data e hora locais de São Paulo, como o banco
+ * guarda (DATE "AAAA-MM-DD" e TIME "HH:MM:SS"). Atendimento e supervisão usam
+ * a mesma conta, para os dois nunca aparecerem deslocados um do outro.
+ */
+function inicioEFim(dateStr: string, timeStr: string, duracaoMinutos: number) {
+  // Build DTSTART: YYYYMMDDTHHMMSS
+  const dtStart = `${dateStr.replace(/-/g, "")}T${timeStr.replace(/:/g, "").slice(0, 6)}`;
+
+  // Calculate DTEND
+  const startDate = new Date(`${dateStr}T${timeStr}`);
+  const endDate = new Date(startDate.getTime() + duracaoMinutos * 60000);
+  return { dtStart, dtEnd: formatICSDate(endDate) };
+}
+
+function generateICS(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  agendamentos: any[],
+  psicologoNome: string,
+  supervisoes: SupervisaoNoFeed[] = []
+): string {
   const now = formatICSDate(new Date());
 
   const lines: string[] = [
@@ -161,13 +215,7 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
     const timeStr = ag.horario || "00:00:00"; // HH:MM:SS
     const duration = ag.duracao_minutos || 50; // Default 50min session
 
-    // Build DTSTART: YYYYMMDDTHHMMSS
-    const dtStart = `${dateStr.replace(/-/g, "")}T${timeStr.replace(/:/g, "").slice(0, 6)}`;
-
-    // Calculate DTEND
-    const startDate = new Date(`${dateStr}T${timeStr}`);
-    const endDate = new Date(startDate.getTime() + duration * 60000);
-    const dtEnd = formatICSDate(endDate);
+    const { dtStart, dtEnd } = inicioEFim(dateStr, timeStr, duration);
 
     // Build summary: "Nome S. (Modalidade)"
     const modalidade = ag.modalidade === "online" ? " (Online)" : ag.modalidade === "presencial" ? " (Presencial)" : "";
@@ -204,6 +252,33 @@ function generateICS(agendamentos: any[], psicologoNome: string): string {
       lines.push(`DESCRIPTION:${escapeICS(`Modalidade: ${modalidadeLabel}`)}`);
     }
 
+    lines.push("END:VEVENT");
+  }
+
+  // Supervisões — A03 vale aqui com mais força: o colega nem é paciente do
+  // sistema, e nome dele no .ics público ligaria uma pessoa identificável a
+  // "supervisão de casos clínicos". O evento diz só "Supervisão (Online)" ou
+  // "Supervisão (Presencial)"; quem quiser saber com quem abre o sistema.
+  //
+  // UID com prefixo próprio: o id vem de outra tabela e não pode colidir com
+  // o de um agendamento (o calendário trataria os dois como o mesmo evento).
+  //
+  // STATUS sempre CONFIRMED: supervisão não tem a etapa "agendado, falta o
+  // paciente confirmar" que faz o atendimento sair como TENTATIVE. As
+  // canceladas nem entram (filtradas na consulta).
+  for (const s of supervisoes) {
+    const { dtStart, dtEnd } = inicioEFim(s.data, s.horario || "00:00:00", s.duracao_minutos || 60);
+    const descricao = descricaoNoFeed(s.modalidade);
+
+    lines.push("");
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:supervisao-${s.id}@psisetting.app`);
+    lines.push(`DTSTAMP:${now}`);
+    lines.push(`DTSTART;TZID=America/Sao_Paulo:${dtStart}`);
+    lines.push(`DTEND;TZID=America/Sao_Paulo:${dtEnd}`);
+    lines.push(`SUMMARY:${escapeICS(tituloNoFeed(s.modalidade))}`);
+    lines.push("STATUS:CONFIRMED");
+    if (descricao) lines.push(`DESCRIPTION:${escapeICS(descricao)}`);
     lines.push("END:VEVENT");
   }
 
