@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     // A15 — docs/auditoria/AUDITORIA-ANTAGONICA-2026-09-17.md
     //
     // Origens externas realmente usadas pelo app:
-    //   sdk.mercadopago.com  — checkout transparente (Brick)
+    //   Mercado Pago         — checkout transparente (Brick), ver mercadoPago abaixo
     //   accounts.google.com  — Google Identity Services (login)
     //   *.supabase.co        — banco, auth e storage
     //
@@ -21,14 +21,32 @@ const nextConfig: NextConfig = {
     // Com isso, esta CSP bloqueia script de origem externa, clickjacking,
     // sequestro de formulário e injeção de <base>, mas NÃO bloqueia XSS inline.
     // Não a apresente como proteção contra XSS.
+    //
+    // O formulário de cartão NÃO vive só em sdk.mercadopago.com: o SDK baixa o
+    // Brick de http2.mlstatic.com, abre os campos do cartão em iframes de
+    // secure-fields.mercadopago.com, chama api.mercadopago.com e
+    // api-static.mercadopago.com, e o antifraude fala com www.mercadolibre.com
+    // e www.mercadolivre.com. Com só o sdk.* liberado (17/09 a 23/09/2026) o
+    // formulário ficava girando para sempre, sem erro na tela. Os hosts mudam
+    // sem aviso entre versões do Brick, por isso o curinga por domínio da
+    // empresa, e não host a host. Nenhum deles precisa de 'unsafe-eval'.
+    const mercadoPago = [
+      "https://*.mercadopago.com",
+      "https://*.mercadopago.com.br",
+      "https://*.mlstatic.com",
+      "https://*.mercadolibre.com",
+      "https://*.mercadolivre.com",
+      "https://*.mercadolivre.com.br",
+    ].join(" ");
+
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://accounts.google.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://sdk.mercadopago.com",
-      "frame-src https://sdk.mercadopago.com https://accounts.google.com",
+      `script-src 'self' 'unsafe-inline' ${mercadoPago} https://accounts.google.com`,
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.mlstatic.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://*.mlstatic.com",
+      `img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com ${mercadoPago}`,
+      `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${mercadoPago}`,
+      `frame-src ${mercadoPago} https://accounts.google.com`,
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",

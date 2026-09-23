@@ -87,6 +87,13 @@ function carregarSdk(): Promise<MercadoPagoConstrutor | null> {
   return cargaDoSdk;
 }
 
+// Sem onReady nem onError até aqui, o formulário não vai aparecer: o Brick não
+// avisa quando um recurso dele é bloqueado (foi assim com o CSP, em 23/09/2026)
+// e a tela ficava girando para sempre.
+const LIMITE_CARREGAMENTO_MS = 20_000;
+
+const HOSTS_MERCADO_PAGO = /mercadopago|mlstatic|mercadoli[bv]re/;
+
 type Resultado = "aprovado" | "em_analise" | null;
 
 function lerDiasLiberados(data: Record<string, unknown>): DiasLiberados {
@@ -132,6 +139,22 @@ export function MercadoPagoBrick({
     // Aprovado nesta montagem: a espera que termina depois (por causa de um
     // pagamento anterior incerto) não pode trocar os dias reais por "liberado".
     let aprovado = false;
+    // O formulário apareceu (onReady). Até lá vale o limite de tempo.
+    let pronto = false;
+    const limite = window.setTimeout(() => {
+      if (!isMounted || pronto) return;
+      setErroCarregar("O formulário do cartão não carregou. Recarregue a página ou use o PIX.");
+      setLoading(false);
+    }, LIMITE_CARREGAMENTO_MS);
+
+    // Recurso do Mercado Pago barrado pelo CSP: o Brick não reclama, então o
+    // console é o único lugar onde o motivo aparece.
+    function aoBloquear(e: SecurityPolicyViolationEvent) {
+      if (HOSTS_MERCADO_PAGO.test(e.blockedURI)) {
+        console.error(`[cartão] CSP bloqueou ${e.blockedURI} (${e.violatedDirective}). Libere o domínio em next.config.ts.`);
+      }
+    }
+    document.addEventListener("securitypolicyviolation", aoBloquear);
 
     function desmontar(c: BrickController | null) {
       try {
@@ -144,6 +167,7 @@ export function MercadoPagoBrick({
     async function loadBrick() {
       const publicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
       if (!publicKey) {
+        window.clearTimeout(limite);
         setErroCarregar("Chave pública do Mercado Pago não configurada.");
         setLoading(false);
         return;
@@ -152,6 +176,7 @@ export function MercadoPagoBrick({
       const MercadoPago = await carregarSdk();
       if (!isMounted) return;
       if (!MercadoPago) {
+        window.clearTimeout(limite);
         setErroCarregar("Não foi possível carregar o checkout do Mercado Pago. Confira sua conexão ou use o PIX.");
         setLoading(false);
         return;
@@ -188,10 +213,16 @@ export function MercadoPagoBrick({
           },
           callbacks: {
             onReady: () => {
-              if (isMounted) setLoading(false);
+              pronto = true;
+              window.clearTimeout(limite);
+              if (!isMounted) return;
+              // Chegou depois do limite: o aviso de falha já não vale.
+              setErroCarregar(null);
+              setLoading(false);
             },
             onSubmit: ({ formData }: { formData: unknown }) => enviarPagamento(formData),
             onError: (err: unknown) => {
+              window.clearTimeout(limite);
               console.error("Erro interno do Brick:", err);
               if (isMounted) {
                 setErroCarregar("Erro ao carregar o formulário de pagamento. Feche e abra de novo, ou use o PIX.");
@@ -209,6 +240,7 @@ export function MercadoPagoBrick({
         }
         controller = criado;
       } catch (err: unknown) {
+        window.clearTimeout(limite);
         console.error("Erro ao inicializar Brick:", err);
         if (isMounted) {
           setErroCarregar("Erro ao carregar o formulário de cartão. Feche e abra de novo, ou use o PIX.");
@@ -323,6 +355,8 @@ export function MercadoPagoBrick({
 
     return () => {
       isMounted = false;
+      window.clearTimeout(limite);
+      document.removeEventListener("securitypolicyviolation", aoBloquear);
       desmontar(controller);
     };
   }, [valorEsperado, couponCode]);
