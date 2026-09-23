@@ -19,6 +19,7 @@ import {
   Tag,
   ArrowLeft,
   Users,
+  MessagesSquare,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
@@ -29,6 +30,14 @@ const DiarioFormModal = dynamic(
 );
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { analyzeClinicalEvolutions } from "@/utils/clinical-analyzer";
+import { DiarioSupervisao, carregarSupervisoesDasAnotacoes } from "./diario-supervisao";
+import { ExplicacaoRegistro } from "./explicacao-registro";
+import {
+  anotacaoCorrespondeAoTermo,
+  comComentario,
+  semComentario,
+  type ComentarioSupervisao,
+} from "@/utils/diario-supervisao";
 
 interface Diario {
   id: string;
@@ -65,6 +74,13 @@ export function DiarioList() {
   const [hasMoreDiarios, setHasMoreDiarios] = useState(false);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
+
+  // Comentários de supervisão, por anotação. Ficam fora de diariosPaciente de
+  // propósito: o Radar de Temas analisa só o texto das anotações.
+  const [supervisoesPorDiario, setSupervisoesPorDiario] = useState<
+    Record<string, ComentarioSupervisao[]>
+  >({});
+  const [supervisoesIndisponiveis, setSupervisoesIndisponiveis] = useState(false);
 
   // Radar de Temas & Estudo de Caso (Exclusivo do Paciente Selecionado)
   const [showRadar, setShowRadar] = useState(false);
@@ -166,12 +182,21 @@ export function DiarioList() {
       .range(from, to);
 
     if (data && user) {
-      const decrypted = await Promise.all(
-        data.map(async (d) => ({
-          ...d,
-          conteudo: await decryptClinicalData(d.conteudo, user.id),
-        }))
-      );
+      // Os comentários de supervisão vêm junto: uma consulta para a página
+      // inteira de anotações, em paralelo com a decifragem delas.
+      const [decrypted, supervisoes] = await Promise.all([
+        Promise.all(
+          data.map(async (d) => ({
+            ...d,
+            conteudo: await decryptClinicalData(d.conteudo, user.id),
+          }))
+        ),
+        carregarSupervisoesDasAnotacoes(
+          supabase,
+          data.map((d) => d.id),
+          user.id
+        ),
+      ]);
 
       if (isLoadMore) {
         setDiariosPaciente((prev) => [...prev, ...decrypted]);
@@ -179,8 +204,18 @@ export function DiarioList() {
         setDiariosPaciente(decrypted);
       }
       setHasMoreDiarios(data.length === PAGE_SIZE);
+
+      if (supervisoes) {
+        setSupervisoesPorDiario((prev) => (isLoadMore ? { ...prev, ...supervisoes } : supervisoes));
+        if (!isLoadMore) setSupervisoesIndisponiveis(false);
+      } else {
+        setSupervisoesIndisponiveis(true);
+      }
     } else {
-      if (!isLoadMore) setDiariosPaciente(data || []);
+      if (!isLoadMore) {
+        setDiariosPaciente(data || []);
+        setSupervisoesPorDiario({});
+      }
       setHasMoreDiarios(false);
     }
 
@@ -208,12 +243,35 @@ export function DiarioList() {
     return analyzeClinicalEvolutions(diariosPaciente);
   }, [diariosPaciente]);
 
-  // Anotações filtradas por tema no paciente ativo
+  // Anotações filtradas por tema no paciente ativo. O tema também é procurado
+  // nos comentários de supervisão: o "outro olhar" sobre a sessão é parte do
+  // caso, e a anotação comentada deve aparecer quando o assunto surgiu lá.
   const displayedDiarios = useMemo(() => {
     if (!activeThemeFilter) return diariosPaciente;
-    const termLower = activeThemeFilter.toLowerCase();
-    return diariosPaciente.filter((d) => d.conteudo.toLowerCase().includes(termLower));
-  }, [diariosPaciente, activeThemeFilter]);
+    return diariosPaciente.filter((d) =>
+      anotacaoCorrespondeAoTermo(d.conteudo, supervisoesPorDiario[d.id], activeThemeFilter)
+    );
+  }, [diariosPaciente, supervisoesPorDiario, activeThemeFilter]);
+
+  // Atualizações funcionais, sempre sobre o estado mais recente: um salvar e um
+  // excluir sobrepostos terminam em qualquer ordem, e a lista montada a partir
+  // da prop capturada no clique trazia de volta o comentário já excluído.
+  const gravarSupervisao = useCallback(
+    (diarioId: string, comentario: ComentarioSupervisao) => {
+      setSupervisoesPorDiario((prev) => ({
+        ...prev,
+        [diarioId]: comComentario(prev[diarioId], comentario),
+      }));
+    },
+    []
+  );
+
+  const removerSupervisao = useCallback((diarioId: string, comentarioId: string) => {
+    setSupervisoesPorDiario((prev) => ({
+      ...prev,
+      [diarioId]: semComentario(prev[diarioId], comentarioId),
+    }));
+  }, []);
 
   // Pacientes filtrados na busca da grade
   const filteredPacientes = pacientes.filter((p) =>
@@ -267,6 +325,10 @@ export function DiarioList() {
             <Plus size={18} />
             Nova Anotação
           </button>
+        </div>
+
+        <div className="mb-6">
+          <ExplicacaoRegistro tipo="diario" />
         </div>
 
         {/* Search Bar */}
@@ -478,7 +540,7 @@ export function DiarioList() {
                 {activeThemeFilter && (
                   <div className="flex items-center justify-between pt-2 border-t border-border/30 text-xs">
                     <span className="text-text-muted">
-                      Exibindo <strong>{displayedDiarios.length}</strong> anotação(ões) contendo <strong>#{activeThemeFilter}</strong>
+                      Exibindo <strong>{displayedDiarios.length}</strong> anotação(ões) contendo <strong>#{activeThemeFilter}</strong> no texto ou na supervisão
                     </span>
                     <button
                       type="button"
@@ -545,6 +607,19 @@ export function DiarioList() {
           </div>
         ) : (
           <div className="space-y-6">
+            {supervisoesIndisponiveis && (
+              <div
+                role="status"
+                className="flex items-start gap-2 p-3 rounded-xl bg-secondary/10 border border-secondary/40 text-xs text-text-muted"
+              >
+                <MessagesSquare size={14} className="text-brand-setting shrink-0 mt-0.5" />
+                <span>
+                  Os comentários de supervisão não puderam ser carregados agora. As anotações estão
+                  completas; recarregue a página para ver a supervisão.
+                </span>
+              </div>
+            )}
+
             {displayedDiarios.map((d, index) => {
               const dataFormatada = d.data
                 ? new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
@@ -583,6 +658,15 @@ export function DiarioList() {
                       {d.conteudo}
                     </p>
                   </div>
+
+                  {!supervisoesIndisponiveis && (
+                    <DiarioSupervisao
+                      diarioId={d.id}
+                      comentarios={supervisoesPorDiario[d.id] ?? []}
+                      onUpsert={gravarSupervisao}
+                      onRemove={removerSupervisao}
+                    />
+                  )}
                 </div>
               );
             })}

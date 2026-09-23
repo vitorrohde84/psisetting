@@ -210,6 +210,14 @@ export async function encryptClinicalData(
 }
 
 /**
+ * O que decryptClinicalData devolve quando não consegue decifrar (chave
+ * indisponível naquele momento, valor corrompido). Exportado para as telas de
+ * edição reconhecerem a falha: esse texto NUNCA pode voltar ao banco cifrado
+ * por cima do registro verdadeiro.
+ */
+export const TEXTO_CHAVE_INDISPONIVEL = "[Conteúdo protegido - Chave indisponível]";
+
+/**
  * Decifra. Entende os dois formatos: enc:v2: (envelope) e enc:v1: (legado,
  * até a remigração terminar). Texto sem prefixo é dado antigo em claro e volta
  * como está.
@@ -246,7 +254,7 @@ export async function decryptClinicalData(
     return new TextDecoder().decode(aberto);
   } catch (err) {
     console.error("Erro ao descriptografar dado clínico:", err);
-    return "[Conteúdo protegido - Chave indisponível]";
+    return TEXTO_CHAVE_INDISPONIVEL;
   }
 }
 

@@ -204,7 +204,8 @@ export function DiarioFormModal({
 
   async function handleDelete() {
     if (!diario) return;
-    if (!confirm("Tem certeza que deseja excluir esta anotação confidencial?")) return;
+    // Os comentários de supervisão da anotação vão junto (ON DELETE CASCADE).
+    if (!confirm("Tem certeza que deseja excluir esta anotação confidencial? Os comentários de supervisão dela também serão excluídos.")) return;
 
     setDeleting(true);
     const { error } = await supabase
