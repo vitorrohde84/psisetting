@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import { MercadoPagoBadge } from "@/app/components/mercadopago-badge";
+import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
 import {
   FileText,
   FileCheck,
@@ -141,16 +142,26 @@ const jsonLdWebSite = {
     "Seu setting clínico organizado, protegido e em um só lugar. Prontuário protegido, gestão da clínica e documentos psicológicos.",
 };
 
+// Perguntas revisadas com a psicóloga que valida o produto (23/09): cada
+// resposta precisa caber no que o sistema faz hoje. Este texto também vai para
+// o JSON-LD indexado pelo Google. O que é prontuário e o que é Diário de Bordo
+// fica explicado DENTRO do sistema (componente ExplicacaoRegistro), não aqui:
+// o site precisa ser leve.
 const faqItems = [
   {
-    question: "Como o PsiSetting protege os dados clínicos dos pacientes?",
+    question: "Como o Diário de Bordo apoia a supervisão clínica?",
     answer:
-      "A plataforma implementa camadas de proteção com criptografia AES-256 e chave derivada por profissional para o armazenamento de campos clínicos sensíveis, além de isolamento estrito de dados entre contas no banco de dados e tráfego HTTPS/TLS.",
+      "No Diário de Bordo você registra impressões clínicas, dúvidas teóricas, hipóteses de trabalho e pontos a serem levados para supervisão. Depois da supervisão, pode anotar os comentários do supervisor ao lado de cada anotação — e as supervisões, dadas ou recebidas, também podem ser agendadas na sua agenda.",
   },
   {
     question: "Como funcionam os 5 modelos de documentos conforme a Resolução CFP nº 06/2019?",
     answer:
-      "O sistema disponibiliza 5 referências estruturadas com base na Resolução CFP nº 06/2019 (Declaração de Comparecimento, Declaração de Acompanhamento, Atestado Psicológico, Relatório Psicológico e Laudo de Avaliação). Os modelos são ferramentas de apoio e devem ser revisados e adequados pelo profissional conforme o caso concreto.",
+      "O sistema disponibiliza 5 referências estruturadas com base na Resolução CFP nº 06/2019 (Declaração de Comparecimento, Declaração de Acompanhamento, Atestado Psicológico, Relatório Psicológico e Laudo de Avaliação). Os modelos são ferramentas de apoio e devem ser revisados e preenchidos pelo profissional conforme o caso concreto. O conteúdo do documento é de responsabilidade do psicólogo que o emite — por isso, antes de salvar, o sistema pede a sua confirmação no Termo de Responsabilidade.",
+  },
+  {
+    question: "Como o PsiSetting protege os dados clínicos dos pacientes?",
+    answer:
+      "Os dados clínicos sensíveis são criptografados com AES-256, usando uma chave própria de cada profissional, e todo o tráfego passa por HTTPS. No banco de dados, cada psicólogo acessa somente os próprios registros. Após 30 minutos sem atividade, a sessão é bloqueada automaticamente.",
   },
   {
     question: "Como funciona o 'Modo Privacidade' durante os atendimentos?",
@@ -158,19 +169,24 @@ const faqItems = [
       "Com apenas um clique no ícone de privacidade (ou tecla de atalho), o sistema aplica um desfoque instantâneo nos dados sensíveis na tela (nomes de pacientes, registros e valores). Você pode atender com seu computador aberto sem receio de expor anotações sigilosas.",
   },
   {
-    question: "Como o Diário de Bordo apoia o processo de supervisão clínica?",
-    answer:
-      "O Diário de Bordo é um espaço confidencial exclusivo para o psicólogo registrar impressões contratransferenciais, dúvidas teóricas, hipóteses diagnósticas e pontos a serem levados para supervisão clínica, conectando a sessão à continuidade do tratamento.",
-  },
-  {
     question: "Como funciona a sincronização com a agenda do celular?",
     answer:
       "O PsiSetting gera um link de integração iCal (.ics) exclusivo para você. Basta adicioná-lo ao Google Agenda ou Apple Calendário (iPhone) para visualizar seus horários no celular com privacidade.",
   },
   {
-    question: "Existe fidelidade ou contrato de permanência?",
+    question: "Como funciona o pagamento? Existe fidelidade?",
     answer:
-      "Nenhuma fidelidade. Você tem 7 dias de teste gratuitos para experimentar todas as funcionalidades. Após o período, a assinatura do Plano Único é de apenas R$ 34,90/mês e você pode cancelar a qualquer momento nas configurações da sua conta.",
+      "Nenhuma fidelidade e nenhum débito automático. Você tem 7 dias de teste gratuitos e, depois, o Plano Único custa R$ 34,90 por mês: cada pagamento, por PIX ou cartão, libera 30 dias de acesso, e o sistema avisa antes de vencer. Se não renovar, a conta passa para o modo somente leitura, sem perder nenhum registro.",
+  },
+  {
+    question: "Por quanto tempo meus registros ficam guardados?",
+    answer:
+      "Seus registros ficam guardados enquanto a sua conta existir — inclusive se o acesso vencer: no modo somente leitura você continua consultando e exportando tudo. A guarda dos registros deve seguir o prazo mínimo previsto na regulamentação do CFP, e você pode baixar o backup completo dos seus dados a qualquer momento em Configurações.",
+  },
+  {
+    question: "Posso usar no celular?",
+    answer:
+      "Sim. O PsiSetting funciona no navegador do celular e do computador, e pode ser instalado como aplicativo a partir da tela de acesso do sistema.",
   },
 ];
 
@@ -200,7 +216,7 @@ const cfpModels = [
       title: "ATESTADO PSICOLÓGICO",
       subtitle: "Estrutura conforme a Resolução CFP nº 06/2019",
       body: "Atesto, para os devidos fins a pedido do(a) interessado(a), que o(a) Paciente 1, sob meus cuidados profissionais em psicoterapia, encontra-se em acompanhamento clínico regular. Recomenda-se o afastamento de suas atividades por período de 05 (cinco) dias a contar desta data.",
-      sections: ["Identificação Profissional & CRP", "Descrição Sintética do Estado", "Prazo ou Finalidade Recomendada", "Indicação de Guarda por 5 Anos"],
+      sections: ["Identificação Profissional & CRP", "Descrição Sintética do Estado", "Prazo ou Finalidade Recomendada", "Guarda conforme as normas do CFP"],
     },
   },
   {
@@ -290,8 +306,8 @@ const corePillars = [
     features: [
       "Agenda com sincronização iCal (iPhone e Google)",
       "Controle de sessões pagas e pendentes",
-      "Emissão de recibos de atendimento",
-      "Ficha cadastral humanizada de pacientes",
+      "Controle dos recibos já emitidos",
+      "Ficha cadastral vinculada às evoluções das sessões",
     ],
   },
   {
@@ -308,7 +324,7 @@ const corePillars = [
       "5 modelos fundamentados na Res. CFP 06/2019",
       "Tópicos normativos pré-organizados",
       "Exportação em PDF A4 com timbre",
-      "Ferramenta de apoio com revisão do profissional",
+      "Ferramenta de apoio: deve ser revisada e preenchida pelo profissional",
     ],
   },
 ];
@@ -316,10 +332,10 @@ const corePillars = [
 /* ──────────────────────────── BEFORE VS AFTER DATA ──────────────────────────── */
 
 const beforeItems = [
-  { icon: "📄", text: "Arquivos e anotações espalhados em pastas e cadernos" },
+  { icon: "📄", text: "Arquivos e anotações em pastas e cadernos" },
   { icon: "📝", text: "Modelos em Word desformatados e retrabalho manual" },
   { icon: "📱", text: "Agenda pessoal misturada com a clínica no celular" },
-  { icon: "💰", text: "Controle financeiro em planilhas soltas e recibos manuais" },
+  { icon: "💰", text: "Controle financeiro e de emissão de recibos manuais" },
   { icon: "🔓", text: "Prontuário exposto sem proteção ao abrir a tela" },
 ];
 
@@ -327,7 +343,7 @@ const afterItems = [
   { text: "Prontuário protegido com criptografia e organização por paciente" },
   { text: "5 modelos de documentos conforme a Resolução CFP nº 06/2019" },
   { text: "Agenda sincronizada com seu celular (Apple e Google)" },
-  { text: "Controle financeiro de sessões e emissão de recibos" },
+  { text: "Controle financeiro de sessões e dos recibos emitidos" },
   { text: "Modo Privacidade com 1 clique para atendimentos seguros" },
 ];
 
@@ -336,25 +352,25 @@ const afterItems = [
 const compliancePoints = [
   {
     title: "Criptografia de Dados Clínicos",
-    desc: "Camada de criptografia AES-256 e chave derivada por profissional para proteção de registros confidenciais.",
+    desc: "Camada de criptografia AES-256 com chave própria de cada profissional para proteção de registros confidenciais.",
     icon: LockKeyhole,
     highlight: "Criptografia AES-256",
   },
   {
-    title: "Resolução CFP nº 06/2019",
-    desc: "Estruturas documentais normatizadas e organização para apoio à guarda documental de 5 anos.",
+    title: "Guarda documental conforme as normas do CFP",
+    desc: "Recursos para organização e armazenamento dos registros pelo prazo mínimo previsto na regulamentação aplicável.",
     icon: Scale,
     highlight: "Normativa CFP",
   },
   {
     title: "Privacidade e Proteção de Dados",
-    desc: "Arquitetura multi-tenant com isolamento estrito de dados entre psicólogos no banco de dados.",
+    desc: "Cada psicólogo acessa somente os próprios registros: o banco de dados confere, em cada consulta, a quem o dado pertence.",
     icon: Shield,
     highlight: "Conformidade LGPD",
   },
   {
-    title: "Timeout de Sessão por Inatividade",
-    desc: "Bloqueio automático após 30 minutos de ausência para impedir acessos indevidos no consultório.",
+    title: "Bloqueio automático por inatividade",
+    desc: "Após 30 minutos sem atividade, a sessão é bloqueada automaticamente, para adicionar uma camada de proteção contra acessos não autorizados.",
     icon: Timer,
     highlight: "Segurança Ativa",
   },
@@ -465,8 +481,10 @@ export default function LandingPage() {
             <PsiSettingBrand size="md" />
           </Link>
 
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-6">
+          {/* Desktop nav links. gap-5, não 6: com "Documentos estruturados" o menu
+              passava alguns pixels da largura máxima e todos os itens quebravam em
+              duas linhas, até em tela de 1280px ou maior. */}
+          <div className="hidden md:flex items-center gap-5">
             <a
               href="#pilares"
               className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
@@ -483,7 +501,7 @@ export default function LandingPage() {
               href="#modelos-cfp"
               className="text-sm font-medium text-text-muted hover:text-primary transition-colors"
             >
-              Documentos CFP
+              Documentos estruturados
             </a>
             <a
               href="#seguranca"
@@ -544,7 +562,7 @@ export default function LandingPage() {
               onClick={() => setMobileMenuOpen(false)}
               className="text-sm text-text hover:bg-background/80 rounded-lg py-2 px-3"
             >
-              Documentos CFP 06/2019
+              Documentos estruturados
             </a>
             <a
               href="#seguranca"
@@ -632,7 +650,7 @@ export default function LandingPage() {
                     <div className="p-1 rounded-md bg-amber-100 text-amber-800">
                       <FileCheck2 size={13} strokeWidth={2.5} />
                     </div>
-                    <span>Documentos CFP</span>
+                    <span>Documentos estruturados</span>
                   </div>
                 </div>
               </HeroIn>
@@ -965,7 +983,7 @@ export default function LandingPage() {
 
               <Reveal delay={160}>
                 <p className="text-sm text-text-muted leading-relaxed">
-                  Sistemas genéricos tratam consultas como meros agendamentos médicos. O PsiSetting entende que o trabalho do psicólogo continua após o paciente sair da sala:
+                  O PsiSetting entende que o trabalho do psicólogo continua após o paciente sair da sala:
                 </p>
               </Reveal>
 
@@ -991,8 +1009,25 @@ export default function LandingPage() {
 
               <Reveal delay={280}>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Registre contratransferências, pontos de atenção para supervisão e insights teóricos em um espaço isolado do prontuário oficial do paciente.
+                  Registre os pontos de atenção, percepções e insights em um espaço separado do prontuário oficial do paciente.
                 </p>
+              </Reveal>
+
+              <Reveal delay={320}>
+                <ul className="space-y-2 text-sm text-text">
+                  {[
+                    "Pontos a serem levados para supervisão e organização dos casos",
+                    "Comentários da supervisão ao lado de cada anotação",
+                    "Agendamento das supervisões — as que você dá e as que você recebe",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <div className="p-0.5 rounded-full bg-teal-100 text-teal-800 shrink-0 mt-0.5">
+                        <Check size={12} strokeWidth={3} />
+                      </div>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </Reveal>
             </div>
 
@@ -1198,7 +1233,7 @@ export default function LandingPage() {
                     🛡️ Boas Práticas LGPD
                   </span>
                   <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-rose-300 border border-white/10">
-                    ⏱️ Timeout de Sessão
+                    ⏱️ Bloqueio por Inatividade
                   </span>
                 </div>
               </Reveal>
@@ -1238,7 +1273,7 @@ export default function LandingPage() {
                 Apenas um plano. Tudo incluso, sem taxas ocultas.
               </h2>
               <p className="text-sm sm:text-base text-text-muted mt-2">
-                Acesso total e irrestrito para manter toda a sua prática clínica organizada e protegida.
+                Acesso completo aos recursos do plano, sem taxas adicionais.
               </p>
             </div>
           </Reveal>
@@ -1261,7 +1296,7 @@ export default function LandingPage() {
                   <span className="text-2xl font-serif font-bold text-text">,90</span>
                   <span className="text-sm text-text-muted font-medium">/mês</span>
                 </div>
-                <p className="text-xs text-text-muted mt-2">Após os 7 dias grátis · Sem fidelidade · Cancele quando quiser</p>
+                <p className="text-xs text-text-muted mt-2">Após os 7 dias grátis · Sem fidelidade · Você renova mês a mês</p>
               </div>
 
               <div className="py-6 space-y-3">
@@ -1271,9 +1306,10 @@ export default function LandingPage() {
                   "Modo Privacidade com 1 Clique",
                   "Criptografia de Dados Clínicos (AES-256)",
                   "Agenda com Sincronização iCal (Apple & Google)",
-                  "Controle Financeiro de Sessões & Recibos",
-                  "Diário de Bordo para Supervisão Clínica",
-                  "Timeout Automático e Boas Práticas LGPD",
+                  "Controle Financeiro de Sessões e dos Recibos Emitidos",
+                  "Diário de Bordo com Comentários de Supervisão",
+                  "Agendamento de Supervisões",
+                  "Bloqueio Automático por Inatividade",
                   "Suporte Técnico Dedicado",
                 ].map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3 text-xs sm:text-sm text-text font-medium">
@@ -1361,7 +1397,7 @@ export default function LandingPage() {
               Seu setting clínico organizado e protegido.
             </h2>
             <p className="text-base sm:text-lg text-text-muted max-w-xl mx-auto mt-4">
-              Junte-se a psicólogos que já centralizaram prontuários, documentos e finanças com tranquilidade e responsabilidade ética.
+              Organize prontuários, documentos e sua rotina clínica em um só lugar.
             </p>
           </Reveal>
 
@@ -1392,7 +1428,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-text-muted font-medium">
             <a href="#pilares" className="hover:text-primary transition-colors">Os 3 Pilares</a>
             <a href="#supervisao" className="hover:text-primary transition-colors">Diário & Supervisão</a>
-            <a href="#modelos-cfp" className="hover:text-primary transition-colors">Documentos CFP</a>
+            <a href="#modelos-cfp" className="hover:text-primary transition-colors">Documentos estruturados</a>
             <a href="#seguranca" className="hover:text-primary transition-colors">Privacidade</a>
             <a href="#preco" className="hover:text-primary transition-colors">Preço</a>
             <Link href="/termos" className="hover:text-primary transition-colors">Termos de Uso</Link>
@@ -1405,6 +1441,8 @@ export default function LandingPage() {
           </p>
         </div>
       </footer>
+
+      <WhatsAppDuvidas />
     </>
   );
 }

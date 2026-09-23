@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
+import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
 import { ArrowLeft, Shield, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -101,8 +102,8 @@ export default function TermosPage() {
               O PsiSetting disponibiliza um período de avaliação gratuita de 7 dias. Após o término do período de testes:
             </p>
             <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
-              <li>Caso o profissional opte por não assinar, a conta passará para o <strong>Modo Somente Leitura</strong>, assegurando que nenhum dado anteriormente inserido seja apagado ou fique inacessível para consulta e exportação, em respeito à exigência de guarda documental de 5 anos pelo CFP.</li>
-              <li>A assinatura do <strong>Plano Único Profissional</strong> (R$ 34,90/mês) não possui fidelidade ou contratos de permanência mínima, podendo ser cancelada a qualquer momento nas configurações da conta.</li>
+              <li>Caso o profissional opte por não assinar ou não renovar, a conta passará para o <strong>Modo Somente Leitura</strong>, assegurando que nenhum dado anteriormente inserido seja apagado ou fique inacessível para consulta e exportação, em respeito ao dever de guarda documental previsto nas normas do CFP.</li>
+              <li>O <strong>Plano Único Profissional</strong> (R$ 34,90/mês) não possui fidelidade nem contrato de permanência mínima. O pagamento é feito por período de 30 dias, por PIX ou cartão, sem débito automático: para encerrar, basta não renovar.</li>
             </ul>
           </section>
 
@@ -138,6 +139,8 @@ export default function TermosPage() {
           <Link href="/privacidade" className="hover:text-primary font-medium">Política de Privacidade</Link>
         </div>
       </footer>
+
+      <WhatsAppDuvidas />
     </div>
   );
 }

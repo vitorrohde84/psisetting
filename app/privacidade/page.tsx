@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
+import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
 import { ArrowLeft, Shield, Lock, Eye, Database, CheckCircle2 } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -169,6 +170,8 @@ export default function PrivacidadePage() {
           <Link href="/privacidade" className="hover:text-primary font-medium">Política de Privacidade</Link>
         </div>
       </footer>
+
+      <WhatsAppDuvidas />
     </div>
   );
 }

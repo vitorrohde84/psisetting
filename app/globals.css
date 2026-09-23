@@ -58,6 +58,31 @@ body {
   }
 }
 
+/* ===== Botão "Ficou com dúvidas?" (WhatsApp) ===== */
+/* Ver app/components/whatsapp-duvidas.tsx. Entra depois do topo da página.
+   "backwards" e não "both": terminada a entrada, o botão volta aos próprios
+   estilos, sem a animação segurando o transform por cima do hover. */
+@keyframes ps-whatsapp-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ps-whatsapp-in {
+  animation: ps-whatsapp-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.8s backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-whatsapp-in {
+    animation: none;
+  }
+}
+
 /* ===== Carregamento: xícara de chá ===== */
 /* Ver app/components/carregando.tsx. Só transform e opacity: roda liso até
    em celular fraco, sem repintar a página. */
