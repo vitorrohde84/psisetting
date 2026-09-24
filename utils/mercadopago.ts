@@ -34,6 +34,22 @@ export const paymentClient = new Payment(mpClient);
 type CorpoPagamento = Parameters<Payment["create"]>[0]["body"];
 
 /**
+ * Identificador do aparelho de quem paga (device ID), gerado no navegador pelo
+ * script de segurança do Mercado Pago (security.js → MP_DEVICE_SESSION_ID) e
+ * enviado no cabeçalho X-Meli-Session-Id. O antifraude pesa esse dado: sem ele,
+ * a verificação do cartão da assinatura foi recusada como alto risco
+ * (CC_VAL_433) em 23/09/2026. Vai só em cliente novo por chamada — nunca no
+ * compartilhado, onde grudaria nas chamadas de outras pessoas.
+ */
+export interface DadosDoAparelho {
+  deviceId?: string | null;
+}
+
+function opcoesDoAparelho(aparelho?: DadosDoAparelho): { meliSessionId?: string } {
+  return aparelho?.deviceId ? { meliSessionId: aparelho.deviceId } : {};
+}
+
+/**
  * Cria um pagamento com um cliente NOVO por chamada e chave de idempotência
  * sempre explícita.
  *
@@ -43,11 +59,15 @@ type CorpoPagamento = Parameters<Payment["create"]>[0]["body"];
  *   chama passa uma chave estável quando existe (o token do cartão); senão, uma
  *   aleatória, que ao menos não é compartilhada com ninguém.
  */
-export function criarPagamento(body: CorpoPagamento, chaveIdempotencia?: string) {
+export function criarPagamento(body: CorpoPagamento, chaveIdempotencia?: string, aparelho?: DadosDoAparelho) {
   const cliente = new Payment(
     new MercadoPagoConfig({
       accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || "",
-      options: { ...OPCOES_PADRAO, idempotencyKey: chaveIdempotencia || randomUUID() },
+      options: {
+        ...OPCOES_PADRAO,
+        idempotencyKey: chaveIdempotencia || randomUUID(),
+        ...opcoesDoAparelho(aparelho),
+      },
     })
   );
   return cliente.create({ body });
@@ -74,7 +94,7 @@ export function cancelarPagamento(id: string) {
 type CorpoAssinatura = Parameters<PreApproval["create"]>[0]["body"];
 type AlteracaoAssinatura = Parameters<PreApproval["update"]>[0]["body"];
 
-function clienteDeAssinatura(opcoes: { timeout: number; maxRetries?: number }) {
+function clienteDeAssinatura(opcoes: { timeout: number; maxRetries?: number; meliSessionId?: string }) {
   return new PreApproval(
     new MercadoPagoConfig({
       accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || "",
@@ -94,8 +114,8 @@ function clienteDeAssinatura(opcoes: { timeout: number; maxRetries?: number }) {
  * tentativa (utils/assinatura-cartao-servidor.ts). Timeout maior pelo mesmo
  * motivo: é melhor esperar do que ficar sem saber.
  */
-export function criarAssinaturaMP(body: CorpoAssinatura) {
-  return clienteDeAssinatura({ timeout: 25_000, maxRetries: 0 }).create({ body });
+export function criarAssinaturaMP(body: CorpoAssinatura, aparelho?: DadosDoAparelho) {
+  return clienteDeAssinatura({ timeout: 25_000, maxRetries: 0, ...opcoesDoAparelho(aparelho) }).create({ body });
 }
 
 /**

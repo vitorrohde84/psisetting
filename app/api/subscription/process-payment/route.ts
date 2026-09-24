@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { criarPagamento } from "@/utils/mercadopago";
+import { deviceIdValido } from "@/utils/assinatura-cartao";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 import { calcularPrecoAssinatura, precoParaTela, valorConfere } from "@/utils/preco-assinatura";
 import { metadataDoDesconto, processarPagamentoAprovado } from "@/utils/pagamento-aprovado";
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { formData, coupon_code, valor_esperado } = body ?? {};
+    const { formData, coupon_code, valor_esperado, device_id } = body ?? {};
 
     if (!formData || typeof formData !== "object") {
       return NextResponse.json(
@@ -168,7 +169,9 @@ export async function POST(request: Request) {
         metadata: metadataDoDesconto(d),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
-      chave
+      chave,
+      // Device ID do navegador: o antifraude pesa, e sem ele mais cartões são recusados.
+      { deviceId: deviceIdValido(device_id) }
     );
   } catch (error: unknown) {
     console.error("Erro ao processar pagamento:", error);

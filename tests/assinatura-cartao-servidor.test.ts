@@ -206,6 +206,7 @@ const comoAdmin = (banco: ReturnType<typeof bancoFalso>) => banco as any;
 interface Chamada {
   metodo: string;
   url: string;
+  cabecalhos?: Record<string, string>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   corpo?: any;
 }
@@ -219,8 +220,13 @@ function responder(json: unknown, status = 200) {
 function simularMercadoPago(rotas: (c: Chamada) => Response | Promise<Response>) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string, init: { method?: string; body?: string }) => {
-      const c: Chamada = { metodo: init?.method ?? "GET", url: String(url), corpo: init?.body ? JSON.parse(init.body) : undefined };
+    vi.fn(async (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => {
+      const c: Chamada = {
+        metodo: init?.method ?? "GET",
+        url: String(url),
+        corpo: init?.body ? JSON.parse(init.body) : undefined,
+        cabecalhos: init?.headers,
+      };
       // Ligar a renovação cancela antes os PIX pendentes da pessoa (busca de
       // pagamentos). Fica numa lista à parte: nos testes ninguém tem PIX aberto,
       // e as contagens de chamadas abaixo são as da assinatura.
@@ -340,6 +346,26 @@ describe("criarAssinaturaCartao", () => {
         end_date: "2031-10-01T15:00:00.000Z",
       },
     });
+  });
+
+  it("o device ID do navegador vai no cabeçalho X-Meli-Session-Id da criação (antifraude)", async () => {
+    simularMercadoPago(() => responder(assinaturaCriada, 201));
+    await criarAssinaturaCartao(dadosDaCriacao(bancoFalso(), { deviceId: "armor.abc123def456" }));
+
+    const [post] = doTipo("POST", "/preapproval");
+    const cab = Object.fromEntries(Object.entries(post.cabecalhos ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+    expect(cab["x-meli-session-id"]).toBe("armor.abc123def456");
+  });
+
+  it("recusa do Mercado Pago grava o motivo exato na linha (para o admin)", async () => {
+    silenciarLogs();
+    simularMercadoPago(() => responder({ message: "CC_VAL_433 Credit card validation has failed", status: 400, cause: [] }, 400));
+    const banco = bancoFalso();
+    const r = await criarAssinaturaCartao(dadosDaCriacao(banco));
+
+    expect(r).toMatchObject({ ok: false, status: 400 });
+    expect(banco.tabelas.assinaturas_cartao[0]).toMatchObject({ situacao: "falhou" });
+    expect(String(banco.tabelas.assinaturas_cartao[0].erro)).toContain("CC_VAL_433");
   });
 
   it("ligar a renovação procura e cancela os PIX pendentes da pessoa (não dá para pagar os dois)", async () => {

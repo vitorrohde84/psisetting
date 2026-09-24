@@ -11,6 +11,7 @@ import {
   inicioDaCobranca,
   mensagemErroAssinatura,
   mesmoValor,
+  resumoErroMercadoPago,
   statusCancelado,
 } from "./assinatura-cartao";
 import { calcularPrecoAssinatura, type DescontoAplicado } from "./preco-assinatura";
@@ -196,6 +197,7 @@ export async function criarAssinaturaCartao({
   backUrl,
   cartaoFinal,
   cartaoBandeira,
+  deviceId = null,
   agora = new Date(),
 }: {
   admin: AdminClient;
@@ -208,6 +210,8 @@ export async function criarAssinaturaCartao({
   backUrl: string;
   cartaoFinal: string | null;
   cartaoBandeira: string | null;
+  /** Device ID do navegador (security.js): o antifraude usa na verificação do cartão. */
+  deviceId?: string | null;
   agora?: Date;
 }): Promise<ResultadoCriacao> {
   // 1. A trava.
@@ -276,7 +280,8 @@ export async function criarAssinaturaCartao({
   let sub: AssinaturaMP;
   try {
     sub = (await criarAssinaturaMP(
-      corpoDaAssinatura({ userId, payerEmail, cardTokenId, valor, inicio, backUrl })
+      corpoDaAssinatura({ userId, payerEmail, cardTokenId, valor, inicio, backUrl }),
+      { deviceId }
     )) as AssinaturaMP;
   } catch (err) {
     const status = (err as { status?: number } | null)?.status;
@@ -294,7 +299,7 @@ export async function criarAssinaturaCartao({
       };
     }
 
-    await marcarFalha(admin, linha, `Mercado Pago recusou (status ${status})`);
+    await marcarFalha(admin, linha, `Mercado Pago recusou: ${resumoErroMercadoPago(err)}`);
     return { ok: false, status: 400, erro: mensagemErroAssinatura(err) };
   }
 

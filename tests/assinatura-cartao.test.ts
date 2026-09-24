@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ANOS_DE_ASSINATURA,
   corpoDaAssinatura,
+  deviceIdValido,
   ehCobrancaDeAssinatura,
   ehValidacaoDeCartao,
   emailDoPagador,
@@ -10,6 +11,7 @@ import {
   mensagemErroAssinatura,
   quatroUltimos,
   renovacaoParaTela,
+  resumoErroMercadoPago,
   statusCancelado,
 } from "../utils/assinatura-cartao";
 
@@ -285,7 +287,16 @@ describe("mensagemErroAssinatura", () => {
     "O Mercado Pago não aceitou o e-mail informado para a cobrança automática. Confira o e-mail no formulário ou escolha Mês a mês.",
     "Este cartão não pode ser usado para cobrança automática no Brasil. Escolha Mês a mês ou pague por PIX.",
     "O Mercado Pago não aceitou este cartão para a cobrança automática. Tente outro cartão, escolha Mês a mês ou pague por PIX.",
+    "O Mercado Pago não conseguiu validar este cartão para a cobrança automática. Use no formulário o mesmo e-mail da sua conta Mercado Pago, confira no app do banco se há uma compra recusada para liberar e tente de novo daqui a alguns minutos — ou escolha Mês a mês.",
   ];
+
+  it("verificação do cartão recusada (CC_VAL_433, visto em 23/09/2026): mensagem própria", () => {
+    // O erro real do Mercado Pago: status 400, a mensagem com o código e causes vazio.
+    expect(mensagemErroAssinatura({ status: 400, message: "CC_VAL_433 Credit card validation has failed", causes: [] })).toBe(
+      MENSAGENS[4]
+    );
+    expect(mensagemErroAssinatura({ status: 401, message: "x", causes: [{ code: "cc_rejected_high_risk" }] })).toBe(MENSAGENS[4]);
+  });
 
   it("cada tipo de erro vira uma frase para a pessoa", () => {
     expect(mensagemErroAssinatura({ message: "Invalid card_token_id", status: 400 })).toBe(MENSAGENS[0]);
@@ -321,5 +332,31 @@ describe("mensagemErroAssinatura", () => {
       expect(MENSAGENS, JSON.stringify(e) ?? String(e)).toContain(texto);
       expect(texto).not.toMatch(/10\.0\.0\.7|2c93|9f8e7d6c|RestClient|detalhe interno|collector/);
     }
+  });
+});
+
+describe("device ID do navegador", () => {
+  it("aceita o formato do Mercado Pago e recusa o resto (vai para um cabeçalho HTTP)", () => {
+    expect(deviceIdValido("armor.78497888bc27fa182980dec9986f559ef36f35c7")).toBe("armor.78497888bc27fa182980dec9986f559ef36f35c7");
+    expect(deviceIdValido("  abc12345  ")).toBe("abc12345");
+    expect(deviceIdValido("curto")).toBeNull();
+    expect(deviceIdValido("tem espaço no meio")).toBeNull();
+    expect(deviceIdValido("quebra\nde-linha")).toBeNull();
+    expect(deviceIdValido("x".repeat(201))).toBeNull();
+    expect(deviceIdValido(12345678)).toBeNull();
+    expect(deviceIdValido(null)).toBeNull();
+  });
+});
+
+describe("resumoErroMercadoPago", () => {
+  it("guarda status, mensagem e causas — o motivo real que antes só ia para o log", () => {
+    expect(resumoErroMercadoPago({ status: 400, message: "CC_VAL_433 Credit card validation has failed", causes: [] })).toBe(
+      "status 400 — CC_VAL_433 Credit card validation has failed"
+    );
+    expect(
+      resumoErroMercadoPago({ status: 400, message: "bad request", causes: [{ code: 3006, description: "Invalid card_token_id" }] })
+    ).toBe("status 400 — bad request — 3006 Invalid card_token_id");
+    expect(resumoErroMercadoPago(null)).toBe("status ?");
+    expect(resumoErroMercadoPago({ status: 400, message: "x".repeat(900) }).length).toBeLessThanOrEqual(500);
   });
 });

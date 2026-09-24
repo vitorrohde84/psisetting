@@ -56,3 +56,28 @@ describe("criarPagamento", () => {
     expect(opcoes.idempotencyKey).toBeUndefined();
   });
 });
+
+describe("device ID no pagamento avulso", () => {
+  it("vai no cabeçalho X-Meli-Session-Id e não gruda no cliente compartilhado", async () => {
+    const cabecalhos: Array<Record<string, string>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: { headers?: Record<string, string> }) => {
+        cabecalhos.push(Object.fromEntries(Object.entries(init.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v])));
+        return new Response(JSON.stringify({ id: 1, status: "approved" }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        });
+      })
+    );
+
+    await criarPagamento(corpo, "CHAVE-A", { deviceId: "armor.aparelho123" });
+    await criarPagamento(corpo, "CHAVE-B");
+
+    expect(cabecalhos[0]["x-meli-session-id"]).toBe("armor.aparelho123");
+    // O pagamento seguinte, de outra pessoa, não herda o aparelho da primeira.
+    expect(cabecalhos[1]["x-meli-session-id"]).toBeUndefined();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((paymentClient as any).config?.options?.meliSessionId).toBeUndefined();
+  });
+});

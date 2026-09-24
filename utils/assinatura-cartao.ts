@@ -244,6 +244,32 @@ export function renovacaoParaTela(
  * Erro do Mercado Pago ao criar a assinatura → texto para a pessoa. A mensagem
  * crua pode ter detalhe interno e nunca vai para a tela.
  */
+/**
+ * O device ID que o navegador mandou, se tiver cara de um. Vem do cliente, vai
+ * para um cabeçalho HTTP: nada de espaço, quebra de linha ou tamanho absurdo.
+ */
+export function deviceIdValido(valor: unknown): string | null {
+  const v = typeof valor === "string" ? valor.trim() : "";
+  return /^[A-Za-z0-9._:-]{8,200}$/.test(v) ? v : null;
+}
+
+/**
+ * Resumo do erro do Mercado Pago para a coluna `erro` (só o servidor e o admin
+ * leem): status, mensagem e códigos das causas. É o que diz POR QUE uma
+ * criação falhou — antes ficava só "status 400", e o motivo real
+ * (CC_VAL_433) só aparecia no log da Vercel.
+ */
+export function resumoErroMercadoPago(erro: unknown): string {
+  const e = erro as { status?: number; message?: string; causes?: unknown } | null;
+  const causas = Array.isArray(e?.causes)
+    ? (e.causes as Array<{ code?: unknown; description?: unknown }>)
+        .map((c) => [c?.code, c?.description].filter(Boolean).join(" "))
+        .filter(Boolean)
+        .join("; ")
+    : "";
+  return [`status ${e?.status ?? "?"}`, e?.message, causas].filter(Boolean).join(" — ").slice(0, 500);
+}
+
 export function mensagemErroAssinatura(erro: unknown): string {
   // O SDK 3.4 guarda o detalhe em `causes` (a lista "cause" da resposta).
   const e = erro as { message?: string; causes?: unknown; cause?: unknown; status?: number } | null;
@@ -259,6 +285,12 @@ export function mensagemErroAssinatura(erro: unknown): string {
   }
   if (/different countries|países/.test(texto)) {
     return "Este cartão não pode ser usado para cobrança automática no Brasil. Escolha Mês a mês ou pague por PIX.";
+  }
+  // CC_VAL_433: a cobrança de verificação do cartão foi recusada, quase sempre
+  // pelo antifraude (tentativas seguidas, e-mail diferente do da conta
+  // Mercado Pago do cartão) ou pelo banco. Repetir na hora piora.
+  if (/cc_val_|validation has failed|high_risk/.test(texto)) {
+    return "O Mercado Pago não conseguiu validar este cartão para a cobrança automática. Use no formulário o mesmo e-mail da sua conta Mercado Pago, confira no app do banco se há uma compra recusada para liberar e tente de novo daqui a alguns minutos — ou escolha Mês a mês.";
   }
   return "O Mercado Pago não aceitou este cartão para a cobrança automática. Tente outro cartão, escolha Mês a mês ou pague por PIX.";
 }

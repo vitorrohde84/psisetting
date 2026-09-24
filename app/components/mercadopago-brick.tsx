@@ -100,6 +100,31 @@ function sdkNaJanela(): MercadoPagoConstrutor | undefined {
 // montagem que chegava antes do script terminar de baixar injetava outro.
 let cargaDoSdk: Promise<MercadoPagoConstrutor | null> | null = null;
 
+/**
+ * Script de segurança do Mercado Pago: identifica o aparelho (device ID) e
+ * deixa o valor em window.MP_DEVICE_SESSION_ID, que vai junto no pagamento e
+ * na assinatura (cabeçalho X-Meli-Session-Id, no servidor). O antifraude pesa
+ * esse dado: sem ele, a verificação do cartão da renovação automática foi
+ * recusada como alto risco (CC_VAL_433) em 23/09/2026. Carrega uma vez só e
+ * nunca bloqueia o formulário — se falhar, o pagamento segue sem o dado.
+ */
+function carregarSegurancaMP(): void {
+  if (typeof document === "undefined") return;
+  if (document.querySelector('script[data-mp-seguranca="1"]')) return;
+  const script = document.createElement("script");
+  script.src = "https://www.mercadopago.com/v2/security.js";
+  script.async = true;
+  script.setAttribute("view", "checkout");
+  script.dataset.mpSeguranca = "1";
+  document.body.appendChild(script);
+}
+
+/** O device ID que o script de segurança gerou, se já estiver pronto. */
+function deviceIdDoAparelho(): string | null {
+  const v = (window as unknown as { MP_DEVICE_SESSION_ID?: unknown }).MP_DEVICE_SESSION_ID;
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
 function carregarSdk(): Promise<MercadoPagoConstrutor | null> {
   const pronto = sdkNaJanela();
   if (pronto) return Promise.resolve(pronto);
@@ -255,6 +280,7 @@ export function MercadoPagoBrick({
         return;
       }
 
+      carregarSegurancaMP();
       const MercadoPago = await carregarSdk();
       if (!isMounted) return;
       if (!MercadoPago) {
@@ -391,6 +417,7 @@ export function MercadoPagoBrick({
             coupon_code: couponCode || null,
             valor_esperado: valorEsperado,
             cartao: { final },
+            device_id: deviceIdDoAparelho(),
           }),
         });
         data = await res.json().catch(() => ({}));
@@ -464,7 +491,12 @@ export function MercadoPagoBrick({
         res = await fetch("/api/subscription/process-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ formData, coupon_code: couponCode || null, valor_esperado: valorEsperado }),
+          body: JSON.stringify({
+            formData,
+            coupon_code: couponCode || null,
+            valor_esperado: valorEsperado,
+            device_id: deviceIdDoAparelho(),
+          }),
         });
         data = await res.json().catch(() => ({}));
       } catch (err) {

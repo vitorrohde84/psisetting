@@ -4,7 +4,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 import { isEmailAdmin } from "@/utils/admin-auth";
 import { calcularPrecoAssinatura, precoParaTela, valorConfere } from "@/utils/preco-assinatura";
-import { emailDoPagador, quatroUltimos } from "@/utils/assinatura-cartao";
+import { deviceIdValido, emailDoPagador, quatroUltimos } from "@/utils/assinatura-cartao";
 import { assinaturaViva, criarAssinaturaCartao } from "@/utils/assinatura-cartao-servidor";
 
 /**
@@ -49,11 +49,12 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
-    const { formData, coupon_code, valor_esperado, cartao } = (body ?? {}) as {
+    const { formData, coupon_code, valor_esperado, cartao, device_id } = (body ?? {}) as {
       formData?: Record<string, unknown>;
       coupon_code?: unknown;
       valor_esperado?: unknown;
       cartao?: { final?: unknown };
+      device_id?: unknown;
     };
 
     const token = formData && typeof formData.token === "string" ? formData.token : null;
@@ -155,6 +156,8 @@ export async function POST(request: Request) {
       backUrl: `${protocol}://${host}/configuracoes`,
       cartaoFinal: quatroUltimos(cartao?.final),
       cartaoBandeira: bandeira,
+      // Sem o device ID, o antifraude recusava a verificação do cartão (CC_VAL_433).
+      deviceId: deviceIdValido(device_id),
     });
 
     if (r.ok) {
