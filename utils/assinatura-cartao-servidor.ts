@@ -169,6 +169,92 @@ function camposDoMP(sub: AssinaturaMP): Partial<LinhaAssinatura> {
   };
 }
 
+// ── Pagamentos de assinatura (verificação do cartão e cobranças) ────────────
+
+/** O pedaço do pagamento (busca) que diz o que aconteceu numa verificação ou cobrança. */
+export interface PagamentoDeAssinatura {
+  id: string;
+  data: string | null;
+  status: string | null;
+  statusDetail: string | null;
+  valor: number | null;
+  operacao: string | null;
+  canal: string | null;
+  email: string | null;
+  referencia: string | null;
+}
+
+function textoOuNull(v: unknown): string | null {
+  return typeof v === "string" && v ? v : typeof v === "number" ? String(v) : null;
+}
+
+/**
+ * Pagamentos ligados a assinaturas num intervalo: as cobranças de verificação
+ * do cartão (as que voltam CC_VAL_433 quando recusadas) e as mensalidades. O
+ * motivo real de uma verificação recusada (status_detail, ex.:
+ * cc_rejected_high_risk) só existe aqui — a resposta da criação não traz.
+ */
+export async function pagamentosDeAssinatura({ desde, ate }: { desde: Date; ate: Date }): Promise<PagamentoDeAssinatura[]> {
+  const encontrados: PagamentoDeAssinatura[] = [];
+  for (let pagina = 0; pagina < 3; pagina++) {
+    const busca = await paymentClient.search({
+      options: {
+        sort: "date_created",
+        criteria: "desc",
+        range: "date_created",
+        begin_date: desde.toISOString(),
+        end_date: ate.toISOString(),
+        limit: 50,
+        offset: pagina * 50,
+      },
+    });
+    const resultados = ((busca as { results?: unknown[] })?.results ?? []) as Array<Record<string, unknown>>;
+    for (const p of resultados) {
+      const poi = p.point_of_interaction as { type?: unknown } | null | undefined;
+      const operacao = textoOuNull(p.operation_type);
+      const canal = textoOuNull(poi?.type);
+      if (operacao !== "card_validation" && operacao !== "recurring_payment" && canal !== "SUBSCRIPTIONS") continue;
+      const payer = p.payer as { email?: unknown } | null | undefined;
+      encontrados.push({
+        id: String(p.id ?? ""),
+        data: textoOuNull(p.date_created),
+        status: textoOuNull(p.status),
+        statusDetail: textoOuNull(p.status_detail),
+        valor: typeof p.transaction_amount === "number" ? p.transaction_amount : null,
+        operacao,
+        canal,
+        email: textoOuNull(payer?.email),
+        referencia: textoOuNull(p.external_reference),
+      });
+    }
+    if (resultados.length < 50) break;
+  }
+  return encontrados;
+}
+
+/**
+ * O motivo da verificação recusada logo depois de uma criação que voltou
+ * CC_VAL_*: a verificação mais recente com o e-mail do pagador (ou, sem
+ * e-mail na busca, a mais recente do intervalo — por isso "provável").
+ * Diagnóstico para o admin; nunca decide nada sozinho. No máximo ~5 s.
+ */
+async function motivoDaVerificacao(payerEmail: string, desde: Date): Promise<string | null> {
+  const busca = pagamentosDeAssinatura({
+    desde: new Date(desde.getTime() - 2 * 60 * 1000),
+    ate: new Date(Date.now() + 60 * 1000),
+  }).catch(() => [] as PagamentoDeAssinatura[]);
+  const lista = await Promise.race([
+    busca,
+    new Promise<PagamentoDeAssinatura[]>((r) => setTimeout(() => r([]), 5000)),
+  ]);
+  const doPagador = lista.find((p) => p.email?.toLowerCase() === payerEmail.toLowerCase());
+  const alvo = doPagador ?? lista[0];
+  if (!alvo) return null;
+  return `${doPagador ? "verificação" : "verificação provável"} ${alvo.id}: ${alvo.status ?? "?"}/${alvo.statusDetail ?? "?"}${
+    alvo.valor !== null ? ` (R$ ${alvo.valor})` : ""
+  }`;
+}
+
 // ── Criação ─────────────────────────────────────────────────────────────────
 
 export type ResultadoCriacao =
@@ -278,6 +364,7 @@ export async function criarAssinaturaCartao({
   });
 
   let sub: AssinaturaMP;
+  const tentativaEm = new Date();
   try {
     sub = (await criarAssinaturaMP(
       corpoDaAssinatura({ userId, payerEmail, cardTokenId, valor, inicio, backUrl }),
@@ -299,7 +386,14 @@ export async function criarAssinaturaCartao({
       };
     }
 
-    await marcarFalha(admin, linha, `Mercado Pago recusou: ${resumoErroMercadoPago(err)}`);
+    // CC_VAL_*: a verificação do cartão foi recusada, e o porquê está no
+    // pagamento de verificação, não nesta resposta. Guarda os dois.
+    let motivo = resumoErroMercadoPago(err);
+    if (/cc_val_/i.test(motivo)) {
+      const verificacao = await motivoDaVerificacao(payerEmail, tentativaEm);
+      if (verificacao) motivo = `${motivo} — ${verificacao}`;
+    }
+    await marcarFalha(admin, linha, `Mercado Pago recusou: ${motivo}`);
     return { ok: false, status: 400, erro: mensagemErroAssinatura(err) };
   }
 

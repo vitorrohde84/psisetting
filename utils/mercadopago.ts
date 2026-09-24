@@ -104,7 +104,8 @@ function clienteDeAssinatura(opcoes: { timeout: number; maxRetries?: number; mel
 }
 
 /**
- * Cria a assinatura (preapproval) com cliente novo e SEM novas tentativas.
+ * Cria a assinatura (preapproval) numa chamada só, SEM novas tentativas, e
+ * com o device ID no cabeçalho X-Meli-Session-Id.
  *
  * O /preapproval não tem idempotência documentada. Com as tentativas do SDK
  * (até 3 em 5xx, erro de rede ou tempo esgotado), um pedido que o Mercado Pago
@@ -114,8 +115,64 @@ function clienteDeAssinatura(opcoes: { timeout: number; maxRetries?: number; mel
  * tentativa (utils/assinatura-cartao-servidor.ts). Timeout maior pelo mesmo
  * motivo: é melhor esperar do que ficar sem saber.
  */
-export function criarAssinaturaMP(body: CorpoAssinatura, aparelho?: DadosDoAparelho) {
-  return clienteDeAssinatura({ timeout: 25_000, maxRetries: 0, ...opcoesDoAparelho(aparelho) }).create({ body });
+export async function criarAssinaturaMP(body: CorpoAssinatura, aparelho?: DadosDoAparelho) {
+  // fetch direto, e não o SDK: o erro do SDK 3.4 guarda só status, message e
+  // causes, e descarta o `code` da resposta (cc_rejected_high_risk,
+  // cc_rejected_insufficient_amount...) e o x-request-id — justamente o que
+  // diz POR QUE a verificação do cartão falhou e o que o suporte do Mercado
+  // Pago pede num chamado.
+  const controle = new AbortController();
+  const limite = setTimeout(() => controle.abort(), 25_000);
+  let resposta: Response;
+  try {
+    resposta = await fetch("https://api.mercadopago.com/preapproval", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.MERCADO_PAGO_ACCESS_TOKEN || ""}`,
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": randomUUID(),
+        ...(aparelho?.deviceId ? { "X-Meli-Session-Id": aparelho.deviceId } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controle.signal,
+    });
+  } catch (err) {
+    // Rede ou tempo esgotado: pode ter sido criada. Status 0, como o
+    // MPConnectionError do SDK — quem chama trata como resposta ambígua.
+    throw new ErroMercadoPago({ status: 0, message: err instanceof Error ? err.message : String(err) });
+  } finally {
+    clearTimeout(limite);
+  }
+
+  const requestId = resposta.headers.get("x-request-id");
+  const dados = (await resposta.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!resposta.ok) {
+    throw new ErroMercadoPago({
+      status: resposta.status,
+      message: typeof dados.message === "string" ? dados.message : `HTTP ${resposta.status}`,
+      code: typeof dados.code === "string" ? dados.code : typeof dados.error === "string" ? dados.error : null,
+      causes: Array.isArray(dados.cause) ? dados.cause : [],
+      requestId,
+    });
+  }
+  return dados;
+}
+
+/** Erro do Mercado Pago com a resposta que importa (o SDK perde `code` e o x-request-id). */
+export class ErroMercadoPago extends Error {
+  status: number;
+  code: string | null;
+  causes: unknown[];
+  requestId: string | null;
+
+  constructor(d: { status: number; message: string; code?: string | null; causes?: unknown[]; requestId?: string | null }) {
+    super(d.message);
+    this.name = "ErroMercadoPago";
+    this.status = d.status;
+    this.code = d.code ?? null;
+    this.causes = d.causes ?? [];
+    this.requestId = d.requestId ?? null;
+  }
 }
 
 /**

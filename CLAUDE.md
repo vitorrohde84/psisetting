@@ -93,6 +93,9 @@ e guardas próprias). Exceção de lint só com `eslint-disable-next-line` e o m
   cegas. Com ela ligada, PIX e cartão avulso respondem 409. Conta com assinatura
   viva não pode ser apagada (gatilho no banco); excluir, dar VIP ou tornar admin
   cancela antes, e só grava "cancelada" depois de o Mercado Pago confirmar.
+  Recusa `CC_VAL_433` = verificação do cartão barrada (antifraude ou banco): o
+  motivo real está no pagamento de verificação — ver
+  `/api/admin/diagnostico-assinaturas` e a coluna `erro` antes de mudar código.
 - **Cupom:** o resgate guarda a foto das condições; pausar/vencer não tira o
   desconto de quem já usa; excluir = arquivar, e só se nunca usado. Em cupom de
   desconto, `trial_days = 30` é coluna antiga e não tem efeito.

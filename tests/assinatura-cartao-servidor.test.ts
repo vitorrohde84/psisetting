@@ -212,6 +212,8 @@ interface Chamada {
 }
 const chamadas: Chamada[] = [];
 const buscasDePix: Chamada[] = [];
+/** O que a busca de pagamentos devolve (PIX pendentes, verificações de cartão). */
+let pagamentosNaBusca: Array<Record<string, unknown>> = [];
 
 function responder(json: unknown, status = 200) {
   return new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } });
@@ -232,7 +234,7 @@ function simularMercadoPago(rotas: (c: Chamada) => Response | Promise<Response>)
       // e as contagens de chamadas abaixo são as da assinatura.
       if (c.metodo === "GET" && caminho(c) === "/v1/payments/search") {
         buscasDePix.push(c);
-        return responder({ results: [] });
+        return responder({ results: pagamentosNaBusca });
       }
       chamadas.push(c);
       return rotas(c);
@@ -253,6 +255,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   chamadas.length = 0;
   buscasDePix.length = 0;
+  pagamentosNaBusca = [];
 });
 
 const assinaturaCriada = {
@@ -355,6 +358,47 @@ describe("criarAssinaturaCartao", () => {
     const [post] = doTipo("POST", "/preapproval");
     const cab = Object.fromEntries(Object.entries(post.cabecalhos ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
     expect(cab["x-meli-session-id"]).toBe("armor.abc123def456");
+  });
+
+  it("recusa: grava o código da resposta e o x-request-id (o SDK descartava os dois)", async () => {
+    silenciarLogs();
+    simularMercadoPago(
+      () =>
+        new Response(
+          JSON.stringify({ message: "CC_VAL_433 Credit card validation has failed", code: "cc_rejected_high_risk", status: 400, cause: [] }),
+          { status: 400, headers: { "content-type": "application/json", "x-request-id": "req-123" } }
+        )
+    );
+    const banco = bancoFalso();
+    await criarAssinaturaCartao(dadosDaCriacao(banco));
+
+    const erro = String(banco.tabelas.assinaturas_cartao[0].erro);
+    expect(erro).toContain("código cc_rejected_high_risk");
+    expect(erro).toContain("x-request-id req-123");
+  });
+
+  it("CC_VAL: procura a cobrança de verificação e grava o motivo dela", async () => {
+    silenciarLogs();
+    pagamentosNaBusca = [
+      {
+        id: 98765,
+        status: "rejected",
+        status_detail: "cc_rejected_insufficient_amount",
+        transaction_amount: 1.5,
+        operation_type: "card_validation",
+        point_of_interaction: { type: "SUBSCRIPTIONS" },
+        payer: { email: "psi@exemplo.com" },
+      },
+      // Pagamento comum no mesmo intervalo: não entra.
+      { id: 11, status: "approved", status_detail: "accredited", operation_type: "regular_payment" },
+    ];
+    simularMercadoPago(() => responder({ message: "CC_VAL_433 Credit card validation has failed", status: 400, cause: [] }, 400));
+    const banco = bancoFalso();
+    await criarAssinaturaCartao(dadosDaCriacao(banco));
+
+    expect(String(banco.tabelas.assinaturas_cartao[0].erro)).toContain(
+      "verificação 98765: rejected/cc_rejected_insufficient_amount (R$ 1.5)"
+    );
   });
 
   it("recusa do Mercado Pago grava o motivo exato na linha (para o admin)", async () => {

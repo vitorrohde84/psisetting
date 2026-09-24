@@ -260,14 +260,21 @@ export function deviceIdValido(valor: unknown): string | null {
  * (CC_VAL_433) só aparecia no log da Vercel.
  */
 export function resumoErroMercadoPago(erro: unknown): string {
-  const e = erro as { status?: number; message?: string; causes?: unknown } | null;
+  const e = erro as { status?: number; message?: string; causes?: unknown; code?: unknown; requestId?: unknown } | null;
   const causas = Array.isArray(e?.causes)
     ? (e.causes as Array<{ code?: unknown; description?: unknown }>)
         .map((c) => [c?.code, c?.description].filter(Boolean).join(" "))
         .filter(Boolean)
         .join("; ")
     : "";
-  return [`status ${e?.status ?? "?"}`, e?.message, causas].filter(Boolean).join(" — ").slice(0, 500);
+  // code: o motivo que o SDK descartava (ex.: cc_rejected_high_risk).
+  // x-request-id: o que o suporte do Mercado Pago pede num chamado.
+  const codigo = typeof e?.code === "string" && e.code ? `código ${e.code}` : "";
+  const requisicao = typeof e?.requestId === "string" && e.requestId ? `x-request-id ${e.requestId}` : "";
+  return [`status ${e?.status ?? "?"}`, e?.message, codigo, causas, requisicao]
+    .filter(Boolean)
+    .join(" — ")
+    .slice(0, 500);
 }
 
 export function mensagemErroAssinatura(erro: unknown): string {

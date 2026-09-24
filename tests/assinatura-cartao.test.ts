@@ -356,6 +356,15 @@ describe("resumoErroMercadoPago", () => {
     expect(
       resumoErroMercadoPago({ status: 400, message: "bad request", causes: [{ code: 3006, description: "Invalid card_token_id" }] })
     ).toBe("status 400 — bad request — 3006 Invalid card_token_id");
+    expect(
+      resumoErroMercadoPago({
+        status: 400,
+        message: "CC_VAL_433 Credit card validation has failed",
+        code: "cc_rejected_high_risk",
+        causes: [],
+        requestId: "req-9",
+      })
+    ).toBe("status 400 — CC_VAL_433 Credit card validation has failed — código cc_rejected_high_risk — x-request-id req-9");
     expect(resumoErroMercadoPago(null)).toBe("status ?");
     expect(resumoErroMercadoPago({ status: 400, message: "x".repeat(900) }).length).toBeLessThanOrEqual(500);
   });

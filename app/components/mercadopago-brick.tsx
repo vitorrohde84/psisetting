@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import { formatarReais } from "@/utils/preco-desconto";
 import { useSubscription } from "@/utils/subscription-context";
+import { createClient } from "@/utils/supabase/client";
 import { quatroUltimos } from "@/utils/assinatura-cartao";
 import { sucessoAutomatico, type ModoCartao } from "@/utils/renovacao-tela";
 import {
@@ -87,7 +88,7 @@ interface BrickController {
 }
 interface MercadoPagoSdk {
   bricks(): {
-    create(tipo: "payment", containerId: string, config: unknown): Promise<BrickController>;
+    create(tipo: "payment" | "cardPayment", containerId: string, config: unknown): Promise<BrickController>;
   };
 }
 type MercadoPagoConstrutor = new (chave: string, opcoes: { locale: string }) => MercadoPagoSdk;
@@ -123,6 +124,41 @@ function carregarSegurancaMP(): void {
 function deviceIdDoAparelho(): string | null {
   const v = (window as unknown as { MP_DEVICE_SESSION_ID?: unknown }).MP_DEVICE_SESSION_ID;
   return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * Espera o device ID por até limiteMs. O script de segurança carrega em
+ * paralelo; quem clica rápido mandava o pedido sem ele — justamente o dado que
+ * o antifraude pesa. Sem ele no prazo, segue assim mesmo: melhor tentar do que
+ * travar o pagamento.
+ */
+async function esperarDeviceId(limiteMs = 3000): Promise<string | null> {
+  const inicio = Date.now();
+  let id = deviceIdDoAparelho();
+  while (!id && Date.now() - inicio < limiteMs) {
+    await new Promise((r) => setTimeout(r, 100));
+    id = deviceIdDoAparelho();
+  }
+  if (!id) console.warn("[cartão] device ID do Mercado Pago indisponível; enviando sem ele.");
+  return id;
+}
+
+/**
+ * E-mail da conta do PsiSetting. Vai preenchido no formulário, que então
+ * esconde o campo (documentação dos Bricks): a pessoa não precisa digitar nem
+ * pensar em qual e-mail usar.
+ */
+async function emailDaConta(): Promise<string | null> {
+  try {
+    const { data, error } = await createClient().auth.getUser();
+    if (error) {
+      console.error("[cartão] e-mail da conta não lido:", error.message);
+      return null;
+    }
+    return data.user?.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function carregarSdk(): Promise<MercadoPagoConstrutor | null> {
@@ -281,7 +317,7 @@ export function MercadoPagoBrick({
       }
 
       carregarSegurancaMP();
-      const MercadoPago = await carregarSdk();
+      const [MercadoPago, email] = await Promise.all([carregarSdk(), emailDaConta()]);
       if (!isMounted) return;
       if (!MercadoPago) {
         window.clearTimeout(limite);
@@ -298,29 +334,51 @@ export function MercadoPagoBrick({
           containerRef.current.innerHTML = "";
         }
 
-        const criado = await bricksBuilder.create("payment", "paymentBrick_container", {
-          initialization: {
-            amount: valorEsperado,
+        // E-mail da conta preenchido: os dois Bricks escondem o campo de e-mail
+        // quando ele vem na inicialização.
+        const inicializacao = {
+          amount: valorEsperado,
+          ...(email ? { payer: { email } } : {}),
+        };
+        const visual = {
+          style: {
+            theme: "bootstrap",
           },
-          customization: {
-            paymentMethods: {
-              creditCard: "all",
-              maxInstallments: 1,
-            },
-            visual: {
-              style: {
-                theme: "bootstrap",
-              },
-              hideFormTitle: true,
-              texts: {
-                // A chave do botão no Payment Brick é formSubmit (documentação
-                // de textos do Payment Brick e a lista de chaves do payment.js
-                // 3.17.1). Chave fora da lista é ignorada com um aviso no
-                // console: o customButtonText de antes nunca apareceu.
-                formSubmit: textoBotao,
-              },
-            },
+          hideFormTitle: true,
+          texts: {
+            // A chave do botão nos Bricks é formSubmit (documentação de textos
+            // e a lista de chaves do payment.js 3.17.1). Chave fora da lista é
+            // ignorada com um aviso no console: o customButtonText de antes
+            // nunca apareceu.
+            formSubmit: textoBotao,
           },
+        };
+
+        // Automático: o Card Payment Brick, que é o formulário que a
+        // documentação de Assinaturas indica para gerar o card_token_id (o
+        // Payment Brick gerava o token, mas a verificação do cartão da
+        // assinatura voltava CC_VAL_433). Ele entrega os dados do cartão
+        // direto no 1º argumento do onSubmit. Mês a mês segue no Payment Brick.
+        const automatico = modo === "automatico";
+        const criado = await bricksBuilder.create(automatico ? "cardPayment" : "payment", "paymentBrick_container", {
+          initialization: inicializacao,
+          customization: automatico
+            ? {
+                paymentMethods: {
+                  maxInstallments: 1,
+                  // Assinatura só em cartão de crédito: débito e pré-pago não
+                  // aceitam cobrança recorrente.
+                  types: { included: ["credit_card"] },
+                },
+                visual,
+              }
+            : {
+                paymentMethods: {
+                  creditCard: "all",
+                  maxInstallments: 1,
+                },
+                visual,
+              },
           callbacks: {
             onReady: () => {
               pronto = true;
@@ -330,8 +388,10 @@ export function MercadoPagoBrick({
               setErroCarregar(null);
               setLoading(false);
             },
-            onSubmit: (dados: { formData: unknown; additionalData?: unknown }, adicionais?: unknown) =>
-              enviar(dados.formData, finalDoCartao(adicionais ?? dados.additionalData)),
+            onSubmit: (dados: { formData?: unknown; additionalData?: unknown }, adicionais?: unknown) =>
+              automatico
+                ? enviar(dados, finalDoCartao(adicionais))
+                : enviar(dados.formData, finalDoCartao(adicionais ?? dados.additionalData)),
             onError: (err: unknown) => {
               window.clearTimeout(limite);
               console.error("Erro interno do Brick:", err);
@@ -417,7 +477,7 @@ export function MercadoPagoBrick({
             coupon_code: couponCode || null,
             valor_esperado: valorEsperado,
             cartao: { final },
-            device_id: deviceIdDoAparelho(),
+            device_id: await esperarDeviceId(),
           }),
         });
         data = await res.json().catch(() => ({}));
@@ -495,7 +555,7 @@ export function MercadoPagoBrick({
             formData,
             coupon_code: couponCode || null,
             valor_esperado: valorEsperado,
-            device_id: deviceIdDoAparelho(),
+            device_id: await esperarDeviceId(),
           }),
         });
         data = await res.json().catch(() => ({}));
