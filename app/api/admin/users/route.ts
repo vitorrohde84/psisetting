@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const now = new Date();
 
     // 1. Buscar todos os perfis
-    let query = adminClient
+    const query = adminClient
       .from("profiles")
       .select("id, nome, email, telefone, crp, is_vip, is_admin, subscription_status, trial_ends_at, current_period_end, created_at")
       .order("created_at", { ascending: false });
@@ -32,12 +32,14 @@ export async function GET(request: Request) {
     }
 
     // 2. Buscar contagem de pacientes por psicólogo para identificar atividade/risco
-    const { data: patientCounts } = await adminClient
+    const { data: patientCounts, error: pacientesError } = await adminClient
       .from("pacientes")
       .select("psicologo_id");
+    // Só alimenta o "risco de churn": sem ela a lista ainda sai, sem esse sinal.
+    if (pacientesError) console.error("[admin] contagem de pacientes não lida:", pacientesError.message);
 
     const patientMap: Record<string, number> = {};
-    (patientCounts || []).forEach((p: any) => {
+    (patientCounts || []).forEach((p: { psicologo_id: string | null }) => {
       if (p.psicologo_id) {
         patientMap[p.psicologo_id] = (patientMap[p.psicologo_id] || 0) + 1;
       }
@@ -57,16 +59,18 @@ export async function GET(request: Request) {
     } as const;
 
     const processedUsers = (profiles || []).map((p) => {
+      const assinatura = assinaturas[p.id];
       // Admin conta como VIP, como em /api/subscription/status.
       const acesso = calcularAcesso({
         isVip: p.is_vip || p.is_admin || isEmailAdmin(p.email),
         trialEndsAt: p.trial_ends_at,
         currentPeriodEnd: p.current_period_end,
+        renovacaoAutomatica: assinatura?.renovacao?.situacao === "ativa",
+        renovacaoDesde: assinatura?.renovacao?.criadaEm ?? null,
         agora: now,
       });
       const calculatedStatus = statusPorSituacao[acesso.situacao];
       const trialDaysLeft = acesso.diasRestantesTeste;
-      const assinatura = assinaturas[p.id];
 
       const totalPatients = patientMap[p.id] || 0;
       
@@ -84,6 +88,8 @@ export async function GET(request: Request) {
         cupomEmUso: assinatura?.cupomEmUso ?? null,
         ultimoMeio: assinatura?.ultimoMeio ?? null,
         ultimoPagamentoEm: assinatura?.ultimoPagamentoEm ?? null,
+        renovacao: assinatura?.renovacao ?? null,
+        emCarencia: acesso.emCarencia,
         totalPatients,
         daysSinceCreation,
         isAtRisk,
@@ -112,7 +118,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ users: filteredUsers, total: filteredUsers.length });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro na listagem de usuários admin:", err);
     return NextResponse.json({ error: "Erro interno ao processar usuários." }, { status: 500 });
   }

@@ -5,7 +5,7 @@ import { AdminSidebar, AdminTabType } from "./components/admin-sidebar";
 import { UserDetailDrawer } from "./components/user-detail-drawer";
 import { CouponModal } from "./components/coupon-modal";
 import { AnnouncementModal } from "./components/announcement-modal";
-import { FeedbackInboxView } from "./components/feedback-inbox-view";
+import { FeedbackInboxView, type FeedbackUsuario } from "./components/feedback-inbox-view";
 import {
   DollarSign,
   Users,
@@ -13,30 +13,22 @@ import {
   Clock,
   ShieldCheck,
   AlertTriangle,
-  Lightbulb,
   Tag,
-  Radio,
   Search,
   Plus,
   RefreshCw,
   MessageCircle,
-  ExternalLink,
   CheckCircle2,
   Trash2,
-  Send,
   Loader2,
-  Star,
   Download,
   Calendar,
   FileText,
   FileCheck,
-  Heart,
   ChevronRight,
-  Sparkles,
-  Phone,
-  Crown,
   ChevronDown,
   Ban,
+  CreditCard,
 } from "lucide-react";
 import { linkWhatsApp } from "@/utils/whatsapp";
 import { PRECO_BASE, ehTipoDesconto, descreverDesconto, formatarReais } from "@/utils/preco-desconto";
@@ -48,6 +40,16 @@ import {
   type CupomAdmin,
   type Situacao,
 } from "./cupom-lista";
+import {
+  dicaRenovacao,
+  dicaTolerancia,
+  etiquetaRenovacao,
+  mostrarEtiquetaDoMeio,
+  renovacaoViva,
+  rotuloDoMeio,
+  type TomRenovacao,
+  type UsuarioAdmin,
+} from "./usuario-lista";
 
 const CORES_SITUACAO: Record<Situacao, string> = {
   em_uso: "bg-emerald-50 text-emerald-900 border-emerald-200",
@@ -56,21 +58,53 @@ const CORES_SITUACAO: Record<Situacao, string> = {
   resgatado: "bg-stone-100 text-stone-700 border-stone-200",
 };
 
+const CORES_RENOVACAO: Record<TomRenovacao, string> = {
+  destaque: "border-primary/20 bg-primary/10 text-primary",
+  alerta: "border-rose-200 bg-rose-50 text-rose-800",
+  discreto: "border-border bg-background text-text-muted",
+};
+
+/** O que esta tela lê da resposta de /api/admin/metrics. */
+interface MetricasAdmin {
+  finance: { mrr: number; activeSubscribers: number };
+  users: {
+    total: number;
+    activeTrials: number;
+    expiredTrials: number;
+    vips: number;
+    newLast7Days: number;
+    conversionRate: number;
+  };
+  engagement: {
+    totalPacientes: number;
+    totalProntuarios: number;
+    totalLaudos: number;
+    totalAgendamentos: number;
+  };
+}
+
+/** Linha de `system_announcements` como /api/admin/announcements devolve (select *). */
+interface ComunicadoAdmin {
+  id: string;
+  title: string;
+  message: string;
+  active: boolean;
+}
+
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTabType>("overview");
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Estados de Dados
-  const [metrics, setMetrics] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<MetricasAdmin | null>(null);
+  const [users, setUsers] = useState<UsuarioAdmin[]>([]);
   const [coupons, setCoupons] = useState<CupomAdmin[]>([]);
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackUsuario[]>([]);
+  const [announcements, setAnnouncements] = useState<ComunicadoAdmin[]>([]);
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(["overview", "users"]));
 
   // Estados de Modais & Gavetas
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UsuarioAdmin | null>(null);
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
 
@@ -109,12 +143,16 @@ export default function AdminDashboardPage() {
       if (mRes.ok) setMetrics(await mRes.json());
       if (uRes.ok) {
         const uData = await uRes.json();
-        setUsers(uData.users || []);
+        const lista: UsuarioAdmin[] = uData.users || [];
+        setUsers(lista);
+        // A gaveta guarda uma cópia do usuário. Sem trocar pela nova, depois de
+        // uma ação (conceder VIP cancela a renovação automática, por exemplo)
+        // ela seguiria mostrando a situação antiga até ser fechada e aberta.
+        setSelectedUser((atual) => (atual ? lista.find((u) => u.id === atual.id) ?? atual : atual));
       }
     } catch (err) {
       console.error("Erro ao carregar dados essenciais do admin:", err);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
@@ -150,12 +188,17 @@ export default function AdminDashboardPage() {
   // Disparar carga sob demanda ao trocar de aba
   useEffect(() => {
     if (!loadedTabs.has(activeTab)) {
+      // As abas com dados só gravam estado depois do fetch. As sem dados
+      // (Visão Geral, Usuários, Churn) entram em loadedTabs na hora, uma vez
+      // só: com a aba no conjunto, o efeito não chama de novo.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- só marca a aba sem dados como carregada; os dados chegam depois do await
       loadTabData(activeTab);
     }
   }, [activeTab, loadedTabs, loadTabData]);
 
   // Carga inicial dos dados
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: liga o giro do botão "Atualizar" na hora (setRefreshing(true) no início) e o resto vem depois do await; a mesma função serve ao botão
     loadEssentialData();
   }, [loadEssentialData]);
 
@@ -183,15 +226,12 @@ export default function AdminDashboardPage() {
         if (data.deleted) {
           setSelectedUser(null);
         } else if (selectedUser && selectedUser.id === userId) {
-          setSelectedUser((prev: any) => ({
-            ...prev,
-            ...data.updates,
-          }));
+          setSelectedUser((prev) => (prev ? { ...prev, ...data.updates } : prev));
         }
       } else {
         alert(data.error || "Erro ao executar ação.");
       }
-    } catch (err) {
+    } catch {
       alert("Falha de conexão.");
     }
   }
@@ -312,7 +352,7 @@ export default function AdminDashboardPage() {
         showToast(currentActive ? "Comunicado ocultado." : "Comunicado ativado no topo do sistema!");
         loadAllData();
       }
-    } catch (err) {
+    } catch {
       alert("Erro ao alterar comunicado.");
     }
   }
@@ -327,7 +367,7 @@ export default function AdminDashboardPage() {
         showToast("Comunicado removido.");
         loadAllData();
       }
-    } catch (err) {
+    } catch {
       alert("Erro ao remover comunicado.");
     }
   }
@@ -345,7 +385,7 @@ export default function AdminDashboardPage() {
         showToast("Feedback atualizado!");
         loadAllData();
       }
-    } catch (err) {
+    } catch {
       alert("Erro ao atualizar feedback.");
     }
   }
@@ -392,6 +432,8 @@ export default function AdminDashboardPage() {
     if (userStatusFilter !== "all") {
       if (userStatusFilter === "risk") {
         list = list.filter((u) => u.isAtRisk);
+      } else if (userStatusFilter === "automatico") {
+        list = list.filter((u) => renovacaoViva(u.renovacao));
       } else {
         list = list.filter((u) => u.calculatedStatus === userStatusFilter);
       }
@@ -693,6 +735,7 @@ export default function AdminDashboardPage() {
                   <option value="expired">🔴 Acesso Vencido</option>
                   <option value="vip">🟣 Acesso VIP</option>
                   <option value="risk">⚠️ Em Risco</option>
+                  <option value="automatico">💳 Cartão Automático</option>
                 </select>
               </div>
 
@@ -712,7 +755,12 @@ export default function AdminDashboardPage() {
                       .toUpperCase();
 
                     const statusBadges: Record<string, { label: string; bg: string }> = {
-                      active: { label: "Assinante Ativo", bg: "bg-emerald-50 text-emerald-900 border-emerald-200" },
+                      // Em tolerância: o período pago acabou e o cartão automático
+                      // ainda não foi cobrado (ou foi recusado e está sendo tentado).
+                      active: {
+                        label: u.emCarencia ? "Assinante Ativo · em tolerância" : "Assinante Ativo",
+                        bg: "bg-emerald-50 text-emerald-900 border-emerald-200",
+                      },
                       trialing: { label: `Trial (${u.trialDaysLeft}d)`, bg: "bg-blue-50 text-blue-900 border-blue-200" },
                       expired: { label: "Acesso vencido (Leitura)", bg: "bg-amber-50 text-amber-900 border-amber-200" },
                       vip: { label: "Acesso VIP", bg: "bg-purple-50 text-purple-900 border-purple-200" },
@@ -721,8 +769,11 @@ export default function AdminDashboardPage() {
 
                     const currentBadge = statusBadges[u.calculatedStatus] || statusBadges.trialing;
                     const cupom = u.cupomEmUso;
-                    const etiqueta =
-                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-border bg-background text-text-muted whitespace-nowrap";
+                    const etiquetaBase =
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border whitespace-nowrap";
+                    const etiqueta = `${etiquetaBase} border-border bg-background text-text-muted`;
+                    const renovacao = etiquetaRenovacao(u.renovacao);
+                    const mostrarMeio = mostrarEtiquetaDoMeio(u);
 
                     return (
                       <div
@@ -750,8 +801,8 @@ export default function AdminDashboardPage() {
                             </p>
                           </div>
 
-                          {(cupom || u.ultimoMeio) && (
-                            <div className="flex items-center gap-1.5">
+                          {(cupom || renovacao || mostrarMeio) && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {cupom && (
                                 <span
                                   className={etiqueta}
@@ -767,12 +818,21 @@ export default function AdminDashboardPage() {
                                   </span>
                                 </span>
                               )}
-                              {u.ultimoMeio && (
+                              {renovacao && u.renovacao && (
+                                <span
+                                  className={`${etiquetaBase} ${CORES_RENOVACAO[renovacao.tom]}`}
+                                  title={dicaRenovacao(u.renovacao, mostrarMeio ? null : u.ultimoPagamentoEm)}
+                                >
+                                  {renovacao.tom === "alerta" ? <AlertTriangle size={10} /> : <CreditCard size={10} />}
+                                  <span>{renovacao.texto}</span>
+                                </span>
+                              )}
+                              {mostrarMeio && u.ultimoMeio && (
                                 <span
                                   className={etiqueta}
                                   title={`Último pagamento em ${formatarData(u.ultimoPagamentoEm)}`}
                                 >
-                                  {u.ultimoMeio === "pix" ? "PIX" : "Cartão"}
+                                  {rotuloDoMeio(u.ultimoMeio)}
                                 </span>
                               )}
                             </div>
@@ -783,7 +843,10 @@ export default function AdminDashboardPage() {
                               Administrador
                             </span>
                           ) : (
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${currentBadge.bg}`}>
+                            <span
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${currentBadge.bg}`}
+                              title={dicaTolerancia(u) ?? undefined}
+                            >
                               {currentBadge.label}
                             </span>
                           )}

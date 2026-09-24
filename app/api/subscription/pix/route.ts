@@ -1,22 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { criarPagamento } from "@/utils/mercadopago";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 import { calcularPrecoAssinatura, precoParaTela, valorConfere } from "@/utils/preco-assinatura";
 import { metadataDoDesconto } from "@/utils/pagamento-aprovado";
-
-/** O QR vale ~30 minutos: tempo de sobra para pagar, e um PIX esquecido não
- *  fica dias em aberto com um desconto que talvez já não valha. O Mercado Pago
- *  exige no mínimo 30 minutos, contados quando o pedido CHEGA lá — por isso a
- *  folga de 2 minutos. A tela mostra o horário que o Mercado Pago devolve. */
-const VALIDADE_PIX_MIN = 32;
-
-/** Data no formato que o Mercado Pago pede, no fuso de Brasília (sem horário de verão desde 2019). */
-function expiracaoPix(agora = new Date()): string {
-  const brasilia = new Date(agora.getTime() + VALIDADE_PIX_MIN * 60 * 1000 - 3 * 60 * 60 * 1000);
-  return brasilia.toISOString().replace("Z", "-03:00");
-}
+import { expiracaoPixMercadoPago, fimDaValidadePix, segundosRestantesPix } from "@/utils/pix-validade";
+import { cancelarOutrosPixPendentes } from "@/utils/pix-cancelamento";
+import { assinaturaViva } from "@/utils/assinatura-cartao-servidor";
 
 /**
  * Gera o PIX de 30 dias de acesso.
@@ -88,17 +79,35 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: erroPerfil } = await supabase
       .from("profiles")
       .select("nome, email, is_vip")
       .eq("id", user.id)
       .single();
+    if (erroPerfil) {
+      // Sem o perfil o PIX ainda sai (nome e e-mail têm alternativa), mas quem
+      // é VIP não pode ser cobrado por engano: sem saber, não cobra.
+      console.error("[pix] perfil não lido:", erroPerfil.message);
+      return NextResponse.json({ error: "Não foi possível ler sua conta. Tente de novo em instantes." }, { status: 500 });
+    }
 
     if (profile?.is_vip) {
       return NextResponse.json({
         message: "Esta conta possui acesso VIP vitalício.",
         is_vip: true,
       });
+    }
+
+    // Renovação automática ligada: a cobrança do mês é dela. Um pagamento avulso
+    // agora seria cobrar a pessoa duas vezes no mesmo mês.
+    if (await assinaturaViva(createAdminClient(), user.id)) {
+      return NextResponse.json(
+        {
+          error: "Sua renovação automática no cartão está ligada. Veja a próxima cobrança em Configurações → Plano & Assinatura.",
+          renovacao: true,
+        },
+        { status: 409 }
+      );
     }
 
     const preco = await calcularPrecoAssinatura({
@@ -136,7 +145,9 @@ export async function POST(request: Request) {
         transaction_amount: preco.valor,
         description: `PsiSetting — 30 dias de acesso (${d ? `Cupom ${d.code}` : "Plano Único"})`,
         payment_method_id: "pix",
-        date_of_expiration: expiracaoPix(),
+        // 32 min no Mercado Pago (o mínimo que ele aceita); os 15 min que a
+        // pessoa vê são garantidos pelo cancelamento — ver utils/pix-validade.ts.
+        date_of_expiration: expiracaoPixMercadoPago(),
         payer: {
           email: user.email || profile?.email || "contato@psisetting.com.br",
           first_name: (profile?.nome || user.email?.split("@")[0] || "Psicólogo").split(" ")[0],
@@ -156,6 +167,15 @@ export async function POST(request: Request) {
       throw new Error("Não foi possível gerar a chave Pix no Mercado Pago.");
     }
 
+    // Um QR válido por pessoa. Depois da resposta, para não atrasar o QR novo;
+    // falhar aqui só deixa o anterior vencer sozinho no Mercado Pago.
+    const novoId = String(payment.id);
+    after(() =>
+      cancelarOutrosPixPendentes({ userId: user.id, exceto: novoId }).catch((err) =>
+        console.error("[pix] falha ao cancelar os PIX anteriores:", err)
+      )
+    );
+
     return NextResponse.json({
       payment_id: payment.id,
       qr_code: qrCode,
@@ -163,7 +183,9 @@ export async function POST(request: Request) {
       ticket_url: transactionData?.ticket_url,
       amount: preco.valor,
       status: payment.status,
-      date_of_expiration: payment.date_of_expiration,
+      // A tela conta a partir da DURAÇÃO, no relógio dela (ver segundosRestantesPix).
+      validade_segundos: segundosRestantesPix(payment.date_created),
+      date_of_expiration: fimDaValidadePix(payment.date_created).toISOString(),
     });
   } catch (error: unknown) {
     console.error("Erro ao gerar Pix no Mercado Pago:", error);

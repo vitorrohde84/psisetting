@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 import { resolverDescontoDeCupom, registrarResgate } from "@/utils/coupons";
 import { calcularPrecoAssinatura, precoParaTela } from "@/utils/preco-assinatura";
 import { PRECO_BASE, ehTipoDesconto } from "@/utils/preco-desconto";
+import { cancelarSeHouver } from "@/utils/assinatura-cartao-servidor";
 
 /**
  * Aplica um cupom digitado na primeira tela do modal de assinatura.
@@ -22,8 +23,9 @@ import { PRECO_BASE, ehTipoDesconto } from "@/utils/preco-desconto";
  * user.id da sessão.
  *
  * VIP e dias de teste são concedidos na hora. Cupom de desconto só devolve a
- * PRÉVIA do preço: o resgate é gravado quando o pagamento é aprovado — gravar
- * aqui queimaria o cupom de quem desistisse do checkout.
+ * PRÉVIA do preço: o resgate é gravado quando o pagamento é aprovado, ou
+ * quando a pessoa liga a renovação automática no cartão — gravar aqui
+ * queimaria o cupom de quem desistisse do checkout.
  */
 export async function POST(request: Request) {
   try {
@@ -112,6 +114,19 @@ export async function POST(request: Request) {
 
     // ── Cupom de acesso VIP ───────────────────────────────────────────────
     if (vip) {
+      // VIP não paga: a renovação automática, se houver, para ANTES. Se o
+      // Mercado Pago não confirmar, o VIP não é concedido agora — dar VIP com o
+      // cartão ainda sendo cobrado todo mês é o pior resultado.
+      try {
+        await cancelarSeHouver(adminClient, user.id, "sistema");
+      } catch (err) {
+        console.error(`[cupom] VIP de ${user.id} adiado: renovação automática não cancelada:`, err);
+        return NextResponse.json(
+          { error: "Não conseguimos cancelar sua renovação automática no cartão agora. Tente de novo em alguns minutos." },
+          { status: 502 }
+        );
+      }
+
       const { registrado } = await registrarResgate({
         adminClient,
         couponId,
@@ -164,11 +179,17 @@ export async function POST(request: Request) {
     // Soma ao que a pessoa já tem — teste que resta OU período pago —, em vez
     // de recomeçar a contagem de hoje. Sem o período pago na conta, quem já
     // pagou e usava um cupom de 30 dias ganhava só a diferença (ou nada).
-    const { data: perfil } = await adminClient
+    const { data: perfil, error: erroPerfil } = await adminClient
       .from("profiles")
       .select("trial_ends_at, current_period_end")
       .eq("id", user.id)
       .single();
+    if (erroPerfil) {
+      // O resgate já foi gravado: recusar agora deixaria a pessoa sem os dias
+      // e sem poder usar o cupom de novo. Conta a partir de hoje e registra
+      // alto — quem tinha dias pela frente pode precisar de ajuste no admin.
+      console.error(`[cupom] perfil de ${user.id} não lido; dias do cupom contados a partir de hoje:`, erroPerfil.message);
+    }
 
     const agora = Date.now();
     const futuros = [perfil?.trial_ends_at, perfil?.current_period_end]

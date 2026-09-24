@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { preApprovalClient, paymentClient } from "@/utils/mercadopago";
+import { invoiceClient, paymentClient, preApprovalClient } from "@/utils/mercadopago";
 import { definirStatusAssinatura } from "@/utils/subscription-activation";
 import { erroPermanente, processarPagamentoAprovado, reverterPagamento } from "@/utils/pagamento-aprovado";
+import { ehCobrancaDeAssinatura, ehValidacaoDeCartao, idAssinaturaDoPagamento } from "@/utils/assinatura-cartao";
+import {
+  adotarAssinatura,
+  assinaturaPorPreapproval,
+  assinaturaViva,
+  cancelarAssinaturaCartao,
+  marcarRecusa,
+  processarFatura,
+  sincronizarAssinatura,
+  type LinhaAssinatura,
+} from "@/utils/assinatura-cartao-servidor";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,6 +37,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *
  *  3. O caminho `approved` gravava status ativo SEM current_period_end, então
  *     a assinatura criada por esse caminho nunca expirava.
+ *
+ * Renovação automática (23/09/2026): a assinatura (preapproval) não aceita
+ * notification_url — os avisos dela e das cobranças vêm da URL configurada no
+ * painel do Mercado Pago (Suas integrações → Webhooks), com os eventos
+ * "Pagamentos" e "Planos e assinaturas" ligados e o mesmo segredo.
  */
 
 const MP_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
@@ -67,7 +83,9 @@ function assinaturaValida(
     return { ok: false, motivo: "timestamp fora da janela" };
   }
 
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  // O Mercado Pago assina o id em minúsculas quando ele tem letras (o da
+  // assinatura é hexadecimal). O id numérico dos pagamentos não muda.
+  const manifest = `id:${(dataId ?? "").toLowerCase()};request-id:${requestId};ts:${ts};`;
   const esperado = createHmac("sha256", MP_WEBHOOK_SECRET)
     .update(manifest)
     .digest("hex");
@@ -79,6 +97,151 @@ function assinaturaValida(
   }
 
   return { ok: true };
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+/**
+ * Sincroniza depois de uma cobrança: é o que sobe o valor para R$ 34,90 um mês
+ * antes da cobrança seguinte. Falhar aqui não pode derrubar a notificação — os
+ * dias já foram gravados, e a conferência diária tenta de novo.
+ */
+async function sincronizarSemDerrubar(admin: AdminClient, linha: LinhaAssinatura | null) {
+  if (!linha || linha.situacao !== "ativa") return;
+  try {
+    await sincronizarAssinatura(admin, linha);
+  } catch (err) {
+    console.error(`[webhook-mp] sincronização de ${linha.mp_preapproval_id} falhou (a conferência diária refaz):`, err);
+  }
+}
+
+/** Aviso da assinatura: criada, alterada, pausada, cancelada. */
+async function tratarAssinatura(admin: AdminClient, preapprovalId: string) {
+  const sub = await preApprovalClient.get({ id: preapprovalId });
+  let linha = await assinaturaPorPreapproval(admin, String(sub.id ?? preapprovalId));
+
+  // Não está na tabela pelo id: a criação que ficou sem resposta clara (linha
+  // "criando"), uma duplicata nossa, ou uma que demos como falha cedo demais.
+  // O aviso já traz a assinatura: vincula direto, sem depender da busca por
+  // e-mail (utils/assinatura-cartao-servidor.ts → adotarAssinatura).
+  if (!linha) linha = await adotarAssinatura(admin, sub);
+
+  if (!linha) {
+    // Assinatura do código antigo (antes de 23/09) ou de outro produto na
+    // mesma conta do Mercado Pago. Não cancela sozinho — pode ser alguém pagando.
+    console.error(
+      `[webhook-mp] assinatura ${sub.id} (ref ${String(sub.external_reference ?? "")}, ${sub.status}) não está em assinaturas_cartao.`
+    );
+    return;
+  }
+
+  await sincronizarAssinatura(admin, linha);
+}
+
+/** Aviso de fatura (cobrança mensal da assinatura). */
+async function tratarFatura(admin: AdminClient, faturaId: string) {
+  const fatura = await invoiceClient.get({ id: faturaId });
+  if (!fatura?.preapproval_id) return;
+
+  let linha = await assinaturaPorPreapproval(admin, String(fatura.preapproval_id));
+  // A fatura pode chegar antes de a assinatura estar ligada à linha (criação
+  // sem resposta clara): adota pela própria assinatura.
+  if (!linha) {
+    linha = await adotarAssinatura(admin, await preApprovalClient.get({ id: String(fatura.preapproval_id) }));
+  }
+  if (!linha) {
+    console.error(`[webhook-mp] fatura ${faturaId} de assinatura desconhecida ${fatura.preapproval_id}.`);
+    return;
+  }
+
+  const r = await processarFatura(
+    admin,
+    linha,
+    {
+      id: fatura.id,
+      preapproval_id: fatura.preapproval_id,
+      status: fatura.status,
+      payment: fatura.payment ? { id: fatura.payment.id, status: fatura.payment.status } : null,
+      debit_date: fatura.debit_date ?? null,
+    },
+    "webhook"
+  );
+  if (r === "aprovada") await sincronizarSemDerrubar(admin, linha);
+}
+
+/** Aviso de pagamento: avulso (PIX, cartão mês a mês) ou cobrança da assinatura. */
+async function tratarPagamento(admin: AdminClient, paymentId: string) {
+  const payment = await paymentClient.get({ id: paymentId });
+  if (!payment) return;
+
+  // Validação do cartão ao criar a assinatura: devolvida em seguida, não é mensalidade.
+  if (ehValidacaoDeCartao(payment)) return;
+
+  const daAssinatura = ehCobrancaDeAssinatura(payment);
+  const referencia = payment.external_reference ?? "";
+  let userId = UUID.test(referencia) ? referencia : null;
+
+  // Cobrança da assinatura: a linha diz de quem é, mesmo que o Mercado Pago
+  // não copie a nossa referência para o pagamento.
+  let linha: LinhaAssinatura | null = null;
+  if (daAssinatura) {
+    const idAssinatura = idAssinaturaDoPagamento(payment);
+    if (idAssinatura) {
+      linha = await assinaturaPorPreapproval(admin, idAssinatura);
+      // Cobrança de uma assinatura que a tabela ainda não liga ao id (criação
+      // sem resposta clara): o pagamento traz o id, e a assinatura diz de quem é.
+      if (!linha) linha = await adotarAssinatura(admin, await preApprovalClient.get({ id: idAssinatura }));
+    }
+    if (linha && userId && linha.user_id !== userId) {
+      console.error(`[webhook-mp] pagamento ${paymentId}: referência ${userId} diverge da assinatura (${linha.user_id}).`);
+      return;
+    }
+    userId = userId ?? linha?.user_id ?? null;
+    if (!linha && userId) linha = await assinaturaViva(admin, userId);
+  }
+
+  // Sem dono identificável = pagamento de outro produto na mesma conta do
+  // Mercado Pago. Não é nosso: ignora.
+  if (!userId) return;
+
+  if (payment.status === "approved") {
+    // Idempotente: dias e mensalidade de cupom numa transação só.
+    await processarPagamentoAprovado({
+      adminClient: admin,
+      userId,
+      payment,
+      origem: "webhook",
+      recorrente: daAssinatura,
+    });
+    if (daAssinatura) await sincronizarSemDerrubar(admin, linha);
+  } else if (payment.status === "refunded" || payment.status === "charged_back") {
+    // Com o acesso decidido pelas datas, só marcar "past_due" não tirava
+    // nada: quem estornava continuava com os dias. Aqui eles voltam.
+    await reverterPagamento({
+      adminClient: admin,
+      paymentId: String(payment.id),
+      userId,
+      motivo: payment.status,
+    });
+    // Contestação de uma cobrança automática: a assinatura para, senão o
+    // Mercado Pago seguiria cobrando (e sendo contestado) todo mês.
+    if (payment.status === "charged_back" && linha?.situacao === "ativa") {
+      await cancelarAssinaturaCartao(admin, linha, "sistema");
+    }
+  } else if (payment.status === "rejected") {
+    if (daAssinatura) {
+      // O Mercado Pago tenta de novo por até 10 dias; o acesso segue pela
+      // tolerância e a tela avisa.
+      if (linha) await marcarRecusa(admin, linha);
+    } else {
+      // Recusa não tira dias já pagos; o status fica como informação.
+      await definirStatusAssinatura({
+        adminClient: admin,
+        userId,
+        status: "past_due",
+      });
+    }
+  }
 }
 
 export async function POST(request: Request) {
@@ -94,7 +257,7 @@ export async function POST(request: Request) {
     try {
       bodyData = await request.json();
       if (!topic && bodyData.type) topic = bodyData.type;
-      if (!resourceId && bodyData.data?.id) resourceId = bodyData.data.id;
+      if (!resourceId && bodyData.data?.id) resourceId = String(bodyData.data.id);
     } catch {
       // Body vazio não é erro: o Mercado Pago faz pings de verificação.
     }
@@ -110,79 +273,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
     }
 
-    const supabaseAdmin = createAdminClient();
+    const admin = createAdminClient();
 
-    // 1. Assinatura recorrente (preapproval)
     if (topic === "subscription_preapproval" || topic === "preapproval") {
-      const sub = await preApprovalClient.get({ id: resourceId });
-
-      if (sub && sub.external_reference) {
-        const userId = sub.external_reference;
-
-        if (sub.status === "authorized") {
-          // Só registra a assinatura. Os DIAS vêm de cada cobrança aprovada,
-          // pelo tópico "payment" (idempotente por payment_id). Antes, cada
-          // aviso de preapproval com last_modified novo somava +30 dias sem
-          // pagamento nenhum — e com o acesso decidido pelas datas, isso viraria
-          // acesso de verdade.
-          await supabaseAdmin
-            .from("profiles")
-            .update({
-              mp_subscription_id: sub.id,
-              mp_customer_id: sub.payer_id?.toString() || null,
-            })
-            .eq("id", userId);
-        } else if (sub.status === "cancelled") {
-          await definirStatusAssinatura({
-            adminClient: supabaseAdmin,
-            userId,
-            status: "canceled",
-          });
-        } else if (sub.status === "paused") {
-          await definirStatusAssinatura({
-            adminClient: supabaseAdmin,
-            userId,
-            status: "past_due",
-          });
-        }
-      }
-    }
-
-    // 2. Pagamento individual / cobrança da assinatura
-    if (topic === "payment") {
-      const payment = await paymentClient.get({ id: resourceId });
-
-      // external_reference que não é id de conta = pagamento de outro produto
-      // na mesma conta do Mercado Pago. Não é nosso: ignora.
-      if (payment && payment.external_reference && UUID.test(payment.external_reference)) {
-        const userId = payment.external_reference;
-
-        if (payment.status === "approved") {
-          // Idempotente: dias e mensalidade de cupom numa transação só.
-          await processarPagamentoAprovado({
-            adminClient: supabaseAdmin,
-            userId,
-            payment,
-            origem: "webhook",
-          });
-        } else if (payment.status === "refunded" || payment.status === "charged_back") {
-          // Com o acesso decidido pelas datas, só marcar "past_due" não tirava
-          // nada: quem estornava continuava com os dias. Aqui eles voltam.
-          await reverterPagamento({
-            adminClient: supabaseAdmin,
-            paymentId: String(payment.id),
-            userId,
-            motivo: payment.status,
-          });
-        } else if (payment.status === "rejected") {
-          // Recusa não tira dias já pagos; o status fica como informação.
-          await definirStatusAssinatura({
-            adminClient: supabaseAdmin,
-            userId,
-            status: "past_due",
-          });
-        }
-      }
+      await tratarAssinatura(admin, resourceId);
+    } else if (topic === "subscription_authorized_payment" || topic === "authorized_payment") {
+      await tratarFatura(admin, resourceId);
+    } else if (topic === "payment") {
+      await tratarPagamento(admin, resourceId);
     }
 
     return NextResponse.json({ success: true });

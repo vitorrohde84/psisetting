@@ -40,6 +40,8 @@ export async function updateSession(request: NextRequest) {
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isRegisterApi = pathname.startsWith("/api/auth/register");
   const isWebhookApi = pathname.startsWith("/api/webhooks");
+  // Cron da Vercel: sem sessão; quem protege é o CRON_SECRET, dentro da rota.
+  const isCronApi = pathname.startsWith("/api/cron/");
   const isPwaStatic =
     pathname.startsWith("/manifest") ||
     pathname === "/sw.js" ||
@@ -61,6 +63,7 @@ export async function updateSession(request: NextRequest) {
     isAuthCallback ||
     isRegisterApi ||
     isWebhookApi ||
+    isCronApi ||
     isPwaStatic;
 
   // 3. Rotas públicas não autenticadas passam direto (0 latência)
@@ -82,7 +85,9 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          // Os cookies da requisição não guardam opções (validade, caminho):
+          // essas vão só na resposta, logo abaixo.
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({

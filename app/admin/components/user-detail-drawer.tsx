@@ -3,24 +3,35 @@ import {
   X,
   MessageCircle,
   Mail,
-  Calendar,
-  Users,
   Clock,
   ShieldCheck,
   Crown,
-  Sparkles,
-  Plus,
   Loader2,
-  CheckCircle2,
   Phone,
-  Building,
   Trash2,
   AlertTriangle,
   RotateCcw,
   Tag,
+  CreditCard,
 } from "lucide-react";
 import { linkWhatsApp } from "@/utils/whatsapp";
 import { PRECO_BASE, descreverDesconto, formatarReais } from "@/utils/preco-desconto";
+import { CARENCIA_CARTAO_DIAS } from "@/utils/acesso-assinatura";
+import {
+  descreverCartao,
+  meioPorExtenso,
+  proximaCobrancaDaRenovacao,
+  renovacaoViva,
+  situacaoDaRenovacao,
+  type TomRenovacao,
+  type UsuarioAdmin,
+} from "../usuario-lista";
+
+const COR_SITUACAO_RENOVACAO: Record<TomRenovacao, string> = {
+  destaque: "text-emerald-800",
+  alerta: "text-rose-800",
+  discreto: "text-text",
+};
 
 /**
  * Datas da assinatura no fuso de Brasília. O fim do período pago é um instante
@@ -40,7 +51,7 @@ function formatarData(iso: string | null | undefined, curta = false): string | n
 }
 
 interface UserDetailDrawerProps {
-  user: any | null;
+  user: UsuarioAdmin | null;
   onClose: () => void;
   onAction: (userId: string, action: string, days?: number) => Promise<void>;
 }
@@ -54,10 +65,13 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
 
   const isPrimaryAdmin = user.is_admin || user.email === "vitorrohde84@gmail.com";
 
+  // Fora da função: dentro dela o TypeScript esquece que user não é null.
+  const userId = user.id;
+
   async function handleActionClick(action: string, days?: number) {
     setLoadingAction(`${action}_${days || ""}`);
     try {
-      await onAction(user.id, action, days);
+      await onAction(userId, action, days);
       if (action === "delete_user") {
         onClose();
       }
@@ -75,12 +89,21 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
   // Os dias que faltam contam até o fim do ACESSO (o maior entre pago e teste
   // por cupom), que pode ser depois do "Pago até". Mostrados com a data certa.
   const acessoAteCurto = formatarData(user.acessoAte ?? user.current_period_end, true);
+  const renovacao = user.renovacao;
+  // Ligada ou sendo criada: conceder VIP e excluir a conta cancelam antes no
+  // Mercado Pago (a rota recusa a ação se o cancelamento não for confirmado).
+  const cobrancaAutomaticaViva = renovacaoViva(renovacao);
 
   // Sem preço no selo: com cupom, o valor muda de pessoa para pessoa (fica na
   // seção Assinatura).
   const statusBadges: Record<string, { label: string; bg: string }> = {
     active: {
-      label: pagoAteCurto ? `Assinante ativo · pago até ${pagoAteCurto}` : "Assinante ativo",
+      // Em tolerância, o "pago até" já passou: o que importa é até quando vai o acesso.
+      label: user.emCarencia
+        ? `Assinante ativo · em tolerância até ${acessoAteCurto ?? "—"}`
+        : pagoAteCurto
+          ? `Assinante ativo · pago até ${pagoAteCurto}`
+          : "Assinante ativo",
       bg: "bg-emerald-50 border-emerald-200 text-emerald-900",
     },
     trialing: { label: `Período de Testes (${user.trialDaysLeft} dias restantes)`, bg: "bg-blue-50 border-blue-200 text-blue-900" },
@@ -228,7 +251,13 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
               <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
                 <p className="text-text-muted text-[10.5px]">Pago até</p>
                 <p className="font-semibold text-text">{pagoAte ?? "Nenhum período pago"}</p>
-                {pagoAte && user.calculatedStatus === "active" && diasParaVencer !== null && (
+                {pagoAte && user.calculatedStatus === "active" && user.emCarencia && (
+                  <p className="text-[10.5px] text-amber-800 font-semibold">
+                    venceu · acesso segue na tolerância do cartão automático
+                    {acessoAteCurto ? ` até ${acessoAteCurto}` : ""}
+                  </p>
+                )}
+                {pagoAte && user.calculatedStatus === "active" && !user.emCarencia && diasParaVencer !== null && (
                   <p className="text-[10.5px] text-text-muted">
                     {diasParaVencer === 1 ? "falta 1 dia" : `faltam ${diasParaVencer} dias`} de acesso
                     {acessoAteCurto && acessoAteCurto !== pagoAteCurto ? ` (até ${acessoAteCurto}, com dias de teste por cupom)` : ""}
@@ -244,7 +273,7 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                 <p className="font-semibold text-text">{ultimoPagamento ?? "Nenhum registrado"}</p>
                 {ultimoPagamento && user.ultimoMeio && (
                   <p className="text-[10.5px] text-text-muted">
-                    {user.ultimoMeio === "pix" ? "por PIX" : "no cartão"}
+                    {meioPorExtenso(user.ultimoMeio)}
                   </p>
                 )}
               </div>
@@ -283,6 +312,27 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
               </div>
             </div>
           </div>
+
+          {/* Renovação automática no cartão: o que o Mercado Pago vai cobrar e quando */}
+          {(renovacao || user.calculatedStatus !== "vip") && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                Renovação automática
+              </p>
+
+              {!renovacao ? (
+                <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5 text-xs">
+                  <p className="font-semibold text-text">Desligada</p>
+                  <p className="text-[10.5px] text-text-muted">Cada mensalidade é paga à parte, por PIX ou cartão.</p>
+                </div>
+              ) : (
+                <SecaoRenovacao
+                  renovacao={renovacao}
+                  acessoAteCurto={user.emCarencia ? acessoAteCurto : null}
+                />
+              )}
+            </div>
+          )}
 
           {/* Ações Administrativas de 1 Clique */}
           <div className="space-y-3 pt-2 border-t border-border/60">
@@ -391,6 +441,11 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                   {loadingAction === "grant_vip_" ? <Loader2 size={13} className="animate-spin mx-auto" /> : "Conceder Acesso VIP Vitalício 👑"}
                 </button>
               )}
+              {!user.is_vip && cobrancaAutomaticaViva && (
+                <p className="text-[10.5px] text-text-muted leading-relaxed">
+                  Conceder VIP cancela a renovação automática no cartão: o Mercado Pago para de cobrar.
+                </p>
+              )}
             </div>
 
             {/* Zona de Perigo: Exclusão de Conta */}
@@ -402,6 +457,7 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
                 </div>
                 <p className="text-[11px] text-rose-900/80 leading-relaxed">
                   Exclui permanentemente o psicólogo, prontuários, registros e libera o e-mail no Supabase para novos testes.
+                  {cobrancaAutomaticaViva && " Antes, cancela a renovação automática no cartão."}
                 </p>
 
                 {showDeleteConfirm ? (
@@ -450,5 +506,73 @@ export function UserDetailDrawer({ user, onClose, onAction }: UserDetailDrawerPr
         </div>
       </div>
     </>
+  );
+}
+
+/** Situação, valor, data da cobrança e cartão da renovação automática. */
+function SecaoRenovacao({
+  renovacao,
+  acessoAteCurto,
+}: {
+  renovacao: NonNullable<UsuarioAdmin["renovacao"]>;
+  /** Até quando vai o acesso, se a pessoa está na tolerância. */
+  acessoAteCurto: string | null;
+}) {
+  const situacao = situacaoDaRenovacao(renovacao);
+  const proxima = proximaCobrancaDaRenovacao(renovacao);
+  const cartao = descreverCartao(renovacao);
+  const cancelada = renovacao.situacao === "cancelada";
+
+  return (
+    <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
+        <p className="text-text-muted text-[10.5px]">Situação</p>
+        <p className={`font-semibold ${COR_SITUACAO_RENOVACAO[situacao.tom]}`}>{situacao.texto}</p>
+        {situacao.detalhe && <p className="text-[10.5px] text-text-muted">{situacao.detalhe}</p>}
+      </div>
+
+      <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
+        <p className="text-text-muted text-[10.5px]">{cancelada ? "Último valor" : "Valor da cobrança"}</p>
+        <p className="font-semibold text-text">
+          {renovacao.valor !== null ? `R$ ${formatarReais(renovacao.valor)}/mês` : "—"}
+        </p>
+        {/* Vale o valor do Mercado Pago, não o calculado aqui: é ele que cobra. */}
+        {!cancelada && renovacao.valor !== null && (
+          <p className="text-[10.5px] text-text-muted">como está no Mercado Pago</p>
+        )}
+      </div>
+
+      <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5">
+        <p className="text-text-muted text-[10.5px]">{proxima.rotulo}</p>
+        <p className="font-semibold text-text">{formatarData(proxima.data) ?? proxima.semData}</p>
+      </div>
+
+      <div className="p-3 rounded-xl bg-background border border-border/80 space-y-0.5 min-w-0">
+        <p className="text-text-muted text-[10.5px]">Cartão</p>
+        <p className="font-semibold text-text flex items-center gap-1.5 min-w-0">
+          <CreditCard size={12} className="text-primary shrink-0" />
+          <span className="truncate">{cartao ?? "Não informado"}</span>
+        </p>
+      </div>
+
+      {renovacao.cobrancaRecusada && (
+        <div className="col-span-2 p-3 rounded-xl bg-rose-50/60 border border-rose-200 text-[11px] text-rose-950 leading-relaxed flex items-start gap-2">
+          <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+          <span>
+            <strong>A última cobrança foi recusada.</strong> O Mercado Pago tenta de novo por até{" "}
+            {CARENCIA_CARTAO_DIAS} dias e, enquanto isso, o acesso continua
+            {acessoAteCurto ? ` (até ${acessoAteCurto})` : ""}. Se nenhuma tentativa passar, a conta fica em
+            somente leitura.
+          </span>
+        </div>
+      )}
+
+      {cancelada && (
+        <p className="col-span-2 text-[11px] text-text-muted leading-relaxed">
+          O Mercado Pago não cobra mais. O acesso segue até o fim do período já pago; para voltar ao automático, a
+          pessoa assina de novo.
+        </p>
+      )}
+    </div>
   );
 }

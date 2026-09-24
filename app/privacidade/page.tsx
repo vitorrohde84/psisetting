@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
-import { ArrowLeft, Shield, Lock, Eye, Database, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Shield, Lock, Eye, Database } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default function PrivacidadePage() {
             Política de Privacidade do PsiSetting
           </h1>
           <p className="text-sm text-text-muted">
-            Última atualização: 19 de agosto de 2026 · Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD)
+            Última atualização: 23 de setembro de 2026 · Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD)
           </p>
         </div>
 
@@ -104,7 +104,7 @@ export default function PrivacidadePage() {
             </h2>
             <p>Coletamos e processamos exclusivamente os dados necessários para a operação do sistema:</p>
             <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
-              <li><strong>Dados do Profissional:</strong> Nome completo, e-mail, CRP e dados de faturamento para gestão da assinatura.</li>
+              <li><strong>Dados do Profissional:</strong> Nome completo, e-mail, CRP e dados de faturamento para gestão da assinatura. Na renovação automática no cartão, guardamos apenas a bandeira e os 4 últimos dígitos do cartão, para mostrar em Configurações qual cartão está sendo cobrado; o número completo é digitado no formulário seguro do Mercado Pago e fica somente com ele — o PsiSetting não o recebe nem o armazena.</li>
               <li><strong>Dados Clínicos e de Pacientes:</strong> Registros cadastrais, evoluções de sessões, diário de bordo e histórico de pagamentos inseridos deliberadamente pelo psicólogo para a condução do acompanhamento clínico.</li>
               <li><strong>Dados de Acesso Técnico:</strong> Logs de sessão, horário de último acesso e endereço IP para prevenção a fraudes e controle de segurança.</li>
             </ul>

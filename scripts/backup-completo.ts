@@ -51,6 +51,10 @@ const TABELAS = [
   "system_announcements",
   "user_encryption_keys",
   "payment_events",
+  // Renovação automática no cartão (migração 20260923150000): sem ela, uma
+  // restauração perderia o vínculo com a assinatura que segue cobrando no
+  // Mercado Pago.
+  "assinaturas_cartao",
 ];
 
 const PAGINA = 500;

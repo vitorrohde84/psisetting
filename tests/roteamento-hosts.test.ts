@@ -47,6 +47,17 @@ describe("roteamento por host", () => {
     }
   });
 
+  it("cron da conferência das assinaturas passa sem login (quem protege é o CRON_SECRET, na rota)", async () => {
+    // A Vercel chama o cron sem sessão. Se o middleware pedisse login, a rota
+    // devolveria 401 (ou o redirecionamento) e a conferência diária nunca rodaria.
+    for (const host of ["app.psisetting.com.br", "www.psisetting.com.br"]) {
+      const resposta = await updateSession(requisicao(`https://${host}/api/cron/assinaturas`));
+      expect(resposta.headers.get("location"), host).toBeNull();
+      expect(resposta.headers.get("x-middleware-rewrite"), host).toBeNull();
+      expect(resposta.status, host).toBe(200);
+    }
+  });
+
   it("landing dentro do app devolve para o www", async () => {
     const resposta = await updateSession(requisicao("https://app.psisetting.com.br/landing"));
     expect(resposta.headers.get("location")).toMatch(/^https:\/\/www\.psisetting\.com\.br\/?$/);

@@ -21,6 +21,20 @@ export interface EntradaAcesso {
   isVip: boolean | null | undefined;
   trialEndsAt: string | Date | null | undefined;
   currentPeriodEnd: string | Date | null | undefined;
+  /**
+   * Renovação automática no cartão ligada (assinatura ativa no Mercado Pago).
+   * Dá a tolerância de CARENCIA_CARTAO_DIAS depois do período pago: a
+   * cobrança do mês pode sair horas depois do fim do período, e um cartão
+   * recusado é tentado de novo por até 10 dias.
+   */
+  renovacaoAutomatica?: boolean;
+  /**
+   * Quando a renovação foi ligada. A tolerância só vale se ela já existia
+   * quando os dias da pessoa acabaram: quem liga o automático já vencido
+   * espera a primeira cobrança ser aprovada — senão ganharia até 10 dias de
+   * acesso sem pagar, e a tela leria isso como "cobrança aprovada".
+   */
+  renovacaoDesde?: string | Date | null;
   agora?: Date;
 }
 
@@ -39,9 +53,21 @@ export interface ResultadoAcesso {
    * período pago — aí o aviso de vencimento e o "Ativo até" usam esta data.
    */
   acessoAte: string | null;
+  /**
+   * Período pago já acabou e o acesso segue pela tolerância da renovação
+   * automática (a cobrança do mês ainda não foi aprovada).
+   */
+  emCarencia: boolean;
 }
 
 const DIA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Dias de acesso depois do fim do período pago enquanto a renovação
+ * automática está ligada. Decisão de 23/09/2026: 10 dias, a janela em que o
+ * Mercado Pago tenta de novo um cartão recusado (até 4 tentativas).
+ */
+export const CARENCIA_CARTAO_DIAS = 10;
 
 function paraData(valor: string | Date | null | undefined): Date | null {
   if (!valor) return null;
@@ -57,6 +83,8 @@ export function calcularAcesso({
   isVip,
   trialEndsAt,
   currentPeriodEnd,
+  renovacaoAutomatica = false,
+  renovacaoDesde = null,
   agora = new Date(),
 }: EntradaAcesso): ResultadoAcesso {
   if (isVip) {
@@ -67,6 +95,7 @@ export function calcularAcesso({
       diasRestantesTeste: 0,
       diasParaVencer: null,
       acessoAte: null,
+      emCarencia: false,
     };
   }
 
@@ -84,7 +113,32 @@ export function calcularAcesso({
       diasRestantesTeste: 0,
       diasParaVencer: diasAte(fim, agora),
       acessoAte: fim.toISOString(),
+      emCarencia: false,
     };
+  }
+
+  // Renovação automática ligada e a cobrança ainda não foi aprovada: o acesso
+  // segue até a tolerância acabar, contada do fim dos dias que a pessoa tinha —
+  // pagos ou de teste. Quem liga o automático no teste grátis tem a primeira
+  // cobrança no fim do teste, e ela também pode sair horas depois ou ser
+  // recusada e tentada de novo.
+  const fimDosDias = [fimPago, fimTeste]
+    .filter((d): d is Date => d !== null)
+    .reduce<Date | null>((maior, d) => (!maior || d > maior ? d : maior), null);
+  const desde = paraData(renovacaoDesde);
+  if (renovacaoAutomatica && desde && fimDosDias && desde <= fimDosDias && fimDosDias <= agora) {
+    const fimCarencia = new Date(fimDosDias.getTime() + CARENCIA_CARTAO_DIAS * DIA_MS);
+    if (fimCarencia > agora) {
+      return {
+        situacao: "ativo",
+        temAcesso: true,
+        somenteLeitura: false,
+        diasRestantesTeste: 0,
+        diasParaVencer: diasAte(fimCarencia, agora),
+        acessoAte: fimCarencia.toISOString(),
+        emCarencia: true,
+      };
+    }
   }
 
   if (fimTeste && fimTeste > agora) {
@@ -95,6 +149,7 @@ export function calcularAcesso({
       diasRestantesTeste: diasAte(fimTeste, agora),
       diasParaVencer: null,
       acessoAte: fimTeste.toISOString(),
+      emCarencia: false,
     };
   }
 
@@ -105,6 +160,7 @@ export function calcularAcesso({
     diasRestantesTeste: 0,
     diasParaVencer: null,
     acessoAte: null,
+    emCarencia: false,
   };
 }
 

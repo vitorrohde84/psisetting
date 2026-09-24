@@ -127,7 +127,16 @@ export function escolherMelhorDesconto(candidatos: DescontoAplicado[]): Desconto
   return melhor;
 }
 
-async function carregarResgatesEmUso(adminClient: AdminClient, userId: string): Promise<LinhaResgate[]> {
+/**
+ * estrito: quem vai GRAVAR a partir do resultado (o valor da assinatura no
+ * Mercado Pago, a foto de uma cobrança) precisa do erro, não de "sem desconto".
+ * Só a prévia da tela aceita cair para o preço cheio numa falha de leitura.
+ */
+export async function carregarResgatesEmUso(
+  adminClient: AdminClient,
+  userId: string,
+  { estrito = false }: { estrito?: boolean } = {}
+): Promise<LinhaResgate[]> {
   const { data, error } = await adminClient
     .from("coupon_redemptions")
     .select(
@@ -137,6 +146,7 @@ async function carregarResgatesEmUso(adminClient: AdminClient, userId: string): 
     .in("desconto_tipo", ["percent", "fixed"]);
 
   if (error) {
+    if (estrito) throw error;
     // Antes da migração 20260923120000 as colunas não existem. Sem a foto não
     // há desconto em uso para aplicar — e errar para o preço cheio aqui é
     // seguro: a tela mostra o mesmo valor que será cobrado.
@@ -152,13 +162,16 @@ export async function calcularPrecoAssinatura({
   userId,
   codigo,
   base = PRECO_BASE,
+  estrito = false,
 }: {
   adminClient: AdminClient;
   userId: string;
   codigo?: string | null;
   base?: number;
+  /** Falha ao ler os descontos em uso sobe como erro (ver carregarResgatesEmUso). */
+  estrito?: boolean;
 }): Promise<PrecoAssinatura> {
-  const candidatos = descontosEmUso(await carregarResgatesEmUso(adminClient, userId), base);
+  const candidatos = descontosEmUso(await carregarResgatesEmUso(adminClient, userId, { estrito }), base);
   let erroCupom: string | undefined;
 
   const codigoLimpo = codigo ? normalizarCodigo(codigo) : "";

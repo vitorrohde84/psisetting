@@ -3,7 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
-import { dataCurta } from "@/utils/assinatura-tela";
+import {
+  consequenciaDoCancelamento,
+  dataCurta,
+  descreverCartao,
+  fimDoAcesso,
+  renovacaoViva,
+} from "@/utils/assinatura-tela";
+import { formatarReais } from "@/utils/preco-desconto";
 import { MercadoPagoBadge } from "./mercadopago-badge";
 import { useRouter } from "next/navigation";
 import {
@@ -19,7 +26,6 @@ import {
   ShieldCheck,
   Phone,
   Award,
-  Sparkles,
   MapPin,
   Building,
   Database,
@@ -27,6 +33,9 @@ import {
   ShieldAlert,
   RefreshCw,
   KeyRound,
+  CreditCard,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import { generateFullSystemBackupCSV } from "@/utils/export-backup";
@@ -49,8 +58,27 @@ interface Profile {
 export function ConfiguracoesView() {
   const supabase = createClient();
   const router = useRouter();
-  const { openSubscriptionModal, situacao, currentPeriodEnd, trialEndsAt } = useSubscription();
+  const {
+    openSubscriptionModal,
+    refreshSubscription,
+    situacao,
+    currentPeriodEnd,
+    trialEndsAt,
+    renovacao,
+    emCarencia,
+  } = useSubscription();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cancelamento da renovação automática
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
+  const [cancelandoRenovacao, setCancelandoRenovacao] = useState(false);
+  const [mensagemRenovacao, setMensagemRenovacao] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Lido no ouvinte de teclado do diálogo, que não é recriado a cada render.
+  const cancelandoRef = useRef(false);
+  const dialogoCancelarRef = useRef<HTMLDivElement>(null);
+  const manterRenovacaoRef = useRef<HTMLButtonElement>(null);
+  const abrirCancelarRef = useRef<HTMLButtonElement>(null);
+  const mensagemRenovacaoRef = useRef<HTMLDivElement>(null);
 
   const [exportingBackup, setExportingBackup] = useState(false);
   const [backupStatus, setBackupStatus] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -66,6 +94,7 @@ export function ConfiguracoesView() {
   const [cidade, setCidade] = useState("");
   const [endereco, setEndereco] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [erroPerfil, setErroPerfil] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{
     type: "success" | "error";
@@ -82,38 +111,154 @@ export function ConfiguracoesView() {
   // Fetch profile
   const fetchProfile = useCallback(async () => {
     setLoadingProfile(true);
+    setErroPerfil(null);
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    // Antes saía sem desligar o "carregando": a tela girava para sempre.
+    if (authError || !user) {
+      setErroPerfil("Não foi possível confirmar sua sessão. Recarregue a página ou entre de novo.");
+      setLoadingProfile(false);
+      return;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("id, nome, nome_completo, email, crp, telefone, genero, cidade, endereco, logo_url, calendar_token")
       .eq("id", user.id)
       .single();
 
-    if (data) {
-      setProfile(data);
-      setNome(data.nome || "");
-      setNomeCompleto(data.nome_completo || data.nome || "");
-      setCrp(data.crp || "");
-      setTelefone(data.telefone || "");
-      setGenero((data.genero as "F" | "M" | "outro") || "F");
-      setCidade(data.cidade || "");
-      setEndereco(data.endereco || "");
-      if (data.logo_url) {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
-        setLogoPreview(url);
-      }
+    // Com o erro descartado, o formulário aparecia vazio — parecia que nome,
+    // CRP e cidade tinham sumido.
+    if (error || !data) {
+      console.error("[configuracoes] perfil não carregado:", error?.message);
+      setErroPerfil("Não foi possível carregar seus dados. Confira sua conexão e tente de novo.");
+      setLoadingProfile(false);
+      return;
+    }
+
+    setProfile(data);
+    setNome(data.nome || "");
+    setNomeCompleto(data.nome_completo || data.nome || "");
+    setCrp(data.crp || "");
+    setTelefone(data.telefone || "");
+    setGenero((data.genero as "F" | "M" | "outro") || "F");
+    setCidade(data.cidade || "");
+    setEndereco(data.endereco || "");
+    if (data.logo_url) {
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
+      setLogoPreview(url);
     }
     setLoadingProfile(false);
+    // `supabase` fica de fora: o cliente do navegador é o mesmo a cada render
+    // (singleton do @supabase/ssr), mas o lint não sabe; com ele nas
+    // dependências, o efeito abaixo buscaria o perfil a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cliente Supabase estável; incluí-lo recriaria a função a cada render
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: os setState síncronos do início repetem o estado inicial (carregando, sem erro) e o resto vem depois do await; o "Tentar de novo" usa a mesma função
     fetchProfile();
   }, [fetchProfile]);
+
+  // As faixas do topo levam a "/configuracoes#plano", mas a seção só existe
+  // depois que o perfil carrega: na chegada, o navegador não acha o id.
+  useEffect(() => {
+    if (loadingProfile || window.location.hash !== "#plano") return;
+    document.getElementById("plano")?.scrollIntoView({ block: "start" });
+  }, [loadingProfile]);
+
+  // Diálogo de cancelar a renovação: foco no botão que NÃO cancela (um Enter
+  // distraído não desliga a cobrança), Esc fecha, Tab circula só dentro dele.
+  // Ao fechar, o foco volta ao botão que o abriu.
+  useEffect(() => {
+    if (!confirmandoCancelamento) return;
+    const abridor = abrirCancelarRef.current;
+    manterRenovacaoRef.current?.focus();
+
+    function aoTeclar(e: KeyboardEvent) {
+      const dialogo = dialogoCancelarRef.current;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        // Com o pedido a caminho, fechar daria a impressão de que nada mudou.
+        if (!cancelandoRef.current) setConfirmandoCancelamento(false);
+        return;
+      }
+      if (e.key !== "Tab" || !dialogo) return;
+      const botoes = Array.from(dialogo.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+      if (botoes.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const primeiro = botoes[0];
+      const ultimo = botoes[botoes.length - 1];
+      if (!dialogo.contains(document.activeElement) || document.activeElement === dialogo) {
+        e.preventDefault();
+        (e.shiftKey ? ultimo : primeiro).focus();
+      } else if (e.shiftKey && document.activeElement === primeiro) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    }
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.removeEventListener("keydown", aoTeclar);
+      if (abridor?.isConnected) abridor.focus();
+    };
+  }, [confirmandoCancelamento]);
+
+  // Depois de cancelar, o botão que abriu o diálogo some da tela (a renovação
+  // deixa de estar ligada): o foco vai para a mensagem, que diz o que houve.
+  // Declarado depois do efeito do diálogo para ganhar do foco devolvido lá.
+  useEffect(() => {
+    if (mensagemRenovacao) mensagemRenovacaoRef.current?.focus();
+  }, [mensagemRenovacao]);
+
+  async function cancelarRenovacao() {
+    if (cancelandoRef.current) return;
+    cancelandoRef.current = true;
+    setCancelandoRenovacao(true);
+    // Os botões ficam desabilitados durante o pedido; o foco fica no diálogo.
+    dialogoCancelarRef.current?.focus();
+
+    let mensagem: { type: "success" | "error"; text: string };
+    try {
+      const res = await fetch("/api/subscription/automatica/cancelar", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        mensagem = { type: "success", text: "Pronto: a renovação automática foi cancelada e seu cartão não será mais cobrado." };
+      } else {
+        // 404 (já não havia renovação), 409 (ainda em confirmação), 429 e 500
+        // (pode ter cancelado no Mercado Pago) trazem a frase pronta.
+        mensagem = {
+          type: "error",
+          text:
+            typeof data?.error === "string" && data.error
+              ? data.error
+              : "Não foi possível cancelar agora. Tente de novo em alguns minutos.",
+        };
+      }
+    } catch {
+      mensagem = {
+        type: "error",
+        text: "Sem resposta do servidor. Confira sua conexão; se a renovação continuar ligada aqui, tente de novo.",
+      };
+    }
+
+    cancelandoRef.current = false;
+    setCancelandoRenovacao(false);
+    setConfirmandoCancelamento(false);
+    setMensagemRenovacao(mensagem);
+    // Fura o cache de 1 minuto do status: sem isso a tela seguiria mostrando a
+    // renovação ligada. Também depois de erro — a situação real pode não ser a
+    // da tela (404, ou 500 depois de cancelar no Mercado Pago).
+    await refreshSubscription();
+  }
 
   // Save profile
   async function handleSaveProfile(e: React.FormEvent) {
@@ -306,9 +451,15 @@ export function ConfiguracoesView() {
           type: "error",
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // Chega aqui o Error de sessão lançado acima ou um erro do navegador:
+      // lê `message` de qualquer objeto, como antes (err.message).
+      const mensagem =
+        typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "";
       setBackupStatus({
-        message: err.message || "Erro inesperado ao gerar backup.",
+        message: mensagem || "Erro inesperado ao gerar backup.",
         type: "error",
       });
     } finally {
@@ -319,6 +470,28 @@ export function ConfiguracoesView() {
   if (loadingProfile) {
     return <Carregando className="py-24" />;
   }
+
+  if (erroPerfil) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+        <p className="text-sm text-text-muted">{erroPerfil}</p>
+        <button
+          type="button"
+          onClick={() => void fetchProfile()}
+          className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-text hover:bg-background transition-colors cursor-pointer"
+        >
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
+
+  // Renovação automática ligada (ou em confirmação): o Mercado Pago cobra
+  // sozinho e o modal de assinatura só repetiria a situação mostrada aqui.
+  const automatica = renovacaoViva(renovacao);
+  const acessoAte = fimDoAcesso({ situacao, currentPeriodEnd, trialEndsAt });
+  const proximaCobranca = dataCurta(renovacao?.proximaCobranca ?? renovacao?.primeiraCobranca);
+  const canceladaEm = dataCurta(renovacao?.canceladaEm);
 
   return (
     <div>
@@ -542,6 +715,10 @@ export function ConfiguracoesView() {
             <div className="flex items-center gap-4">
               <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                 {logoPreview ? (
+                  // Logo enviado pela pessoa, lido direto do Storage do Supabase
+                  // (com ?t= para furar o cache depois do upload): o next/image
+                  // exigiria liberar o domínio e otimizaria uma miniatura.
+                  // eslint-disable-next-line @next/next/no-img-element -- logo do usuário, servido pelo Storage do Supabase
                   <img
                     src={logoPreview}
                     alt="Logo"
@@ -657,7 +834,8 @@ export function ConfiguracoesView() {
         </div>
 
         {/* ─── Plano & Assinatura (Mercado Pago & Cupons) ─── */}
-        <div className="bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
+        {/* id "plano": destino das faixas do topo (cartão recusado, renovação automática). */}
+        <div id="plano" className="scroll-mt-6 bg-surface rounded-2xl border border-border/60 shadow-xs overflow-hidden">
           <div className="flex items-center justify-between p-5 pb-4 border-b border-border/40">
             <div className="flex items-center gap-2.5">
               <ShieldCheck size={18} className="text-primary" />
@@ -691,22 +869,137 @@ export function ConfiguracoesView() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={openSubscriptionModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
-              >
-                <span>
-                  {situacao === "ativo"
-                    ? "Renovar"
-                    : situacao === "vencido"
-                    ? "Reativar acesso"
-                    : situacao === "vip"
-                    ? "Ver plano"
-                    : "Assinar / Ver Opções"}
-                </span>
-              </button>
+              {/* No automático, "Renovar" convidaria a pagar duas vezes: a situação
+                  e o cancelamento ficam no quadro logo abaixo. */}
+              {!automatica && (
+                <button
+                  type="button"
+                  onClick={openSubscriptionModal}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-xs shrink-0"
+                >
+                  <span>
+                    {situacao === "ativo"
+                      ? "Renovar"
+                      : situacao === "vencido"
+                      ? "Reativar acesso"
+                      : situacao === "vip"
+                      ? "Ver plano"
+                      : "Assinar / Ver Opções"}
+                  </span>
+                </button>
+              )}
             </div>
+
+            {/* ─── Renovação automática no cartão ─── */}
+            {renovacao && renovacao.situacao !== "cancelada" && (
+              <div className="p-4 rounded-xl bg-background border border-border/80 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                    <CreditCard size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-text">Cartão · renovação automática</p>
+                    <p className="text-xs text-text-muted">
+                      {descreverCartao(renovacao.cartaoBandeira, renovacao.cartaoFinal)}
+                    </p>
+                  </div>
+                </div>
+
+                {renovacao.situacao === "criando" ? (
+                  <p role="status" className="text-xs text-text-muted flex items-start gap-1.5">
+                    <Clock size={13} className="text-primary shrink-0 mt-px" />
+                    <span>Estamos confirmando sua renovação automática com o Mercado Pago.</span>
+                  </p>
+                ) : (
+                  (proximaCobranca || renovacao.valor !== null) && (
+                    <dl className="grid grid-cols-2 gap-3 text-xs">
+                      {proximaCobranca && (
+                        <div>
+                          <dt className="text-text-muted">Próxima cobrança</dt>
+                          <dd className="font-semibold text-text">{proximaCobranca}</dd>
+                        </div>
+                      )}
+                      {renovacao.valor !== null && (
+                        <div>
+                          <dt className="text-text-muted">Valor</dt>
+                          <dd className="font-semibold text-text">R$ {formatarReais(renovacao.valor)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  )
+                )}
+
+                {renovacao.cobrancaRecusada ? (
+                  <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-start gap-2">
+                    <AlertTriangle size={14} className="text-amber-700 shrink-0 mt-0.5" />
+                    <p className="leading-relaxed">
+                      <strong>Não conseguimos cobrar seu cartão.</strong> O Mercado Pago tenta de novo nos próximos dias
+                      {acessoAte ? `; seu acesso continua até ${acessoAte}.` : "."} Se preferir pagar por PIX, cancele a
+                      renovação automática.
+                    </p>
+                  </div>
+                ) : (
+                  // Período pago acabou e a cobrança do mês ainda não entrou: sem
+                  // esta linha, "Ativo até" mostraria a data da tolerância sem
+                  // explicar de onde ela vem.
+                  emCarencia &&
+                  renovacao.situacao === "ativa" && (
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      A cobrança deste mês ainda não foi confirmada pelo Mercado Pago.
+                      {acessoAte ? ` Seu acesso continua até ${acessoAte}.` : ""}
+                    </p>
+                  )
+                )}
+
+                {/* "criando" não tem o que cancelar ainda: o servidor responde 409. */}
+                {renovacao.situacao === "ativa" && (
+                  <button
+                    ref={abrirCancelarRef}
+                    type="button"
+                    onClick={() => {
+                      setMensagemRenovacao(null);
+                      setConfirmandoCancelamento(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-danger/30 text-xs font-semibold text-danger
+                               hover:bg-danger/5 transition-colors cursor-pointer
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30"
+                  >
+                    Cancelar renovação automática
+                  </button>
+                )}
+              </div>
+            )}
+
+            {renovacao?.situacao === "cancelada" && (
+              <div className="p-3.5 rounded-xl bg-background border border-border/80 text-xs text-text-muted flex items-start gap-2.5">
+                <CreditCard size={15} className="shrink-0 mt-px" />
+                <p className="leading-relaxed">
+                  Renovação automática cancelada
+                  {canceladaEm ? ` em ${canceladaEm}` : ""}.
+                  {acessoAte ? ` Seu acesso vai até ${acessoAte}.` : ""}
+                </p>
+              </div>
+            )}
+
+            {mensagemRenovacao && (
+              <div
+                ref={mensagemRenovacaoRef}
+                tabIndex={-1}
+                role={mensagemRenovacao.type === "error" ? "alert" : "status"}
+                className={`p-3 rounded-xl text-xs flex items-start gap-2 border focus:outline-none ${
+                  mensagemRenovacao.type === "success"
+                    ? "bg-success/10 text-success border-success/20"
+                    : "bg-danger/10 text-danger border-danger/20"
+                }`}
+              >
+                {mensagemRenovacao.type === "success" ? (
+                  <Check size={14} className="shrink-0 mt-px" />
+                ) : (
+                  <ShieldAlert size={14} className="shrink-0 mt-px" />
+                )}
+                <span>{mensagemRenovacao.text}</span>
+              </div>
+            )}
 
             <MercadoPagoBadge variant="card" />
 
@@ -836,6 +1129,56 @@ export function ConfiguracoesView() {
         isOpen={showPinModal}
         onClose={() => setShowPinModal(false)}
       />
+
+      {/* Confirmação: no Mercado Pago, cancelar não tem volta (para voltar, assina de novo). */}
+      {confirmandoCancelamento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-text/20 backdrop-blur-sm"
+            onClick={() => !cancelandoRenovacao && setConfirmandoCancelamento(false)}
+          />
+          <div
+            ref={dialogoCancelarRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cancelar-renovacao-titulo"
+            aria-describedby="cancelar-renovacao-texto"
+            aria-busy={cancelandoRenovacao}
+            tabIndex={-1}
+            className="relative w-full max-w-md bg-surface rounded-2xl shadow-xl border border-border/60 p-6 focus:outline-none"
+          >
+            <h3 id="cancelar-renovacao-titulo" className="text-lg font-serif font-medium text-text mb-2">
+              Cancelar a renovação automática?
+            </h3>
+            <p id="cancelar-renovacao-texto" className="text-sm text-text-muted leading-relaxed mb-6">
+              {consequenciaDoCancelamento({ emCarencia, acessoAte })}
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+              <button
+                ref={manterRenovacaoRef}
+                type="button"
+                onClick={() => setConfirmandoCancelamento(false)}
+                disabled={cancelandoRenovacao}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-text-muted hover:bg-background transition-colors cursor-pointer disabled:opacity-50
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                Manter renovação
+              </button>
+              <button
+                type="button"
+                onClick={cancelarRenovacao}
+                disabled={cancelandoRenovacao}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-danger text-white text-sm font-medium
+                           hover:bg-danger/90 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+              >
+                {cancelandoRenovacao && <Loader2 size={16} className="animate-spin" />}
+                {cancelandoRenovacao ? "Cancelando..." : "Sim, cancelar renovação"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRECO_BASE, ehTipoDesconto, type TipoDesconto } from "./preco-desconto";
-import type { DescontoAplicado } from "./preco-assinatura";
+import { carregarResgatesEmUso, descontosEmUso, type DescontoAplicado } from "./preco-assinatura";
 import { ativarAssinatura, definirStatusAssinatura } from "./subscription-activation";
+import { ehCobrancaDeAssinatura, ehValidacaoDeCartao, mesmoValor } from "./assinatura-cartao";
 
 /**
  * Pagamento aprovado → dias de acesso e mensalidade de cupom, num passo só.
@@ -21,8 +22,8 @@ import { ativarAssinatura, definirStatusAssinatura } from "./subscription-activa
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = SupabaseClient<any, any, any>;
 
-export type OrigemPagamento = "process-payment" | "pix-check" | "webhook" | "reconciliacao";
-export type MeioPagamento = "pix" | "cartao";
+export type OrigemPagamento = "process-payment" | "pix-check" | "webhook" | "reconciliacao" | "cron";
+export type MeioPagamento = "pix" | "cartao" | "cartao_automatico";
 
 /** O pedaço do pagamento do Mercado Pago que interessa aqui. */
 export interface PagamentoMP {
@@ -33,6 +34,8 @@ export interface PagamentoMP {
   payment_type_id?: string;
   payment_method_id?: string;
   metadata?: unknown;
+  operation_type?: string;
+  point_of_interaction?: unknown;
 }
 
 export interface FotoDoPagamento {
@@ -123,7 +126,40 @@ export function erroPermanente(error: unknown): boolean {
   return code === "P0001" || code === "22P02" || code === "23503";
 }
 
+/**
+ * A foto do desconto de uma cobrança da renovação automática.
+ *
+ * O Mercado Pago não copia a nossa metadata para as cobranças da assinatura,
+ * então a foto vem do resgate gravado ao assinar (reservar_cupom_assinatura) —
+ * e só vale se o valor cobrado for o valor com desconto. Cobrança de valor
+ * cheio, ou com os meses do cupom já esgotados, vai SEM foto: o banco dá 30
+ * dias e não conta mensalidade. Nunca dias proporcionais numa cobrança
+ * automática — o valor dela é definido por nós, não pela pessoa; se a subida
+ * para R$ 34,90 atrasou, o erro é nosso.
+ */
+export async function fotoDaCobrancaAutomatica(
+  adminClient: AdminClient,
+  userId: string,
+  valorCobrado: unknown
+): Promise<FotoDoPagamento | null> {
+  // Estrito: sem conseguir ler os descontos, a cobrança não pode ser gravada
+  // "sem foto" (daria 30 dias sem contar a mensalidade do cupom). O erro sobe,
+  // o webhook responde 500 e o Mercado Pago reenvia.
+  const emUso = descontosEmUso(await carregarResgatesEmUso(adminClient, userId, { estrito: true }));
+  const d = emUso.find((c) => mesmoValor(c.valorFinal, valorCobrado));
+  if (!d) return null;
+  return {
+    cupomId: d.couponId,
+    tipo: d.tipo,
+    valor: d.valor,
+    duracaoMeses: d.duracaoMeses,
+    paraSempre: d.paraSempre,
+  };
+}
+
 export interface ResultadoProcessamento {
+  /** Não é mensalidade (validação de cartão da assinatura): nada foi gravado. */
+  ignorado?: boolean;
   jaProcessado: boolean;
   dias?: number;
   observacao?: string | null;
@@ -137,24 +173,39 @@ export async function processarPagamentoAprovado({
   userId,
   payment,
   origem,
+  recorrente = false,
 }: {
   adminClient: AdminClient;
   userId: string;
   payment: PagamentoMP;
   origem: OrigemPagamento;
+  /**
+   * Quem chama já sabe que é cobrança da renovação automática (veio da fatura
+   * da assinatura). Sem isto, a cobrança é reconhecida pelo próprio pagamento.
+   */
+  recorrente?: boolean;
 }): Promise<ResultadoProcessamento> {
   if (payment.status !== "approved" || payment.id === undefined || payment.id === null) {
     throw new Error(`[pagamento] processarPagamentoAprovado chamado com pagamento não aprovado (${payment.status}).`);
   }
 
+  // A cobrança de valor mínimo que valida o cartão da assinatura é devolvida
+  // em seguida. Dar 30 dias por ela seria acesso de graça.
+  if (ehValidacaoDeCartao(payment)) {
+    return { ignorado: true, jaProcessado: false };
+  }
+
   const paymentId = String(payment.id);
-  const foto = lerDescontoDaMetadata(payment.metadata);
+  const automatica = recorrente || ehCobrancaDeAssinatura(payment);
+  const foto = automatica
+    ? await fotoDaCobrancaAutomatica(adminClient, userId, payment.transaction_amount)
+    : lerDescontoDaMetadata(payment.metadata);
 
   const { data, error } = await adminClient.rpc("processar_pagamento_aprovado", {
     p_payment_id: paymentId,
     p_user_id: userId,
     p_origem: origem,
-    p_meio: meioDoPagamento(payment),
+    p_meio: automatica ? "cartao_automatico" : meioDoPagamento(payment),
     p_valor: Number(payment.transaction_amount) || 0,
     p_preco_base: PRECO_BASE,
     p_cupom_id: foto?.cupomId ?? null,
@@ -187,16 +238,29 @@ export async function processarPagamentoAprovado({
   // Outro caminho (webhook, reconciliação) chegou antes: os dias já foram
   // gravados. Lê o que foi concedido, para a tela mostrar o número real.
   if (resultado.ja_processado) {
-    const { data: evento } = await adminClient
+    const { data: evento, error: erroEvento } = await adminClient
       .from("payment_events")
       .select("dias_concedidos, observacao")
       .eq("payment_id", paymentId)
       .maybeSingle();
+    // Só informativo (a tela mostra "liberado" sem o número): não derruba nada.
+    if (erroEvento) console.error(`[pagamento] não foi possível ler o evento ${paymentId}:`, erroEvento.message);
     return {
       jaProcessado: true,
       dias: evento?.dias_concedidos ?? undefined,
       observacao: evento?.observacao ?? null,
     };
+  }
+
+  if (automatica) {
+    // Cobrança do mês aprovada: a recusa anterior (se houve) deixou de valer.
+    const { error: erroRecusa } = await adminClient
+      .from("assinaturas_cartao")
+      .update({ ultima_recusa_em: null, atualizada_em: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("situacao", "ativa")
+      .not("ultima_recusa_em", "is", null);
+    if (erroRecusa) console.error(`[pagamento] não foi possível limpar a recusa de ${userId}:`, erroRecusa.message);
   }
 
   if (resultado.observacao) {

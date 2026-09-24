@@ -5,6 +5,12 @@ import { calcularAcesso } from "@/utils/acesso-assinatura";
 import { isEmailAdmin } from "@/utils/admin-auth";
 import { checkRateLimit } from "@/utils/rate-limit";
 import { reconciliarPagamentos } from "@/utils/reconciliar-pagamentos";
+import { renovacaoParaTela } from "@/utils/assinatura-cartao";
+import {
+  assinaturaMaisRecente,
+  resolverCriacaoPendente,
+  type LinhaAssinatura,
+} from "@/utils/assinatura-cartao-servidor";
 
 /**
  * Situação da assinatura de quem está logado.
@@ -13,7 +19,17 @@ import { reconciliarPagamentos } from "@/utils/reconciliar-pagamentos";
  * status gravado. Antes, `status === "active"` dava acesso para sempre a quem
  * pagou uma vez, e contas canceladas, com pagamento recusado ou com teste
  * expirado pelo admin nunca entravam em somente leitura.
+ *
+ * Com a renovação automática ligada, o acesso tem a tolerância de cartão
+ * recusado (10 dias depois do período pago) e a tela recebe a próxima
+ * cobrança, o valor e o final do cartão em `renovacao`.
  */
+
+/** No máximo ~3 s em qualquer consulta ao Mercado Pago feita daqui. */
+function comTeto<T>(p: Promise<T>, reserva: T): Promise<T> {
+  return Promise.race([p, new Promise<T>((resolve) => setTimeout(() => resolve(reserva), 3000))]);
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -30,11 +46,13 @@ export async function GET() {
     }
 
     const colunas = "trial_ends_at, subscription_status, is_vip, is_admin, current_period_end";
-    let { data: profile, error: profileError } = await supabase
+    const { data: perfilLido, error: profileError } = await supabase
       .from("profiles")
       .select(colunas)
       .eq("id", user.id)
       .single();
+    // `let` porque o perfil é relido abaixo se a reconciliação liberar dias.
+    let profile = perfilLido;
 
     if (profileError || !profile) {
       return NextResponse.json(
@@ -43,13 +61,38 @@ export async function GET() {
       );
     }
 
+    // Renovação automática: a tabela só é legível pelo servidor. Uma falha
+    // aqui não derruba a tela — a pessoa só fica sem a tolerância nesta
+    // consulta, e a próxima tenta de novo.
+    let assinatura: LinhaAssinatura | null = null;
+    try {
+      const admin = createAdminClient();
+      assinatura = await assinaturaMaisRecente(admin, user.id);
+
+      // Criação que ficou sem resposta do Mercado Pago: procura lá, sem
+      // segurar a tela (a conferência diária também resolve).
+      if (assinatura?.situacao === "criando") {
+        const limite = await checkRateLimit(`resolver-assinatura:${user.id}`, 1, 2 * 60 * 1000);
+        if (limite.success) {
+          const situacao = await comTeto(resolverCriacaoPendente(admin, assinatura), "criando" as const);
+          if (situacao !== "criando") assinatura = await assinaturaMaisRecente(admin, user.id);
+        }
+      }
+    } catch (err) {
+      console.error("[status] renovação automática não lida:", err);
+    }
+
     // Conta de administrador nunca fica em somente leitura: é quem opera o
     // sistema, e antes o status gravado cobria isso por acaso.
     const isAdmin = Boolean(profile.is_admin) || isEmailAdmin(user.email);
+    const renovacaoAutomatica = assinatura?.situacao === "ativa";
+    const renovacaoDesde = assinatura?.criada_em ?? null;
     let acesso = calcularAcesso({
       isVip: Boolean(profile.is_vip) || isAdmin,
       trialEndsAt: profile.trial_ends_at,
       currentPeriodEnd: profile.current_period_end,
+      renovacaoAutomatica,
+      renovacaoDesde,
     });
 
     // Prestes a entrar em somente leitura: antes de bloquear, pergunta ao
@@ -63,19 +106,22 @@ export async function GET() {
           // No máximo ~3 s: esta rota é chamada ao abrir qualquer tela, e o
           // Mercado Pago lento não pode segurar a interface. Se estourar, a
           // próxima consulta (ou o webhook) termina o trabalho.
-          const { processados } = await Promise.race([
+          const { processados } = await comTeto(
             reconciliarPagamentos({ adminClient: createAdminClient(), userId: user.id }),
-            new Promise<{ processados: number }>((resolve) =>
-              setTimeout(() => resolve({ processados: 0 }), 3000)
-            ),
-          ]);
+            { processados: 0 }
+          );
           if (processados > 0) {
-            ({ data: profile } = await supabase.from("profiles").select(colunas).eq("id", user.id).single());
-            if (profile) {
+            const releitura = await supabase.from("profiles").select(colunas).eq("id", user.id).single();
+            if (releitura.error) {
+              console.error("[status] perfil não relido depois da reconciliação:", releitura.error.message);
+            } else if (releitura.data) {
+              profile = releitura.data;
               acesso = calcularAcesso({
                 isVip: Boolean(profile.is_vip) || isAdmin,
                 trialEndsAt: profile.trial_ends_at,
                 currentPeriodEnd: profile.current_period_end,
+                renovacaoAutomatica,
+                renovacaoDesde,
               });
             }
           }
@@ -110,6 +156,10 @@ export async function GET() {
       diasParaVencer: acesso.diasParaVencer,
       isReadOnly: acesso.somenteLeitura,
       hasActiveSubscription: acesso.situacao === "vip" || acesso.situacao === "ativo",
+      // O período pago acabou e o acesso segue pela tolerância do cartão.
+      emCarencia: acesso.emCarencia,
+      // VIP não tem cobrança: nada de renovação na tela, mesmo que sobre linha antiga.
+      renovacao: acesso.situacao === "vip" ? null : renovacaoParaTela(assinatura),
     });
   } catch (error: unknown) {
     console.error("Erro ao buscar status da assinatura:", error);

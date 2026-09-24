@@ -1,15 +1,26 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useSubscription } from "@/utils/subscription-context";
 import { MercadoPagoBrick } from "./mercadopago-brick";
 import { MercadoPagoBadge } from "./mercadopago-badge";
 import { formatarReais } from "@/utils/preco-desconto";
+import { VALIDADE_PIX_MIN, formatarContagemPix } from "@/utils/pix-validade";
+import {
+  AVISO_VALIDACAO_CARTAO,
+  TEXTO_MES_A_MES,
+  cobrancaAutomatica,
+  inicioDaCobrancaNaTela,
+  situacaoRenovacao,
+  textoBotaoCartao,
+  type ModoCartao,
+} from "@/utils/renovacao-tela";
 import {
   dataCurta,
   ehErroDeCupom,
-  horaCurta,
   lerPreco,
+  renovacaoViva,
   resumirValor,
   resumoLiberacao,
   sufixoDoValor,
@@ -39,6 +50,7 @@ import {
   EyeOff,
   Info,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 
 export function SubscriptionModal() {
@@ -59,7 +71,8 @@ interface DadosPix {
   qr_code: string;
   qr_code_base64: string;
   amount: number;
-  expires_at?: string;
+  /** Fim da validade no relógio DESTE aparelho (ms), calculado da duração que o servidor mandou. */
+  validoAte: number;
 }
 
 const BENEFICIOS = [
@@ -127,6 +140,9 @@ function ModalAssinatura() {
     isVip,
     situacao,
     currentPeriodEnd,
+    trialEndsAt,
+    renovacao,
+    emCarencia,
     modalComCupom,
     refreshSubscription,
     aguardarConfirmacaoPagamento,
@@ -135,9 +151,37 @@ function ModalAssinatura() {
   // Quem já tem acesso pago e abriu o modal para pagar mais um mês.
   const renovando = situacao === "ativo" && !isVip;
 
+  // Renovação automática ligada (ou sendo confirmada): o modal mostra só a
+  // situação — o servidor também recusa PIX e cartão avulso nesse caso.
+  const comRenovacaoViva = renovacaoViva(renovacao);
+
+  // "Confirmando com o Mercado Pago": a rota de status procura a assinatura
+  // lá a cada consulta (no máximo uma a cada 2 min). Com o modal aberto,
+  // consulta de novo sozinho por até 10 min, para a tela sair do "confirmando"
+  // sem a pessoa precisar fechar e abrir.
+  const renovacaoCriando = renovacao?.situacao === "criando";
+  useEffect(() => {
+    if (!renovacaoCriando) return;
+    let voltas = 0;
+    const intervalo = window.setInterval(() => {
+      voltas++;
+      if (voltas > 20) {
+        window.clearInterval(intervalo);
+        return;
+      }
+      void refreshSubscription();
+    }, 30_000);
+    return () => window.clearInterval(intervalo);
+  }, [renovacaoCriando, refreshSubscription]);
+
   // Etapa: "overview" (benefícios, preço e cupom) ou "payment" (PIX / cartão)
   const [step, setStep] = useState<"overview" | "payment">("overview");
   const [activeTab, setActiveTab] = useState<"pix" | "cartao">("pix");
+  // Automático já vem marcado (decisão de 23/09/2026): quem escolhe o cartão
+  // quase sempre quer não ter de lembrar de pagar todo mês.
+  const [modoCartao, setModoCartao] = useState<ModoCartao>("automatico");
+  /** O formulário do cartão está enviando: trocar de modo ou de aba agora desmontaria o formulário no meio da resposta. */
+  const [cartaoProcessando, setCartaoProcessando] = useState(false);
 
   // ── Preço: sempre o do servidor ──────────────────────────────────────
   // Começa "carregando" em vez de R$ 34,90: quem tem cupom em uso veria o
@@ -161,19 +205,33 @@ function ModalAssinatura() {
   const [pixData, setPixData] = useState<DadosPix | null>(null);
   const [pixMensagem, setPixMensagem] = useState<Mensagem | null>(null);
   const [pixExpirado, setPixExpirado] = useState(false);
+  /** Segundos que faltam para o QR vencer (a contagem da tela). */
+  const [restantePix, setRestantePix] = useState<number | null>(null);
   const [copiedPix, setCopiedPix] = useState(false);
   /** PIX confirmado: o título e os dias que o banco concedeu. */
   const [pixConfirmacao, setPixConfirmacao] = useState<{ titulo: string; liberacao: Liberacao } | null>(null);
   const pixApproved = pixConfirmacao !== null;
 
-  // Cartão aprovado ou em análise: trocar de aba desmontaria o aviso e
-  // convidaria a pagar de novo pelo PIX.
+  // Cartão aprovado, em análise ou com a renovação automática ligada: trocar
+  // de aba desmontaria o aviso e convidaria a pagar de novo pelo PIX.
   const [cartaoConcluido, setCartaoConcluido] = useState(false);
 
-  /** Aprovado com menos dias que o período: o modal espera a pessoa ler e fechar. */
-  const [liberacaoParcial, setLiberacaoParcial] = useState(false);
+  /**
+   * O sucesso tem algo que precisa ser lido (dias proporcionais, data da 1ª
+   * cobrança agendada): o modal espera a pessoa fechar.
+   */
+  const [aguardaLeitura, setAguardaLeitura] = useState(false);
   /** Primeiro Esc no meio de um pagamento: o aviso do que se perde ao fechar. */
   const [avisoEsc, setAvisoEsc] = useState<string | null>(null);
+
+  // Quem ligou o automático NESTA janela continua vendo a tela de sucesso: a
+  // atualização do status (que já traz a renovação) não pode trocá-la pela
+  // situação antes de a pessoa ler.
+  const mostrarSituacao = !isVip && comRenovacaoViva && !cartaoConcluido && !pixApproved;
+
+  // Conta VIP (e a de administrador, que o status devolve como VIP) nunca vê
+  // a etapa de pagamento, mesmo que o status chegue com ela já aberta.
+  const etapa: "overview" | "payment" | "situacao" = isVip ? "overview" : mostrarSituacao ? "situacao" : step;
 
   const dialogoRef = useRef<HTMLDivElement>(null);
   const tituloRef = useRef<HTMLHeadingElement>(null);
@@ -198,18 +256,19 @@ function ModalAssinatura() {
   }, []);
 
   /**
-   * Pagamento confirmado (por qualquer caminho). Fecha sozinho em 3 s — menos
-   * quando os dias vieram proporcionais: aí a explicação precisa ser lida, e
-   * quem fecha é a pessoa. O ref impede que dois caminhos confirmando o mesmo
-   * pagamento (resposta direta e espera pelo status) registrem duas vezes.
+   * Pagamento confirmado (por qualquer caminho) ou renovação automática ligada
+   * com a 1ª cobrança agendada. Fecha sozinho em 3 s — menos quando há o que
+   * ler (dias proporcionais, a data da 1ª cobrança): aí quem fecha é a pessoa.
+   * O ref impede que dois caminhos confirmando o mesmo pagamento (resposta
+   * direta e espera pelo status) registrem duas vezes.
    */
   const sucessoRef = useRef(false);
   const registrarSucesso = useCallback(
-    (liberacao: Liberacao) => {
+    (fecharSozinho: boolean) => {
       if (sucessoRef.current) return;
       sucessoRef.current = true;
-      if (liberacao.parcial) setLiberacaoParcial(true);
-      else agendar(closeSubscriptionModal, 3000);
+      if (fecharSozinho) agendar(closeSubscriptionModal, 3000);
+      else setAguardaLeitura(true);
     },
     [agendar, closeSubscriptionModal]
   );
@@ -264,9 +323,10 @@ function ModalAssinatura() {
   /** Só o preço que vale agora: com erro na última carga, nenhum. */
   const precoAtual = precoErro ? null : preco;
 
-  // VIP não paga: nada a buscar.
+  // VIP não paga, e quem já está no automático só vê a situação: nada a
+  // buscar. Se a renovação sair (cancelada em outra aba), o preço é buscado aí.
   useEffect(() => {
-    if (isVip) return;
+    if (isVip || comRenovacaoViva) return;
     let ativo = true;
     void obterPreco().then((r) => {
       if (ativo) receberPreco(r);
@@ -274,14 +334,14 @@ function ModalAssinatura() {
     return () => {
       ativo = false;
     };
-  }, [receberPreco, isVip]);
+  }, [receberPreco, isVip, comRenovacaoViva]);
 
   // Polling: o PIX foi pago?
   useEffect(() => {
     if (!pixData || pixApproved) return;
 
     const inicio = Date.now();
-    const venceEm = pixData.expires_at ? new Date(pixData.expires_at).getTime() : NaN;
+    const venceEm = pixData.validoAte;
     let ativo = true;
     let timer: number | undefined;
 
@@ -305,8 +365,14 @@ function ModalAssinatura() {
             // Pago com a aba do cartão aberta: as abas somem e o formulário
             // ficaria à mostra, convidando a pagar de novo.
             setActiveTab("pix");
-            registrarSucesso(liberacao);
+            registrarSucesso(!liberacao.parcial);
             await refreshSubscription();
+            return;
+          }
+          if (data.expirado && ativo) {
+            // Cancelado no Mercado Pago ao vencer: nenhum pagamento chega mais
+            // por este QR, então a consulta para aqui.
+            setPixExpirado(true);
             return;
           }
         }
@@ -327,6 +393,19 @@ function ModalAssinatura() {
     };
   }, [pixData, pixApproved, refreshSubscription, registrarSucesso]);
 
+  // Contagem dos 15 minutos do QR. Ao chegar a zero a tela troca para
+  // "expirou" na hora, sem esperar a próxima consulta ao servidor (que é quem
+  // cancela o QR no Mercado Pago — ver utils/pix-validade.ts).
+  useEffect(() => {
+    if (!pixData || pixApproved || pixExpirado) return;
+    const intervalo = window.setInterval(() => {
+      const s = Math.max(0, Math.ceil((pixData.validoAte - Date.now()) / 1000));
+      setRestantePix(s);
+      if (s === 0) setPixExpirado(true);
+    }, 1000);
+    return () => window.clearInterval(intervalo);
+  }, [pixData, pixApproved, pixExpirado]);
+
   // QR vencido: a consulta acima para 5 min depois, mas o pagamento feito no
   // limite ainda pode ser confirmado pelo webhook. A espera do contexto cobre
   // isso — e é ela que torna verdade o "o acesso é liberado assim que o banco
@@ -339,7 +418,7 @@ function ModalAssinatura() {
       const liberacao = resumoLiberacao(undefined, null);
       setPixConfirmacao({ titulo: "Pagamento confirmado!", liberacao });
       setActiveTab("pix");
-      registrarSucesso(liberacao);
+      registrarSucesso(!liberacao.parcial);
     });
   }, [pixExpirado, pixData, pixApproved, aguardarConfirmacaoPagamento, registrarSucesso]);
 
@@ -349,9 +428,9 @@ function ModalAssinatura() {
   useEffect(() => {
     const dialogo = dialogoRef.current;
     if (!dialogo || dialogo.contains(document.activeElement)) return;
-    const campo = modalComCupom && step === "overview" ? campoCupomRef.current : null;
+    const campo = modalComCupom && etapa === "overview" ? campoCupomRef.current : null;
     (campo ?? tituloRef.current)?.focus();
-  }, [step, modalComCupom]);
+  }, [etapa, modalComCupom]);
 
   /** O cupom digitado deixou de valer no momento de pagar. */
   function descartarCupom(mensagem: string) {
@@ -369,6 +448,7 @@ function ModalAssinatura() {
     setPixData(null);
     setPixConfirmacao(null);
     setPixExpirado(false);
+    setRestantePix(null);
 
     const enviouCupom = Boolean(cupomDigitado);
 
@@ -396,6 +476,13 @@ function ModalAssinatura() {
           setAvisoPreco(erro || "O valor mudou. Confira o novo valor e gere o PIX de novo.");
           return;
         }
+        // Renovação automática ligada (em outra aba, por exemplo): o servidor
+        // não gera PIX por cima dela. Com o status novo, o modal mostra a situação.
+        if (data.renovacao) {
+          setPixMensagem({ tipo: "info", texto: erro || "Você já tem a renovação automática ligada." });
+          await refreshSubscription();
+          return;
+        }
       }
 
       if (ehErroDeCupom(res.status, erro, enviouCupom)) {
@@ -411,13 +498,18 @@ function ModalAssinatura() {
         return;
       }
 
+      // A duração, e não o horário: um celular com a hora errada ainda conta
+      // os 15 minutos certos.
+      const segundos = Number(data.validade_segundos);
+      const validadeS = Number.isFinite(segundos) && segundos >= 0 ? segundos : VALIDADE_PIX_MIN * 60;
+      setRestantePix(validadeS);
       setPixData({
         payment_id: data.payment_id,
         qr_code: data.qr_code,
         qr_code_base64: data.qr_code_base64,
         // O QR mostra o que o SERVIDOR cobrou, não o que a tela calculava.
         amount: typeof data.amount === "number" ? data.amount : precoAtual.valor,
-        expires_at: data.date_of_expiration,
+        validoAte: Date.now() + validadeS * 1000,
       });
     } catch (err) {
       console.error("Erro ao gerar Pix:", err);
@@ -520,10 +612,6 @@ function ModalAssinatura() {
   const pagamentoConcluido = pixApproved || cartaoConcluido;
   const desconto = precoAtual?.desconto ?? null;
 
-  // Conta VIP (e a de administrador, que o status devolve como VIP) nunca vê
-  // a etapa de pagamento, mesmo que o status chegue com ela já aberta.
-  const etapa = isVip ? "overview" : step;
-
   // QR Code na tela (ou sendo gerado) ou formulário do cartão aberto: fechar
   // some com o QR ou com o que foi digitado.
   const pixEmAndamento = pixLoading || (pixData !== null && !pixExpirado);
@@ -532,7 +620,14 @@ function ModalAssinatura() {
     etapa === "payment" && !pagamentoConcluido && (pixEmAndamento || cartaoNaTela);
   const perdaAoFechar = pixEmAndamento
     ? "O QR Code some da tela, mas, se você já pagou, o acesso é liberado sozinho quando o banco confirmar."
-    : "O que você digitou no cartão se perde; se o pagamento já foi enviado, o acesso é liberado sozinho quando for aprovado.";
+    : modoCartao === "automatico"
+      ? "O que você digitou no cartão se perde; se você já confirmou, a renovação automática aparece em Configurações em alguns minutos."
+      : "O que você digitou no cartão se perde; se o pagamento já foi enviado, o acesso é liberado sozinho quando for aprovado.";
+
+  const situacaoTela =
+    etapa === "situacao" && renovacao
+      ? situacaoRenovacao({ renovacao, situacao, currentPeriodEnd, emCarencia })
+      : null;
 
   // Teclado do diálogo, no padrão do TermoResponsabilidade (laudo-form-modal):
   // Tab circula só dentro dele; Esc fecha.
@@ -606,7 +701,7 @@ function ModalAssinatura() {
     // Sem "soma 30 dias": se o desconto do cupom não couber na aprovação, o
     // banco libera dias proporcionais, e a tela de sucesso diz quantos.
     subtitulo =
-      "O novo período começa quando o atual termina — você não perde nenhum dia. Não há débito automático.";
+      "O novo período começa quando o atual termina — você não perde nenhum dia. No cartão, dá para ligar a renovação automática.";
   } else if (isReadOnly) {
     chip = (
       <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-200">
@@ -658,6 +753,71 @@ function ModalAssinatura() {
         >
           <X size={18} />
         </button>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            JÁ NO AUTOMÁTICO: SÓ A SITUAÇÃO (sem PIX, formulário ou cupom)
+        ═══════════════════════════════════════════════════════════════ */}
+        {etapa === "situacao" && renovacao && situacaoTela && (
+          <div className="space-y-3.5 animate-in fade-in">
+            <div className="pr-8">
+              {renovacao.situacao === "criando" ? (
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary/25 text-text text-[11px] font-bold border border-secondary/40">
+                  <Loader2 size={12} className="animate-spin text-primary" />
+                  <span>Em confirmação</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-success/15 text-success text-[11px] font-bold border border-success/25">
+                  <RefreshCw size={12} />
+                  <span>Cartão com renovação automática</span>
+                </div>
+              )}
+              <h2
+                ref={tituloRef}
+                id="titulo-assinatura"
+                tabIndex={-1}
+                className="text-xl sm:text-2xl font-serif font-bold text-text mt-2 focus:outline-hidden"
+              >
+                {situacaoTela.titulo}
+              </h2>
+              {situacaoTela.texto && (
+                <p className="text-xs text-text-muted mt-1 leading-relaxed">{situacaoTela.texto}</p>
+              )}
+            </div>
+
+            {situacaoTela.detalhes.length > 0 && (
+              <dl className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 space-y-1.5 text-xs">
+                {situacaoTela.detalhes.map((d) => (
+                  <div key={d.rotulo} className="flex items-center justify-between gap-3">
+                    <dt className="text-text-muted">{d.rotulo}</dt>
+                    <dd className="font-bold text-text text-right">{d.valor}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+
+            {situacaoTela.alerta && <MensagemInline mensagem={situacaoTela.alerta} />}
+
+            {/* Decisão de 23/09/2026: aqui só a situação. Cancelar fica em
+                Configurações, junto do resto da assinatura. */}
+            <Link
+              href="/configuracoes#plano"
+              onClick={closeSubscriptionModal}
+              className="w-full py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark transition-all flex items-center justify-center gap-2 text-xs sm:text-sm shadow-md hover:shadow-lg cursor-pointer"
+            >
+              <Settings size={15} />
+              <span>Gerenciar em Configurações</span>
+            </Link>
+            <p className="text-[11px] text-text-muted text-center leading-snug">
+              {renovacao.situacao === "criando"
+                ? "Assim que o Mercado Pago confirmar, a renovação aparece em Configurações."
+                : "Lá você pode cancelar a renovação. O acesso continua até o fim do período já pago."}
+            </p>
+
+            <div className="pt-2 border-t border-border/60">
+              <MercadoPagoBadge variant="compact" className="w-full justify-center text-[10px]" />
+            </div>
+          </div>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════════
             ETAPA 1: BENEFÍCIOS, PREÇO REAL E CUPOM
@@ -800,7 +960,8 @@ function ModalAssinatura() {
               <button
                 type="button"
                 onClick={() => setStep("overview")}
-                className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text cursor-pointer transition-colors"
+                disabled={cartaoProcessando}
+                className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ArrowLeft size={13} />
                 <span>Voltar aos benefícios</span>
@@ -859,7 +1020,8 @@ function ModalAssinatura() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("pix")}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  disabled={cartaoProcessando}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     activeTab === "pix" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text"
                   }`}
                 >
@@ -901,8 +1063,9 @@ function ModalAssinatura() {
             ) : activeTab === "pix" ? (
               /* ───────── ABA 1: PIX ───────── */
               <div className="space-y-2.5">
-                <AvisoAvulso icone={QrCode} titulo="Pagamento avulso · 30 dias de acesso">
-                  Não há débito automático: no mês seguinte você renova por aqui, e avisamos antes de vencer.
+                <AvisoAvulso icone={QrCode} titulo="Pagamento avulso por PIX · 30 dias de acesso">
+                  No mês seguinte você renova por aqui, e avisamos antes de vencer. Para cobrança automática, use o
+                  cartão.
                 </AvisoAvulso>
 
                 {pixConfirmacao ? (
@@ -934,6 +1097,9 @@ function ModalAssinatura() {
                     {/* QR Code Imagem */}
                     <div className="p-3 bg-white rounded-xl border border-border flex flex-col items-center justify-center text-center shadow-inner max-w-[200px] mx-auto">
                       {pixData.qr_code_base64 ? (
+                        // QR Code do Mercado Pago em data: (base64): não há arquivo
+                        // para o next/image otimizar.
+                        // eslint-disable-next-line @next/next/no-img-element -- imagem data: gerada pelo Mercado Pago
                         <img
                           src={`data:image/png;base64,${pixData.qr_code_base64}`}
                           alt="QR Code Pix"
@@ -975,12 +1141,20 @@ function ModalAssinatura() {
                       </div>
                     </div>
 
-                    {/* O horário é o que o Mercado Pago devolveu (~32 min, com folga
-                        para o relógio de lá): "30 minutos" de cor não batia. */}
-                    <p className="text-[10px] text-text-muted text-center">
-                      {horaCurta(pixData.expires_at)
-                        ? `O QR Code vale até ${horaCurta(pixData.expires_at)}.`
-                        : "O QR Code vale por cerca de 30 minutos."}
+                    {/* A contagem fica fora do anúncio do leitor de tela, que
+                        leria cada segundo; ele ouve a frase fixa. */}
+                    <p className="text-[11px] text-text-muted text-center">
+                      <span aria-hidden="true">
+                        O QR Code expira em{" "}
+                        <strong
+                          className={`font-bold tabular-nums ${
+                            restantePix !== null && restantePix <= 60 ? "text-danger" : "text-text"
+                          }`}
+                        >
+                          {formatarContagemPix(restantePix ?? VALIDADE_PIX_MIN * 60)}
+                        </strong>
+                      </span>
+                      <span className="sr-only">O QR Code vale por {VALIDADE_PIX_MIN} minutos.</span>
                     </p>
 
                     {/* Status de Aguardo em Tempo Real */}
@@ -993,7 +1167,7 @@ function ModalAssinatura() {
                   <div className="space-y-3 text-center py-1">
                     <p className="text-xs text-text-muted leading-relaxed">
                       Gere o <strong className="text-text">QR Code Pix de R$ {formatarReais(precoAtual.valor)}</strong>. O
-                      acesso é liberado assim que o banco confirmar. O QR Code vale por cerca de 30 minutos.
+                      acesso é liberado assim que o banco confirmar. O QR Code vale por {VALIDADE_PIX_MIN} minutos.
                     </p>
 
                     <BotaoGerarPix
@@ -1009,28 +1183,92 @@ function ModalAssinatura() {
               </div>
             ) : (
               /* ───────── ABA 2: CARTÃO DE CRÉDITO (EMBUTIDO) ───────── */
-              <div className="space-y-2 py-0.5">
-                {/* A cobrança automática no cartão ainda não existe: prometer
-                    "assinatura recorrente" aqui fazia a pessoa achar que
-                    estava tudo certo e ser bloqueada 30 dias depois. */}
-                <AvisoAvulso icone={CreditCard} titulo="Pagamento único no cartão · 30 dias de acesso">
-                  Não há débito automático: no mês seguinte você renova por aqui (avisamos antes de vencer).
-                </AvisoAvulso>
+              <div className="space-y-2.5 py-0.5">
+                {/* A escolha vem ANTES do formulário: trocar o modo recria o
+                    formulário (o que foi digitado se perde) e muda o que o
+                    botão dele faz. Depois do sucesso, só o resultado fica. */}
+                {!cartaoConcluido && (
+                  <>
+                    <fieldset disabled={cartaoProcessando} className="space-y-1.5">
+                      <legend className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                        1. Como você quer pagar no cartão
+                      </legend>
+                      <OpcaoModoCartao
+                        valor="automatico"
+                        marcado={modoCartao === "automatico"}
+                        onEscolher={setModoCartao}
+                        titulo="Automático"
+                        selo="Recomendado"
+                        icone={RefreshCw}
+                      >
+                        {cobrancaAutomatica(precoAtual)}
+                      </OpcaoModoCartao>
+                      <OpcaoModoCartao
+                        valor="avulso"
+                        marcado={modoCartao === "avulso"}
+                        onEscolher={setModoCartao}
+                        titulo="Mês a mês"
+                        icone={CalendarCheck}
+                      >
+                        {TEXTO_MES_A_MES}
+                      </OpcaoModoCartao>
+                    </fieldset>
+
+                    {modoCartao === "automatico" && (
+                      <ul className="space-y-1 text-[11px] text-text-muted leading-snug">
+                        <li className="flex items-start gap-1.5">
+                          <Calendar size={12} className="text-primary shrink-0 mt-0.5" />
+                          <span>{inicioDaCobrancaNaTela({ currentPeriodEnd, trialEndsAt })}</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <Info size={12} className="text-primary shrink-0 mt-0.5" />
+                          <span>{AVISO_VALIDACAO_CARTAO}</span>
+                        </li>
+                      </ul>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted shrink-0">
+                        2. Dados do cartão
+                      </p>
+                      <span className="flex-1 h-px bg-border/80" aria-hidden="true" />
+                    </div>
+                  </>
+                )}
 
                 <MercadoPagoBrick
-                  // O Brick não troca de valor depois de criado: valor ou
-                  // cupom novos exigem um Brick novo.
-                  key={`${precoAtual.valor}|${cupomDigitado ?? ""}`}
+                  // O Brick não troca de valor nem de modo depois de criado:
+                  // valor, cupom ou modo novos exigem um Brick novo.
+                  key={`${modoCartao}|${precoAtual.valor}|${cupomDigitado ?? ""}`}
+                  modo={modoCartao}
+                  textoBotao={textoBotaoCartao(modoCartao, precoAtual)}
                   valorEsperado={precoAtual.valor}
                   couponCode={cupomDigitado}
                   onSuccess={async (dias) => {
                     setCartaoConcluido(true);
-                    registrarSucesso(resumoLiberacao(dias.dias, dias.observacao));
+                    registrarSucesso(!resumoLiberacao(dias.dias, dias.observacao).parcial);
                     await refreshSubscription();
                   }}
                   // Em análise, o próprio Brick espera a aprovação (pelo
                   // contexto) e vira "aprovado" sozinho se ela chegar.
                   onEmAnalise={() => setCartaoConcluido(true)}
+                  onAutomaticoLigado={(ligada) => {
+                    setCartaoConcluido(true);
+                    // 1ª cobrança agendada: nada mais acontece nesta janela, e
+                    // a data precisa ser lida — quem fecha é a pessoa. Cobrança
+                    // em seguida: o Brick espera a aprovação e chama onSuccess.
+                    if (ligada.primeiraCobranca) registrarSucesso(false);
+                    void refreshSubscription();
+                  }}
+                  // Com o status novo, o modal troca o formulário pela situação.
+                  onRenovacaoJaLigada={() => void refreshSubscription()}
+                  // Pode ter sido criada: sem abas nem formulário, para ninguém
+                  // tentar de novo. Se foi, o status já a traz como "criando".
+                  onIncerto={() => {
+                    setCartaoConcluido(true);
+                    void refreshSubscription();
+                  }}
+                  onProcessando={setCartaoProcessando}
                   onPrecoMudou={(novo, mensagem) => {
                     trocarPreco(novo);
                     setAvisoPreco(mensagem);
@@ -1040,9 +1278,9 @@ function ModalAssinatura() {
               </div>
             )}
 
-            {/* Dias proporcionais: o modal não fecha sozinho antes de a
-                pessoa ler o porquê. */}
-            {liberacaoParcial && (
+            {/* Há o que ler (dias proporcionais, data da 1ª cobrança): o
+                modal não fecha sozinho. */}
+            {aguardaLeitura && (
               <button
                 type="button"
                 onClick={closeSubscriptionModal}
@@ -1063,7 +1301,11 @@ function ModalAssinatura() {
   );
 }
 
-/** Quadro "Assinatura Única" da etapa 1, com o preço que o servidor calculou. */
+/**
+ * Quadro de preço da etapa 1, com o valor que o servidor calculou. Os textos
+ * valem para as três formas (PIX, cartão mês a mês e automático): a escolha
+ * vem na etapa seguinte.
+ */
 function QuadroPreco({
   preco,
   carregando,
@@ -1084,7 +1326,7 @@ function QuadroPreco({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Assinatura Única · 30 dias
+            Plano Único · mensal
           </span>
 
           {carregando ? (
@@ -1121,7 +1363,7 @@ function QuadroPreco({
             <ShieldCheck size={13} className="text-primary" />
             <span>Sem fidelidade</span>
           </p>
-          <p>Sem débito automático</p>
+          <p>PIX ou cartão</p>
         </div>
       </div>
 
@@ -1137,6 +1379,58 @@ function QuadroPreco({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Uma das opções do cartão (Automático / Mês a mês). Rádio nativo dentro do
+ * fieldset: as setas trocam de opção e o leitor de tela anuncia o grupo pela
+ * legenda, sem ARIA feito à mão.
+ */
+function OpcaoModoCartao({
+  valor,
+  marcado,
+  onEscolher,
+  titulo,
+  selo,
+  icone: Icone,
+  children,
+}: {
+  valor: ModoCartao;
+  marcado: boolean;
+  onEscolher: (modo: ModoCartao) => void;
+  titulo: string;
+  selo?: string;
+  icone: typeof QrCode;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-colors cursor-pointer has-focus-visible:ring-2 has-focus-visible:ring-primary/40 has-disabled:cursor-not-allowed has-disabled:opacity-60 ${
+        marcado ? "bg-primary/10 border-primary/50" : "bg-background border-border/80 hover:border-primary/30"
+      }`}
+    >
+      <input
+        type="radio"
+        name="modo-cartao"
+        value={valor}
+        checked={marcado}
+        onChange={() => onEscolher(valor)}
+        className="mt-0.5 shrink-0 accent-primary cursor-pointer disabled:cursor-not-allowed"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <Icone size={13} className="text-primary shrink-0" />
+          <span className="text-xs font-bold text-text">{titulo}</span>
+          {selo && (
+            <span className="px-1.5 py-px rounded-full bg-primary/15 border border-primary/25 text-primary text-[10px] font-bold">
+              {selo}
+            </span>
+          )}
+        </span>
+        <span className="block mt-0.5 text-[11px] text-text-muted leading-snug">{children}</span>
+      </span>
+    </label>
   );
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
-import { ArrowLeft, Shield, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default function TermosPage() {
             Termos de Uso do PsiSetting
           </h1>
           <p className="text-sm text-text-muted">
-            Última atualização: 19 de agosto de 2026
+            Última atualização: 23 de setembro de 2026
           </p>
         </div>
 
@@ -103,7 +103,9 @@ export default function TermosPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
               <li>Caso o profissional opte por não assinar ou não renovar, a conta passará para o <strong>Modo Somente Leitura</strong>, assegurando que nenhum dado anteriormente inserido seja apagado ou fique inacessível para consulta e exportação, em respeito ao dever de guarda documental previsto nas normas do CFP.</li>
-              <li>O <strong>Plano Único Profissional</strong> (R$ 34,90/mês) não possui fidelidade nem contrato de permanência mínima. O pagamento é feito por período de 30 dias, por PIX ou cartão, sem débito automático: para encerrar, basta não renovar.</li>
+              <li>O <strong>Plano Único Profissional</strong> (R$ 34,90/mês) não possui fidelidade nem contrato de permanência mínima. O pagamento por PIX, ou por cartão no modo mês a mês, é avulso e libera 30 dias de acesso: para encerrar, basta não renovar.</li>
+              <li>No cartão, o profissional pode optar pela <strong>renovação automática</strong>: a mensalidade é cobrada pelo Mercado Pago todo mês, no mesmo dia. Com cupom de desconto, o valor volta ao do plano quando terminam os meses do desconto. O cancelamento pode ser feito a qualquer momento em Configurações, e o acesso continua até o fim do período já pago.</li>
+              <li>Se uma cobrança da renovação automática for recusada, o Mercado Pago faz novas tentativas e o acesso é mantido por até 10 dias após o fim do período pago; sem pagamento aprovado nesse prazo, a conta passa para o Modo Somente Leitura. Depois de 3 mensalidades recusadas, o Mercado Pago cancela a renovação automática.</li>
             </ul>
           </section>
 

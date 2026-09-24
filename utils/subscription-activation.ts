@@ -29,7 +29,7 @@ interface AtivarParams {
   userId: string;
   /** Identificador do pagamento no Mercado Pago. Chave de idempotência. */
   paymentId: string;
-  origem: "process-payment" | "pix-check" | "webhook" | "reconciliacao";
+  origem: "process-payment" | "pix-check" | "webhook" | "reconciliacao" | "cron";
   diasPeriodo?: number;
 }
 

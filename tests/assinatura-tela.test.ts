@@ -1,20 +1,27 @@
 import { describe, it, expect } from "vitest";
 import {
   acessoAvancou,
+  avisoCobrancaRecusada,
   avisoDeVencimento,
+  consequenciaDoCancelamento,
   dataCurta,
+  descreverCartao,
   diasDeCalendario,
   ehErroDeCupom,
+  fimDoAcesso,
   lerPreco,
+  lerRenovacao,
   lerStatusAssinatura,
   mensagemRecusaCartao,
   prazoDeVencimento,
+  renovacaoViva,
   resumirValor,
   resumoLiberacao,
   sufixoDoValor,
   type PrecoTela,
   type StatusAssinatura,
 } from "../utils/assinatura-tela";
+import type { RenovacaoTela } from "../utils/assinatura-cartao";
 
 /**
  * O que as telas de assinatura dizem sobre dinheiro e prazo. O que isto trava:
@@ -23,12 +30,30 @@ import {
  *  - o cache antigo do status (sem `situacao`) não bloqueia ninguém;
  *  - só erro de CUPOM apaga o cupom digitado;
  *  - a tela de sucesso diz os dias que o banco concedeu, não "30" de cor;
- *  - a espera por um pagamento só acaba quando ele virou acesso de fato.
+ *  - a espera por um pagamento só acaba quando ele virou acesso de fato;
+ *  - quem está no automático não é convidado a "renovar", e o cartão recusado
+ *    avisa até quando o acesso vai;
+ *  - cancelar a renovação na tolerância não promete a data da tolerância.
  */
 
 // Datas montadas no fuso local da máquina: o teste vale em qualquer fuso.
 const local = (ano: number, mes: number, dia: number, hora = 12, min = 0) =>
   new Date(ano, mes - 1, dia, hora, min);
+
+function renovacao(r: Partial<RenovacaoTela> = {}): RenovacaoTela {
+  return {
+    situacao: "ativa",
+    valor: 27.92,
+    proximaCobranca: "2026-10-23T12:00:00.000Z",
+    primeiraCobranca: null,
+    cartaoFinal: "1234",
+    cartaoBandeira: "visa",
+    cobrancaRecusada: false,
+    canceladaEm: null,
+    canceladaPor: null,
+    ...r,
+  };
+}
 
 function preco(desconto: Partial<NonNullable<PrecoTela["desconto"]>> | null, valor = 27.92): PrecoTela {
   return {
@@ -172,6 +197,105 @@ describe("aviso de vencimento", () => {
   it("sem a data, usa a conta do servidor", () => {
     expect(avisoDeVencimento({ ...base, currentPeriodEnd: null })).toEqual({ dias: 4, data: null });
   });
+
+  it("renovação automática ligada ou em confirmação: o cartão é cobrado sozinho, sem aviso", () => {
+    expect(avisoDeVencimento({ ...base, renovacao: renovacao() })).toBeNull();
+    expect(avisoDeVencimento({ ...base, renovacao: renovacao({ situacao: "criando", proximaCobranca: null }) })).toBeNull();
+    // Cartão recusado tem a própria faixa, que não fala em "renove".
+    expect(avisoDeVencimento({ ...base, renovacao: renovacao({ cobrancaRecusada: true }) })).toBeNull();
+  });
+
+  it("renovação cancelada: a pessoa voltou ao mês a mês e o aviso volta", () => {
+    const cancelada = renovacao({ situacao: "cancelada", proximaCobranca: null, canceladaEm: "2026-09-20T12:00:00.000Z" });
+    expect(avisoDeVencimento({ ...base, renovacao: cancelada })).toEqual({ dias: 3, data: "26/09" });
+    expect(avisoDeVencimento({ ...base, renovacao: null })).toEqual({ dias: 3, data: "26/09" });
+  });
+});
+
+describe("renovação automática viva", () => {
+  it("ativa e em confirmação contam; cancelada e nenhuma, não", () => {
+    expect(renovacaoViva(renovacao())).toBe(true);
+    expect(renovacaoViva(renovacao({ situacao: "criando" }))).toBe(true);
+    expect(renovacaoViva(renovacao({ situacao: "cancelada" }))).toBe(false);
+    expect(renovacaoViva(null)).toBe(false);
+    expect(renovacaoViva(undefined)).toBe(false);
+  });
+});
+
+describe("cartão recusado no automático", () => {
+  const fim = local(2026, 10, 3, 18).toISOString();
+  const base = { hasActiveSubscription: true, isVip: false, currentPeriodEnd: fim };
+  const recusada = renovacao({ cobrancaRecusada: true });
+
+  it("aparece com a data até quando o acesso continua", () => {
+    expect(avisoCobrancaRecusada({ ...base, renovacao: recusada })).toEqual({ acessoAte: "03/10" });
+  });
+
+  it("sem a data do servidor, não inventa uma", () => {
+    expect(avisoCobrancaRecusada({ ...base, currentPeriodEnd: null, renovacao: recusada })).toEqual({ acessoAte: null });
+  });
+
+  it("não aparece sem recusa, fora do automático, sem acesso ou para VIP", () => {
+    expect(avisoCobrancaRecusada({ ...base, renovacao: renovacao() })).toBeNull();
+    expect(avisoCobrancaRecusada({ ...base, renovacao: null })).toBeNull();
+    expect(avisoCobrancaRecusada({ ...base, renovacao: renovacao({ situacao: "cancelada", cobrancaRecusada: true }) })).toBeNull();
+    // Já em somente leitura: vale a faixa de somente leitura.
+    expect(avisoCobrancaRecusada({ ...base, hasActiveSubscription: false, renovacao: recusada })).toBeNull();
+    expect(avisoCobrancaRecusada({ ...base, isVip: true, renovacao: recusada })).toBeNull();
+  });
+});
+
+describe("cancelar a renovação automática", () => {
+  it("fim do acesso: período pago no ativo, fim do teste no teste, nada no vencido", () => {
+    const datas = {
+      currentPeriodEnd: local(2026, 10, 20).toISOString(),
+      trialEndsAt: local(2026, 9, 30).toISOString(),
+    };
+    expect(fimDoAcesso({ situacao: "ativo", ...datas })).toBe("20/10");
+    expect(fimDoAcesso({ situacao: "teste", ...datas })).toBe("30/09");
+    expect(fimDoAcesso({ situacao: "vencido", ...datas })).toBeNull();
+    expect(fimDoAcesso({ situacao: "vip", ...datas })).toBeNull();
+    expect(fimDoAcesso({ situacao: "ativo", currentPeriodEnd: null, trialEndsAt: null })).toBeNull();
+  });
+
+  it("com dias pagos pela frente: o acesso continua até o fim deles", () => {
+    expect(consequenciaDoCancelamento({ emCarencia: false, acessoAte: "20/10" })).toBe(
+      "Seu cartão não será mais cobrado. Seu acesso continua até 20/10. Depois disso, você renova por PIX ou cartão, mês a mês. Para voltar à renovação automática, é só assinar de novo."
+    );
+  });
+
+  it("na tolerância do cartão recusado: não promete a data da tolerância", () => {
+    const frase = consequenciaDoCancelamento({ emCarencia: true, acessoAte: "03/10" });
+    expect(frase).not.toMatch(/03\/10/);
+    expect(frase).toMatch(/deixa de poder criar registros assim que cancelar/);
+    expect(frase).toMatch(/é só assinar de novo\.$/);
+  });
+
+  it("sem data a prometer, não fala em 'continua até'", () => {
+    expect(consequenciaDoCancelamento({ emCarencia: false, acessoAte: null })).not.toMatch(/continua até/);
+  });
+});
+
+describe("cartão na tela", () => {
+  it("bandeira conhecida e final", () => {
+    expect(descreverCartao("visa", "1234")).toBe("Visa final 1234");
+    expect(descreverCartao("master", "5678")).toBe("Mastercard final 5678");
+    expect(descreverCartao(" AMEX ", "0005")).toBe("American Express final 0005");
+    expect(descreverCartao("hipercard", "9876")).toBe("Hipercard final 9876");
+    expect(descreverCartao("elo", null)).toBe("Elo");
+  });
+
+  it("bandeira desconhecida ou ausente vira 'Cartão'", () => {
+    expect(descreverCartao("naranja", "1234")).toBe("Cartão final 1234");
+    expect(descreverCartao(null, null)).toBe("Cartão");
+    // Nome de propriedade de objeto não vira bandeira.
+    expect(descreverCartao("constructor", "1234")).toBe("Cartão final 1234");
+  });
+
+  it("final que não são 4 dígitos não aparece", () => {
+    expect(descreverCartao("visa", "12")).toBe("Visa");
+    expect(descreverCartao("visa", "**** 1234")).toBe("Visa");
+  });
 });
 
 describe("lerStatusAssinatura", () => {
@@ -207,6 +331,37 @@ describe("lerStatusAssinatura", () => {
     expect(s.diasParaVencer).toBeNull();
     expect(s.currentPeriodEnd).toBeNull();
     expect(lerStatusAssinatura({ situacao: "inventada", diasParaVencer: "3" }).diasParaVencer).toBeNull();
+  });
+
+  it("renovação automática e tolerância passam inteiras", () => {
+    const r = renovacao({ cobrancaRecusada: true });
+    const s = lerStatusAssinatura({ situacao: "ativo", hasActiveSubscription: true, emCarencia: true, renovacao: r });
+    expect(s.emCarencia).toBe(true);
+    expect(s.renovacao).toEqual(r);
+  });
+
+  it("cache de antes da renovação automática: ninguém no automático nem na tolerância", () => {
+    const s = lerStatusAssinatura({ situacao: "ativo", hasActiveSubscription: true });
+    expect(s.renovacao).toBeNull();
+    expect(s.emCarencia).toBe(false);
+  });
+
+  it("renovação estranha vira null, e campo estranho vira o valor seguro", () => {
+    expect(lerRenovacao(null)).toBeNull();
+    expect(lerRenovacao("ativa")).toBeNull();
+    expect(lerRenovacao({ situacao: "falhou" })).toBeNull();
+    expect(lerStatusAssinatura({ emCarencia: "sim" }).emCarencia).toBe(false);
+    expect(lerRenovacao({ situacao: "ativa", valor: "27,92", cobrancaRecusada: "sim", cartaoFinal: 1234 })).toEqual({
+      situacao: "ativa",
+      valor: null,
+      proximaCobranca: null,
+      primeiraCobranca: null,
+      cartaoFinal: null,
+      cartaoBandeira: null,
+      cobrancaRecusada: false,
+      canceladaEm: null,
+      canceladaPor: null,
+    });
   });
 });
 
@@ -268,6 +423,21 @@ describe("espera de pagamento: o acesso avançou?", () => {
     expect(acessoAvancou(antes, ativoAte("2026-10-01T12:00:00.000Z"))).toBe(false);
     // Sem a data de antes, continua esperando.
     expect(acessoAvancou(ativoAte(null), ativoAte("2026-10-31T12:00:00.000Z"))).toBe(false);
+  });
+
+  it("acesso pela tolerância do cartão não é pagamento aprovado", () => {
+    // Revisão de 23/09: "vencido → ativo em tolerância" fazia a tela dizer
+    // "primeira cobrança aprovada" sem cobrança nenhuma.
+    const emTolerancia = status({
+      situacao: "ativo",
+      hasActiveSubscription: true,
+      currentPeriodEnd: "2026-10-03T12:00:00.000Z",
+      emCarencia: true,
+    });
+    expect(acessoAvancou(vencido, emTolerancia)).toBe(false);
+    expect(acessoAvancou(ativoAte("2026-09-20T12:00:00.000Z"), emTolerancia)).toBe(false);
+    // Saindo da tolerância com a cobrança aprovada: aí sim.
+    expect(acessoAvancou(emTolerancia, ativoAte("2026-11-02T12:00:00.000Z"))).toBe(true);
   });
 
   it("nada mudou: continua esperando", () => {

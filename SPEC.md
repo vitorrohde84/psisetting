@@ -50,13 +50,23 @@
    * **Comentários de supervisão** em cada anotação, escritos pelo próprio psicólogo depois da supervisão, cifrados como a anotação.
 
 7. **Assinatura, pagamento e cupons:**
-   * **Acesso decidido pelas datas** (`utils/acesso-assinatura.ts`): VIP ou admin, período pago no futuro, ou teste no futuro. Fora disso, Modo Somente Leitura. O `subscription_status` gravado é só informação.
-   * Pagamento avulso por PIX ou cartão: cada pagamento aprovado soma 30 dias a partir do maior entre agora, fim do período pago e fim do teste. Não há débito automático. Aviso 5 dias antes de vencer.
+   * **Acesso decidido pelas datas** (`utils/acesso-assinatura.ts`): VIP ou admin, período pago no futuro, ou teste no futuro. Fora disso, Modo Somente Leitura. O `subscription_status` gravado é só informação. A única folga é a tolerância de 10 dias da renovação automática (abaixo).
+   * **Pagamento avulso** por PIX ou cartão "mês a mês": cada pagamento aprovado soma 30 dias a partir do maior entre agora, fim do período pago e fim do teste. Aviso 5 dias antes de vencer.
+   * **PIX com validade de 15 minutos na tela.** O Mercado Pago exige no mínimo 30 min em `date_of_expiration`: o pagamento nasce lá com 32 min, e a tela conta 15 min a partir da criação (o servidor manda a duração; a contagem usa o relógio do aparelho). Passados 15 min + 1 de folga, a consulta da tela (`pix/check`) cancela o pagamento no Mercado Pago e o QR deixa de valer no banco (`utils/pix-validade.ts`, `utils/pix-cancelamento.ts`). Se já tiver sido pago, o Mercado Pago recusa o cancelamento e o pagamento é creditado. Com a tela fechada, o QR vence sozinho no Mercado Pago aos 32 min. Gerar um QR novo cancela os anteriores ainda pendentes: um QR pagável por pessoa.
+   * **Renovação automática no cartão** (opcional, escolhida na aba Cartão; PIX é sempre avulso). Regras puras em `utils/assinatura-cartao.ts`; Mercado Pago e banco em `utils/assinatura-cartao-servidor.ts`.
+     - Assinatura (preapproval) do Mercado Pago **sem plano**: cada pessoa tem o seu valor (com o desconto do cupom) e a sua data de início. A primeira cobrança sai no fim dos dias que a pessoa já tem (teste ou pagos); sem dias, em seguida (até ~1 hora). Depois, todo mês no mesmo dia. Ao criar, o Mercado Pago pode fazer uma cobrança de validação de valor baixo, estornada em seguida — ela não vira dias.
+     - **Uma assinatura viva por pessoa**, garantida pelo banco: índice único parcial em `assinaturas_cartao` (situação `criando` ou `ativa`), com a linha `criando` gravada antes de chamar o Mercado Pago. O `/preapproval` não tem idempotência documentada, então a criação vai sem novas tentativas; resposta ambígua (rede, 5xx) fica `criando` até a assinatura ser encontrada no Mercado Pago, ou vira `falhou` em 1 hora. Nunca criar de novo sem procurar antes.
+     - Cada cobrança aprovada passa por `processarPagamentoAprovado`, como qualquer pagamento (meio `cartao_automatico`). O Mercado Pago não copia a nossa metadata para as cobranças da assinatura: a foto do desconto vem do **resgate** gravado ao assinar (`reservar_cupom_assinatura`) e só vale se o valor cobrado for o valor com desconto. Nunca dias proporcionais numa cobrança automática — o valor dela é definido por nós.
+     - O cupom vale na hora de assinar e vira resgate na hora (a promessa da tela vale até a primeira cobrança, mesmo que o cupom seja pausado antes). Não se aplica cupom no meio de uma assinatura ativa. Esgotados os meses do cupom, ou encerrado o desconto pelo admin, o valor da assinatura sobe para R$ 34,90: a sincronização roda depois de cada cobrança aprovada e na conferência diária. Assinatura cancelada ou que falhou antes de qualquer cobrança devolve a reserva (`liberar_reserva_cupom`) — nunca se alguma fatura já tem pagamento (a cobrança pode ter saído sem o aviso ter chegado) nem se o admin encerrou o desconto. Ligar o automático cancela os PIX pendentes da pessoa.
+     - **Cartão recusado:** o Mercado Pago tenta de novo (até 4 vezes em ~10 dias) e cancela a assinatura depois de 3 mensalidades recusadas. Enquanto ela está ativa, o acesso segue por **10 dias** depois do fim dos dias que a pessoa tinha — pagos ou de teste (`CARENCIA_CARTAO_DIAS`; `emCarencia` no status). Só vale se a renovação já estava ligada quando esses dias acabaram: quem liga o automático já vencido espera a primeira cobrança ser aprovada (senão ganharia acesso sem pagar). A tela nunca trata acesso pela tolerância como pagamento aprovado. Depois, Modo Somente Leitura.
+     - **Cancelamento** pela pessoa (Configurações), pelo admin, pelo Mercado Pago ou pelo sistema (conta excluída, virou VIP, chargeback de uma cobrança automática). Não tem volta no Mercado Pago: para voltar, assina de novo. O acesso segue até o fim do período já pago, sem a tolerância. Excluir a conta, dar VIP (pelo admin ou por cupom) ou tornar admin cancela antes; se o Mercado Pago não confirmar o cancelamento, a ação não acontece. O cancelamento só é gravado depois de o Mercado Pago mostrar a assinatura cancelada. O banco recusa apagar uma conta com assinatura viva (gatilho em `profiles`), e a conferência diária cancela a de quem é VIP ou admin. Trocar de cartão é cancelar e assinar de novo.
+     - Com renovação viva, PIX e cartão avulso respondem 409 (seria cobrar duas vezes no mesmo mês); a tela mostra só a situação e o caminho para Configurações.
+     - Três caminhos ficam sabendo das cobranças, todos idempotentes: a criação (`/api/subscription/automatica`), o **webhook** e a **conferência diária** (`/api/cron/assinaturas`, Vercel Cron). A preapproval não aceita `notification_url`: os avisos dela e das cobranças vêm da URL configurada no painel do Mercado Pago, com os eventos "Pagamentos" e "Planos e assinaturas". A conferência não depende do webhook: pega cobrança aprovada sem dias, recusa, cancelamento feito no Mercado Pago, valor que não subiu, criação pendente e assinatura a mais da mesma pessoa (cancela a que não é a nossa); lê todas as faturas dos últimos 90 dias e confere por 35 dias as canceladas há pouco. O webhook que traz uma assinatura desconhecida com a nossa referência a vincula direto à linha `criando` (ou recupera uma criação dada como falha cedo demais). A leitura dos descontos que decide o valor no Mercado Pago é estrita: se falhar, nada é alterado. Limites: 5 tentativas por conta a cada 10 min, 10 por IP por hora, e 3 cartões recusados por dia.
    * Preço calculado **só no servidor** (`utils/preco-assinatura.ts`), o mesmo para a tela e para a cobrança; a tela envia o valor que mostrou e o servidor recusa (409) se diferir.
    * **Cupom de desconto** (% ou R$) com duração: N mensalidades ou para sempre. Os meses contam mensalidades pagas com desconto. O resgate guarda a **foto** das condições: pausar, vencer ou editar o cupom não muda nada para quem já usa. Descontos não se somam (vale o menor preço). O admin pode encerrar o desconto de alguém.
    * O direito ao desconto é conferido de novo na **aprovação**, numa transação só (`processar_pagamento_aprovado`). Se o desconto já não cabe, os dias saem proporcionais ao valor pago, pelo preço cheio.
    * Estorno ou chargeback devolve os dias daquele pagamento; a mensalidade de cupom não volta.
-   * Pagamento aprovado que não virou dias (webhook perdido, cartão em análise, PIX pago com o modal fechado) é recuperado pela **reconciliação** com o Mercado Pago quando a conta está vencida.
+   * Pagamento aprovado que não virou dias (webhook perdido, cartão em análise, PIX pago com o modal fechado) é recuperado pela **reconciliação** com o Mercado Pago quando a conta está vencida. Na renovação automática, quem faz esse papel é a conferência diária, pelas faturas da assinatura.
 
 ---
 
@@ -94,7 +104,8 @@
 | Storage | Supabase Storage: `laudos` privado com URL assinada; `logos` público para leitura direta, sem listagem |
 | Calendário | Rota RFC 5545 iCalendar (`/calendario/[token]`) com fuso `America/Sao_Paulo` |
 | Migrações | `supabase/migrations/`, numeradas e idempotentes. `scripts/sql-legado-nao-executar/` é histórico — **não rode nada de lá** |
-| Hospedagem | Vercel (deploy contínuo via GitHub) |
+| Pagamentos | Mercado Pago (SDK 3.4): PIX e cartão avulsos; renovação automática no cartão por assinatura sem plano. Webhook `/api/webhooks/mercadopago` com assinatura HMAC (`MERCADO_PAGO_WEBHOOK_SECRET`) |
+| Hospedagem | Vercel (deploy contínuo via GitHub). Vercel Cron diário (`vercel.json`: `/api/cron/assinaturas`, 09:00 UTC = 06:00 em Brasília), autenticado por `CRON_SECRET` |
 
 ---
 
@@ -104,8 +115,9 @@
 * Nenhuma `service_role key` é exposta no frontend. Nenhum segredo usa o prefixo `NEXT_PUBLIC_` — tudo com esse prefixo é embutido no JavaScript servido ao navegador.
 * Acesso estritamente restrito: cada psicólogo acessa unicamente os seus registros (`psicologo_id = auth.uid()`), com RLS cobrindo as quatro operações em `USING` **e** `WITH CHECK`.
 * Colunas de privilégio (`is_admin`, `is_vip`, `subscription_status`, `email`, `calendar_token`) **não são graváveis pelo próprio usuário**: há `REVOKE` de coluna e trigger de guarda. Autorização nunca depende de dado que o usuário edita.
+* Tabelas só do servidor (RLS ligada, `REVOKE ALL` de `anon` e `authenticated`; só a `service_role` lê e grava): `user_encryption_keys`, `payment_events`, `coupon_mensalidades` e `assinaturas_cartao` (id da assinatura no Mercado Pago, e-mail do pagador, bandeira e 4 últimos dígitos do cartão — nunca o número). A tela recebe da renovação só o que precisa, pela rota de status.
 * Feeds de calendário externos nunca expõem dados sensíveis (apenas horário, modalidade e primeiro nome com iniciais). Nome completo e anotações clínicas **não entram** no `.ics`. Supervisões entram só como "Supervisão (modalidade)", sem o nome do colega.
-* Criar pagamento no Mercado Pago é sempre por `criarPagamento` (`utils/mercadopago.ts`), com cliente novo por chamada: no SDK 3.4, as opções de uma chamada ficam gravadas na configuração compartilhada e a chave de idempotência vazaria para o pagamento seguinte.
+* Criar pagamento no Mercado Pago é sempre por `criarPagamento` (`utils/mercadopago.ts`), com cliente novo por chamada: no SDK 3.4, as opções de uma chamada ficam gravadas na configuração compartilhada e a chave de idempotência vazaria para o pagamento seguinte. Vale para toda escrita: cancelar PIX por `cancelarPagamento`; criar assinatura só por `criarAssinaturaMP` (cliente novo e **sem novas tentativas** — o reenvio de um pedido que o Mercado Pago concluiu devagar viraria uma segunda assinatura no mesmo cartão); mudar valor ou cancelar assinatura só por `atualizarAssinaturaMP`. Os clientes compartilhados (`paymentClient`, `preApprovalClient`, `invoiceClient`) são só para `get`/`search`.
 
 ### 5.1 O que a criptografia protege — e contra quem NÃO protege
 
@@ -130,14 +142,15 @@ Qualquer texto de marketing sobre segurança precisa caber nesta seção. Se nã
 
 - [ ] Nenhuma `service_role key` no código do frontend
 - [ ] Nenhuma variável `NEXT_PUBLIC_` contendo segredo, chave ou token
-- [ ] Todas as rotas exigem sessão autenticada, exceto landing, login, webhook e feed de calendário
+- [ ] Todas as rotas exigem sessão autenticada, exceto landing, login, webhook, feed de calendário e o cron `/api/cron/assinaturas` (público no middleware e fechado por `CRON_SECRET`, que precisa existir na Vercel: sem ele o cron recusa tudo e a conferência diária não roda)
 - [ ] RLS ativo e testado em todas as tabelas (tentar acessar dado de outro usuário deve falhar)
 - [ ] Nenhuma policy concede a `anon`/`public`, nem usa `USING (true)`
 - [ ] Colunas de privilégio não graváveis pelo usuário (tente `update profiles set is_admin=true` numa conta comum: deve falhar)
 - [ ] Bucket de laudos privado, URLs assinadas com expiração, caminho validado por `user.id`
 - [ ] Feed `.ics` sem nome completo e sem anotação clínica
 - [ ] Preço e concessão de assinatura decididos **apenas** no servidor
-- [ ] Webhook de pagamento com validação de assinatura e idempotência
+- [ ] Webhook de pagamento com validação de assinatura e idempotência; no painel do Mercado Pago, os eventos "Pagamentos" e "Planos e assinaturas" apontam para a mesma URL
+- [ ] Nenhuma assinatura criada ou alterada fora de `criarAssinaturaMP`/`atualizarAssinaturaMP`, e uma só assinatura viva por pessoa (índice único em `assinaturas_cartao`)
 - [ ] `npm audit` sem vulnerabilidade alta ou crítica
 - [ ] Nenhum `.sql` solto em `scripts/` (migrações vivem em `supabase/migrations/`)
 - [ ] Sessão expira após inatividade e logout limpa a chave da memória

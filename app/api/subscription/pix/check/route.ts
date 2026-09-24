@@ -4,6 +4,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { paymentClient } from "@/utils/mercadopago";
 import { checkRateLimit } from "@/utils/rate-limit";
 import { processarPagamentoAprovado } from "@/utils/pagamento-aprovado";
+import { vencerPixForaDoPrazo } from "@/utils/pix-cancelamento";
 
 /**
  * Confirma um pagamento PIX e ativa a assinatura.
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const payment = await paymentClient.get({ id: paymentId });
+    let payment = await paymentClient.get({ id: paymentId });
 
     if (!payment) {
       return NextResponse.json(
@@ -76,6 +77,11 @@ export async function GET(request: Request) {
       );
     }
 
+    // Passou dos 15 minutos da tela: cancela no Mercado Pago para o QR deixar
+    // de valer no banco (utils/pix-validade.ts). Se tiver sido pago no último
+    // instante, volta aprovado e é creditado abaixo.
+    payment = await vencerPixForaDoPrazo(payment);
+
     const isApproved = payment.status === "approved";
     let dias: number | undefined;
     let observacao: string | null | undefined;
@@ -95,6 +101,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       status: payment.status,
       approved: isApproved,
+      // Cancelado (por nós, ao vencer, ou pelo Mercado Pago): a tela para de
+      // esperar e oferece um QR novo.
+      expirado: payment.status === "cancelled",
       status_detail: payment.status_detail,
       // Dias realmente concedidos (menos de 30 quando o desconto não coube na aprovação).
       dias,

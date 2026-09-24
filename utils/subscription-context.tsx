@@ -35,6 +35,8 @@ const statusInicial: StatusAssinatura & { loading: boolean } = {
   hasActiveSubscription: false,
   diasParaVencer: null,
   currentPeriodEnd: null,
+  emCarencia: false,
+  renovacao: null,
   loading: true,
 };
 
@@ -96,6 +98,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const fetchStatus = useCallback(
     async (force = false) => {
       try {
+        // O cache guarda a resposta crua do servidor, e a leitura passa por
+        // lerStatusAssinatura: `renovacao` e `emCarencia` vêm junto, e um
+        // cache de antes deles vira "sem renovação automática".
         if (!force && typeof window !== "undefined") {
           const cached = sessionStorage.getItem("cached_sub_status");
           const cachedAt = sessionStorage.getItem("cached_sub_status_at");
@@ -139,6 +144,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    // Sem await, a leitura do cache chama setState na hora. Não dá para levar
+    // o cache para o estado inicial: o sessionStorage só existe no navegador,
+    // e o HTML do servidor sairia diferente do primeiro render (hidratação).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial vinda do sessionStorage, que só existe depois de montar
     fetchStatus();
   }, [fetchStatus]);
 
@@ -205,8 +214,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => encerrarEspera(false), [encerrarEspera]);
 
   // Quem chama refreshSubscription acabou de mudar a assinatura (pagou, usou
-  // cupom): o cache de 1 minuto devolveria justamente o estado de antes, e a
-  // faixa de "somente leitura" continuaria na tela depois do pagamento.
+  // cupom, ligou ou cancelou a renovação automática): o cache de 1 minuto
+  // devolveria justamente o estado de antes, e a faixa de "somente leitura"
+  // continuaria na tela depois do pagamento.
   const refreshSubscription = useCallback(() => fetchStatus(true), [fetchStatus]);
 
   const openSubscriptionModal = useCallback(() => {

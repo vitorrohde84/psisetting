@@ -6,16 +6,11 @@ import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import { MercadoPagoBadge } from "@/app/components/mercadopago-badge";
 import { WhatsAppDuvidas } from "@/app/components/whatsapp-duvidas";
 import {
-  FileText,
-  FileCheck,
   Calendar,
-  Users,
-  DollarSign,
   BookOpen,
   Shield,
   Lock,
   Scale,
-  Database,
   Timer,
   ChevronDown,
   ArrowRight,
@@ -30,8 +25,6 @@ import {
   FileCheck2,
   LockKeyhole,
   HeartHandshake,
-  Lightbulb,
-  Workflow,
   AlertCircle,
 } from "lucide-react";
 
@@ -176,7 +169,7 @@ const faqItems = [
   {
     question: "Como funciona o pagamento? Existe fidelidade?",
     answer:
-      "Nenhuma fidelidade e nenhum débito automático. Você tem 7 dias de teste gratuitos e, depois, o Plano Único custa R$ 34,90 por mês: cada pagamento, por PIX ou cartão, libera 30 dias de acesso, e o sistema avisa antes de vencer. Se não renovar, a conta passa para o modo somente leitura, sem perder nenhum registro.",
+      "Nenhuma fidelidade. Você tem 7 dias de teste gratuitos e, depois, o Plano Único custa R$ 34,90 por mês. No cartão, você escolhe: renovação automática todo mês, que pode ser cancelada quando quiser em Configurações (o acesso continua até o fim do período já pago), ou pagamento mês a mês. No PIX e no cartão mês a mês, cada pagamento libera 30 dias de acesso, e o sistema avisa antes de vencer. Se não renovar, a conta passa para o modo somente leitura, sem perder nenhum registro.",
   },
   {
     question: "Por quanto tempo meus registros ficam guardados?",
@@ -1296,7 +1289,7 @@ export default function LandingPage() {
                   <span className="text-2xl font-serif font-bold text-text">,90</span>
                   <span className="text-sm text-text-muted font-medium">/mês</span>
                 </div>
-                <p className="text-xs text-text-muted mt-2">Após os 7 dias grátis · Sem fidelidade · Você renova mês a mês</p>
+                <p className="text-xs text-text-muted mt-2">Após os 7 dias grátis · Sem fidelidade · Renovação automática ou mês a mês</p>
               </div>
 
               <div className="py-6 space-y-3">

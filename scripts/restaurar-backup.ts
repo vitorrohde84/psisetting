@@ -58,6 +58,8 @@ const ORDEM = [
   "coupon_redemptions",
   "coupon_mensalidades",
   "payment_events",
+  // Depois de profiles e de coupon_redemptions (FK resgate_reservado_id).
+  "assinaturas_cartao",
   "user_feedbacks",
   "system_announcements",
 ];

@@ -1,5 +1,6 @@
 import type { PrecoParaTela } from "./preco-assinatura";
 import { DIAS_AVISO_VENCIMENTO, type SituacaoAcesso } from "./acesso-assinatura";
+import type { RenovacaoTela } from "./assinatura-cartao";
 import { formatarReais } from "./preco-desconto";
 
 /**
@@ -176,12 +177,6 @@ export function dataCurta(valor: string | Date | null | undefined): string | nul
   return d ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
 }
 
-/** "…T15:42:00-03:00" → "15:42", no fuso de quem está olhando a tela. */
-export function horaCurta(valor: string | Date | null | undefined): string | null {
-  const d = paraData(valor);
-  return d ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null;
-}
-
 /**
  * Quantas VIRADAS DE DIA faltam até a data — o que a pessoa entende por
  * "vence em 2 dias". O servidor conta blocos de 24 h arredondados para cima
@@ -210,26 +205,40 @@ export interface AvisoVencimento {
 }
 
 /**
+ * A renovação automática no cartão está ligada, ou sendo ligada?
+ *
+ * Nesses casos o Mercado Pago cobra sozinho e o servidor recusa PIX e cartão
+ * mês a mês (409): nenhuma tela deve convidar a pessoa a pagar. "criando" entra
+ * junto porque o servidor já a trata como renovação viva.
+ */
+export function renovacaoViva(renovacao: RenovacaoTela | null | undefined): boolean {
+  return renovacao?.situacao === "ativa" || renovacao?.situacao === "criando";
+}
+
+/**
  * Deve aparecer o aviso "seu acesso vence em N dias"?
  *
- * Só para quem paga mês a mês: o pagamento é avulso (sem débito automático),
- * então sem aviso a pessoa descobre que venceu quando tenta salvar um
- * prontuário. VIP e teste gratuito têm os próprios avisos.
+ * Só para quem paga mês a mês (PIX ou cartão avulso): sem aviso, a pessoa
+ * descobre que venceu quando tenta salvar um prontuário. Com a renovação
+ * automática ligada o cartão é cobrado sozinho, e "renove" a levaria a um
+ * modal sem botão de pagar. VIP e teste gratuito têm os próprios avisos.
  */
 export function avisoDeVencimento({
   hasActiveSubscription,
   isVip,
   diasParaVencer,
   currentPeriodEnd,
+  renovacao = null,
   agora = new Date(),
 }: {
   hasActiveSubscription: boolean;
   isVip: boolean;
   diasParaVencer: number | null;
   currentPeriodEnd: string | null;
+  renovacao?: RenovacaoTela | null;
   agora?: Date;
 }): AvisoVencimento | null {
-  if (!hasActiveSubscription || isVip) return null;
+  if (!hasActiveSubscription || isVip || renovacaoViva(renovacao)) return null;
   if (diasParaVencer === null || diasParaVencer > DIAS_AVISO_VENCIMENTO) return null;
 
   const fim = paraData(currentPeriodEnd);
@@ -237,6 +246,108 @@ export function avisoDeVencimento({
     dias: fim ? diasDeCalendario(fim, agora) : diasParaVencer,
     data: dataCurta(fim),
   };
+}
+
+export interface AvisoCobrancaRecusada {
+  /** Até quando o acesso continua ("03/10"), ou null se o servidor não mandou a data. */
+  acessoAte: string | null;
+}
+
+/**
+ * Deve aparecer a faixa "não conseguimos cobrar seu cartão"?
+ *
+ * Só para quem está no automático e ainda tem acesso: o Mercado Pago tenta de
+ * novo por uns 10 dias, e o acesso segue nesse meio-tempo (a tolerância já vem
+ * somada em currentPeriodEnd). Sem a faixa, a pessoa só descobria a recusa ao
+ * cair em somente leitura. Quem já perdeu o acesso vê a faixa de somente leitura.
+ */
+export function avisoCobrancaRecusada({
+  hasActiveSubscription,
+  isVip,
+  renovacao,
+  currentPeriodEnd,
+}: {
+  hasActiveSubscription: boolean;
+  isVip: boolean;
+  renovacao: RenovacaoTela | null;
+  currentPeriodEnd: string | null;
+}): AvisoCobrancaRecusada | null {
+  if (!hasActiveSubscription || isVip) return null;
+  if (renovacao?.situacao !== "ativa" || !renovacao.cobrancaRecusada) return null;
+  return { acessoAte: dataCurta(currentPeriodEnd) };
+}
+
+/**
+ * Até quando a pessoa pode criar registros, para frases como "seu acesso vai
+ * até 26/09". null quando não há data a prometer (vencido, VIP, sem a data).
+ *
+ * No teste o fim é o do teste: currentPeriodEnd, ali, é o período pago antigo
+ * (ou nada).
+ */
+export function fimDoAcesso({
+  situacao,
+  currentPeriodEnd,
+  trialEndsAt,
+}: {
+  situacao: SituacaoAcesso;
+  currentPeriodEnd: string | null;
+  trialEndsAt: string | null;
+}): string | null {
+  if (situacao === "ativo") return dataCurta(currentPeriodEnd);
+  if (situacao === "teste") return dataCurta(trialEndsAt);
+  return null;
+}
+
+/**
+ * O que acontece com o acesso ao cancelar a renovação automática — a frase do
+ * diálogo de confirmação.
+ *
+ * Cancelar tira a tolerância de cartão recusado. Quem está nela (o período pago
+ * acabou e a cobrança do mês não passou) deixa de poder criar registros na
+ * hora: prometer "seu acesso continua até" a data da tolerância seria errado
+ * justamente para quem mais precisa decidir com cuidado.
+ */
+export function consequenciaDoCancelamento({
+  emCarencia,
+  acessoAte,
+}: {
+  emCarencia: boolean;
+  acessoAte: string | null;
+}): string {
+  const voltar = "Para voltar à renovação automática, é só assinar de novo.";
+  if (emCarencia) {
+    return `Seu cartão não será mais cobrado. Como o período pago já terminou, você deixa de poder criar registros assim que cancelar — tudo o que já está salvo continua lá. Para continuar, renove por PIX ou cartão, mês a mês. ${voltar}`;
+  }
+  if (acessoAte) {
+    return `Seu cartão não será mais cobrado. Seu acesso continua até ${acessoAte}. Depois disso, você renova por PIX ou cartão, mês a mês. ${voltar}`;
+  }
+  return `Seu cartão não será mais cobrado. Para continuar criando registros, renove por PIX ou cartão, mês a mês. ${voltar}`;
+}
+
+/** payment_method_id do Mercado Pago → o nome que a pessoa vê no próprio cartão. */
+const BANDEIRAS: Record<string, string> = {
+  visa: "Visa",
+  master: "Mastercard",
+  amex: "American Express",
+  elo: "Elo",
+  hipercard: "Hipercard",
+  diners: "Diners Club",
+  cabal: "Cabal",
+  debvisa: "Visa Débito",
+  debmaster: "Mastercard Débito",
+  debelo: "Elo Débito",
+};
+
+/**
+ * "Visa final 1234". Bandeira desconhecida vira "Cartão": o id cru do Mercado
+ * Pago ("debcabal", "naranja") não diz nada a quem olha a tela.
+ */
+export function descreverCartao(bandeira: string | null | undefined, final: string | null | undefined): string {
+  const chave = typeof bandeira === "string" ? bandeira.trim().toLowerCase() : "";
+  // Só chave própria: "constructor" e afins não podem virar bandeira.
+  const nome = Object.prototype.hasOwnProperty.call(BANDEIRAS, chave) ? BANDEIRAS[chave] : "Cartão";
+  const digitos = typeof final === "string" && /^\d{4}$/.test(final.trim()) ? final.trim() : null;
+  return digitos ? `${nome} final ${digitos}` : nome;
 }
 
 export interface StatusAssinatura {
@@ -251,9 +362,43 @@ export interface StatusAssinatura {
   /** Dias até o fim do período pago; null fora de "ativo". */
   diasParaVencer: number | null;
   currentPeriodEnd: string | null;
+  /**
+   * O período pago acabou e o acesso segue pela tolerância do cartão recusado
+   * (renovação automática). currentPeriodEnd, então, já é o fim da tolerância.
+   */
+  emCarencia: boolean;
+  /** Renovação automática no cartão; null para quem paga mês a mês, VIP ou nunca assinou. */
+  renovacao: RenovacaoTela | null;
 }
 
 const SITUACOES: readonly SituacaoAcesso[] = ["vip", "ativo", "teste", "vencido"];
+const SITUACOES_RENOVACAO: readonly RenovacaoTela["situacao"][] = ["criando", "ativa", "cancelada"];
+
+const numeroOuNull = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const textoOuNull = (v: unknown) => (typeof v === "string" && v ? v : null);
+
+/**
+ * `renovacao` de /api/subscription/status → estado da tela. Resposta estranha,
+ * ou o cache de antes da renovação automática (sem o campo), vira null: a tela
+ * trata a pessoa como quem paga mês a mês, e quem cobra de fato é o servidor.
+ */
+export function lerRenovacao(dado: unknown): RenovacaoTela | null {
+  if (!dado || typeof dado !== "object") return null;
+  const r = dado as Record<string, unknown>;
+  if (!SITUACOES_RENOVACAO.includes(r.situacao as RenovacaoTela["situacao"])) return null;
+
+  return {
+    situacao: r.situacao as RenovacaoTela["situacao"],
+    valor: numeroOuNull(r.valor),
+    proximaCobranca: textoOuNull(r.proximaCobranca),
+    primeiraCobranca: textoOuNull(r.primeiraCobranca),
+    cartaoFinal: textoOuNull(r.cartaoFinal),
+    cartaoBandeira: textoOuNull(r.cartaoBandeira),
+    cobrancaRecusada: r.cobrancaRecusada === true,
+    canceladaEm: textoOuNull(r.canceladaEm),
+    canceladaPor: textoOuNull(r.canceladaPor),
+  };
+}
 
 /**
  * Resposta de /api/subscription/status → estado da tela.
@@ -281,9 +426,6 @@ export function lerStatusAssinatura(dado: unknown): StatusAssinatura {
           ? "vencido"
           : "teste";
 
-  const numeroOuNull = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-  const textoOuNull = (v: unknown) => (typeof v === "string" && v ? v : null);
-
   return {
     isVip,
     status: typeof d.status === "string" && d.status ? d.status : "trialing",
@@ -295,6 +437,8 @@ export function lerStatusAssinatura(dado: unknown): StatusAssinatura {
     hasActiveSubscription,
     diasParaVencer: numeroOuNull(d.diasParaVencer),
     currentPeriodEnd: textoOuNull(d.currentPeriodEnd),
+    emCarencia: d.emCarencia === true,
+    renovacao: lerRenovacao(d.renovacao),
   };
 }
 
@@ -308,6 +452,9 @@ export function lerStatusAssinatura(dado: unknown): StatusAssinatura {
  */
 export function acessoAvancou(antes: StatusAssinatura, depois: StatusAssinatura): boolean {
   if (depois.situacao === "vip" && antes.situacao !== "vip") return true;
+  // Acesso pela tolerância do cartão não é pagamento: "ativo" com o período
+  // pago já vencido. Contar isso anunciaria "cobrança aprovada" sem cobrança.
+  if (depois.emCarencia) return false;
   if (depois.hasActiveSubscription && !antes.hasActiveSubscription) return true;
 
   if (antes.situacao === "ativo" && depois.situacao === "ativo") {

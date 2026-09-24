@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { assinaturaViva, sincronizarAssinatura } from "@/utils/assinatura-cartao-servidor";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     // painel mostrar "encerrado" em quem simplesmente terminou.
     let busca = adminClient
       .from("coupon_redemptions")
-      .select("id, para_sempre, duracao_meses, mensalidades_usadas")
+      .select("id, profile_id, para_sempre, duracao_meses, mensalidades_usadas")
       .is("encerrado_em", null)
       .in("desconto_tipo", ["percent", "fixed"]);
 
@@ -47,11 +48,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Erro ao encerrar o desconto." }, { status: 500 });
     }
 
-    const ids = (candidatos ?? [])
-      .filter(
-        (r) => r.para_sempre === true || (Number(r.mensalidades_usadas) || 0) < (Number(r.duracao_meses) || 1)
-      )
-      .map((r) => r.id);
+    const vigentes = (candidatos ?? []).filter(
+      (r) => r.para_sempre === true || (Number(r.mensalidades_usadas) || 0) < (Number(r.duracao_meses) || 1)
+    );
+    const ids = vigentes.map((r) => r.id);
 
     if (ids.length === 0) {
       return NextResponse.json({ success: true, encerrados: 0 });
@@ -67,7 +67,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Erro ao encerrar o desconto." }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, encerrados: ids.length });
+    // Quem está na renovação automática: o valor no Mercado Pago volta para o
+    // preço cheio já, e não só na conferência diária — senão a cobrança
+    // seguinte ainda podia sair com desconto.
+    let renovacoesAjustadas = 0;
+    for (const perfilId of new Set(vigentes.map((r) => String(r.profile_id)))) {
+      try {
+        const linha = await assinaturaViva(adminClient, perfilId);
+        if (linha?.situacao === "ativa") {
+          await sincronizarAssinatura(adminClient, linha);
+          renovacoesAjustadas++;
+        }
+      } catch (err) {
+        console.error(`[encerrar-desconto] renovação automática de ${perfilId} não ajustada (a conferência diária refaz):`, err);
+      }
+    }
+
+    return NextResponse.json({ success: true, encerrados: ids.length, renovacoes_ajustadas: renovacoesAjustadas });
   } catch (err: unknown) {
     console.error("Erro ao encerrar desconto:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });

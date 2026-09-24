@@ -6,6 +6,7 @@ import { criarPagamento } from "@/utils/mercadopago";
 import { checkRateLimit, getClientIp } from "@/utils/rate-limit";
 import { calcularPrecoAssinatura, precoParaTela, valorConfere } from "@/utils/preco-assinatura";
 import { metadataDoDesconto, processarPagamentoAprovado } from "@/utils/pagamento-aprovado";
+import { assinaturaViva } from "@/utils/assinatura-cartao-servidor";
 
 /**
  * Processa o pagamento do Brick (cartão) e ativa 30 dias de acesso.
@@ -57,6 +58,18 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Muitas tentativas de pagamento. Aguarde alguns minutos." },
         { status: 429 }
+      );
+    }
+
+    // Renovação automática ligada: a cobrança do mês é dela. Um pagamento avulso
+    // agora seria cobrar a pessoa duas vezes no mesmo mês.
+    if (await assinaturaViva(createAdminClient(), user.id)) {
+      return NextResponse.json(
+        {
+          error: "Sua renovação automática no cartão está ligada. Veja a próxima cobrança em Configurações → Plano & Assinatura.",
+          renovacao: true,
+        },
+        { status: 409 }
       );
     }
 
@@ -163,8 +176,11 @@ export async function POST(request: Request) {
     // pode ter acontecido. Responder "verifique os dados" convidava a pagar de
     // novo — cobrança em dobro. A tela passa a esperar a confirmação (a
     // reconciliação e o webhook liberam o acesso se foi aprovado).
+    // Erro de rede e tempo esgotado chegam do SDK 3.4 com status 0
+    // (MPConnectionError), não undefined: antes esses casos caíam em
+    // "verifique os dados e tente novamente".
     const status = (error as { status?: number } | null)?.status;
-    if (enviado && (status === undefined || status >= 500 || status === 429)) {
+    if (enviado && (!status || status >= 500 || status === 429)) {
       return NextResponse.json(
         {
           incerto: true,

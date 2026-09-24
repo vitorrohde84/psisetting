@@ -60,6 +60,8 @@ export async function GET() {
         isVip: p.is_vip || p.is_admin || isEmailAdmin(p.email),
         trialEndsAt: p.trial_ends_at,
         currentPeriodEnd: p.current_period_end,
+        renovacaoAutomatica: assinaturas[p.id]?.renovacao?.situacao === "ativa",
+        renovacaoDesde: assinaturas[p.id]?.renovacao?.criadaEm ?? null,
         agora: now,
       });
 
@@ -152,7 +154,7 @@ export async function GET() {
         },
       }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro na rota de métricas admin:", err);
     return NextResponse.json({ error: "Erro interno ao carregar métricas." }, { status: 500 });
   }

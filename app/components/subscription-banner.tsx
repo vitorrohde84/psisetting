@@ -1,8 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useSubscription } from "@/utils/subscription-context";
-import { avisoDeVencimento, prazoDeVencimento } from "@/utils/assinatura-tela";
-import { Sparkles, AlertTriangle, ArrowRight, Tag, CalendarClock, Clock } from "lucide-react";
+import {
+  avisoCobrancaRecusada,
+  avisoDeVencimento,
+  dataCurta,
+  prazoDeVencimento,
+  renovacaoViva,
+} from "@/utils/assinatura-tela";
+import { Sparkles, AlertTriangle, ArrowRight, Tag, CalendarClock, Clock, CreditCard } from "lucide-react";
+
+/** Configurações → Plano & Assinatura: é lá que se vê e se cancela a renovação automática. */
+const LINK_ASSINATURA = "/configuracoes#plano";
 
 export function SubscriptionBanner() {
   const {
@@ -13,6 +23,7 @@ export function SubscriptionBanner() {
     hasActiveSubscription,
     diasParaVencer,
     currentPeriodEnd,
+    renovacao,
     loading,
     aguardandoPagamento,
     openSubscriptionModal,
@@ -49,9 +60,38 @@ export function SubscriptionBanner() {
     );
   }
 
-  // O pagamento é avulso (sem débito automático): sem este aviso, quem paga
-  // mês a mês só descobre que venceu quando tenta salvar um registro.
-  const aviso = avisoDeVencimento({ hasActiveSubscription, isVip, diasParaVencer, currentPeriodEnd });
+  // Automático com o cartão recusado: o Mercado Pago tenta de novo nos
+  // próximos dias e o acesso segue nesse meio-tempo. Sem esta faixa, a pessoa
+  // só descobria a recusa ao cair em somente leitura.
+  const recusa = avisoCobrancaRecusada({ hasActiveSubscription, isVip, renovacao, currentPeriodEnd });
+  if (recusa) {
+    return (
+      <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-xs text-text shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <CreditCard size={14} className="text-amber-700 shrink-0" />
+            <span>
+              <strong>Não conseguimos cobrar seu cartão.</strong> O Mercado Pago tenta de novo nos próximos dias
+              {recusa.acessoAte ? `; seu acesso continua até ${recusa.acessoAte}.` : " e seu acesso continua enquanto isso."}
+            </span>
+          </div>
+
+          <Link
+            href={LINK_ASSINATURA}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-primary text-white font-semibold hover:bg-primary-dark transition-all text-xs cursor-pointer shadow-2xs shrink-0"
+          >
+            <span>Ver assinatura</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Para quem paga mês a mês (PIX ou cartão avulso): sem este aviso, só
+  // descobre que venceu quando tenta salvar um registro. No automático o
+  // cartão é cobrado sozinho, e a função não avisa.
+  const aviso = avisoDeVencimento({ hasActiveSubscription, isVip, diasParaVencer, currentPeriodEnd, renovacao });
   if (aviso) {
     const prazo = prazoDeVencimento(aviso.dias);
     return (
@@ -81,10 +121,41 @@ export function SubscriptionBanner() {
     );
   }
 
-  // Se a conta for VIP ou já tiver assinatura ativa (longe de vencer), não exibe banner
+  // Se a conta for VIP ou já tiver assinatura ativa (longe de vencer, ou no automático sem recusa), não exibe banner
   if (isVip || hasActiveSubscription) return null;
 
   // 1. Banner para Modo Somente Leitura (fim do teste OU do período pago)
+  // Com a renovação automática ligada, "Reativar acesso" abriria um modal sem
+  // botão de pagar (o servidor recusa PIX e cartão avulso enquanto ela
+  // existir). O caminho é Configurações: esperar a cobrança ou cancelar a
+  // renovação e pagar por PIX.
+  if (isReadOnly && renovacaoViva(renovacao)) {
+    return (
+      <div className="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-text shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <AlertTriangle size={15} className="text-amber-700 shrink-0" />
+            <span>
+              <strong>Modo Somente Leitura Ativo:</strong>{" "}
+              {renovacao?.cobrancaRecusada
+                ? "não conseguimos cobrar seu cartão e seu acesso terminou. Se preferir pagar por PIX, cancele a renovação automática em Configurações."
+                : "a cobrança do seu cartão ainda não foi confirmada pelo Mercado Pago. Quando for aprovada, o acesso volta sozinho."}{" "}
+              Seus registros continuam seguros.
+            </span>
+          </div>
+
+          <Link
+            href={LINK_ASSINATURA}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-white font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-2xs shrink-0"
+          >
+            <span>Ver assinatura</span>
+            <ArrowRight size={13} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (isReadOnly) {
     return (
       <div className="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-text shadow-2xs">
@@ -122,6 +193,38 @@ export function SubscriptionBanner() {
   }
 
   // 2. Banner para Período de Testes Ativo
+  // Quem ligou a renovação automática durante o teste já assinou: a primeira
+  // cobrança sai no fim do teste. "Assinar Plano" e "Tenho um Cupom"
+  // convidariam a pagar de novo (e o servidor recusaria).
+  if (isTrialing && renovacaoViva(renovacao)) {
+    const primeira = dataCurta(renovacao?.proximaCobranca ?? renovacao?.primeiraCobranca);
+    return (
+      <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 border-b border-primary/20 px-4 py-2 text-xs text-text shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <Sparkles size={14} className="text-secondary shrink-0" />
+            <span>
+              <strong>Período de Teste Gratuito:</strong> Você tem{" "}
+              <strong className="text-primary font-bold">{trialDaysLeft} {trialDaysLeft === 1 ? "dia restante" : "dias restantes"}</strong>.{" "}
+              {renovacao?.situacao === "criando"
+                ? "Estamos confirmando sua renovação automática com o Mercado Pago."
+                : primeira
+                  ? `A renovação automática já está ligada: a primeira cobrança sai em ${primeira}.`
+                  : "A renovação automática já está ligada."}
+            </span>
+          </div>
+
+          <Link
+            href={LINK_ASSINATURA}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface border border-border text-text-muted hover:text-text hover:bg-background transition-colors text-xs cursor-pointer shrink-0"
+          >
+            <span>Ver assinatura</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (isTrialing) {
     return (
       <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 border-b border-primary/20 px-4 py-2 text-xs text-text shadow-2xs">

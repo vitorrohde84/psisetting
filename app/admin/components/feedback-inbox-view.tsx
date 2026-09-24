@@ -8,17 +8,27 @@ import {
   Heart,
   Star,
   Send,
-  CheckCircle2,
-  Clock,
-  Archive,
   Mail,
   User,
-  Calendar,
-  Filter,
+  type LucideIcon,
 } from "lucide-react";
 
+// Linha de `user_feedbacks` como a rota /api/admin/feedbacks devolve (select *).
+// Só os campos que a tela lê; os opcionais podem vir nulos do banco.
+export interface FeedbackUsuario {
+  id: string;
+  category: string;
+  status: string;
+  message: string;
+  subject?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  rating?: number | null;
+  created_at?: string | null;
+}
+
 interface FeedbackInboxViewProps {
-  feedbacks: any[];
+  feedbacks: FeedbackUsuario[];
   onUpdateStatus: (id: string, status: string, admin_notes?: string) => Promise<void>;
 }
 
@@ -29,7 +39,7 @@ export function FeedbackInboxView({ feedbacks, onUpdateStatus }: FeedbackInboxVi
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const categoryLabels: Record<string, { label: string; bg: string; icon: any }> = {
+  const categoryLabels: Record<string, { label: string; bg: string; icon: LucideIcon }> = {
     sugestao: { label: "Sugestão", bg: "bg-amber-50 text-amber-900 border-amber-200", icon: Lightbulb },
     problema: { label: "Problema / Bug", bg: "bg-rose-50 text-rose-900 border-rose-200", icon: Bug },
     duvida: { label: "Dúvida", bg: "bg-blue-50 text-blue-900 border-blue-200", icon: HelpCircle },

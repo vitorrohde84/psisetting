@@ -210,3 +210,222 @@ const pagamentoBase = {
   payment_type_id: "credit_card",
   payment_method_id: "visa",
 };
+
+// ── Cobrança da renovação automática no cartão ──────────────────────────────
+
+/**
+ * O Mercado Pago não copia a nossa metadata para as cobranças da assinatura:
+ * a foto do desconto vem do resgate gravado ao assinar, e só quando o valor
+ * cobrado é o valor com desconto. Valor cheio, ou mensalidades do cupom já
+ * esgotadas, vai SEM foto (30 dias, sem contar mensalidade).
+ */
+
+const CUPOM_EM_USO = "7d1e2f3a-4b5c-4d6e-8f70-8192a3b4c5d6";
+
+const resgate = (over: Record<string, unknown> = {}) => ({
+  coupon_id: CUPOM_EM_USO,
+  desconto_tipo: "percent",
+  desconto_valor: 20,
+  duracao_meses: 3,
+  para_sempre: false,
+  mensalidades_usadas: 1,
+  encerrado_em: null,
+  coupons: { code: "PROMO20" },
+  ...over,
+});
+
+function clienteDaRenovacao(resgates: Array<Record<string, unknown>>) {
+  const chamadas: Array<{ nome: string; args: Record<string, unknown> }> = [];
+  const tabelas: string[] = [];
+  const recusaLimpa: Array<{ patch: Record<string, unknown>; filtros: unknown[][] }> = [];
+  return {
+    chamadas,
+    tabelas,
+    recusaLimpa,
+    async rpc(nome: string, args: Record<string, unknown>) {
+      chamadas.push({ nome, args });
+      return { data: { ja_processado: false, dias: 30, cupom_contado: true }, error: null };
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    from(tabela: string): any {
+      tabelas.push(tabela);
+      if (tabela === "coupon_redemptions") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const consulta: any = {
+          select: () => consulta,
+          eq: () => consulta,
+          in: () => consulta,
+          then: (ok: (r: unknown) => unknown) => Promise.resolve({ data: resgates, error: null }).then(ok),
+        };
+        return consulta;
+      }
+      // assinaturas_cartao: a cobrança aprovada apaga a recusa anterior.
+      return {
+        update: (patch: Record<string, unknown>) => {
+          const registro = { patch, filtros: [] as unknown[][] };
+          recusaLimpa.push(registro);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const filtro: any = {
+            eq: (...a: unknown[]) => {
+              registro.filtros.push(["eq", ...a]);
+              return filtro;
+            },
+            not: (...a: unknown[]) => {
+              registro.filtros.push(["not", ...a]);
+              return filtro;
+            },
+            then: (ok: (r: unknown) => unknown) => Promise.resolve({ error: null }).then(ok),
+          };
+          return filtro;
+        },
+      };
+    },
+  };
+}
+
+const cobrancaAutomatica = {
+  id: 777,
+  status: "approved",
+  transaction_amount: 27.92,
+  payment_type_id: "credit_card",
+  payment_method_id: "visa",
+  operation_type: "recurring_payment",
+};
+
+describe("processarPagamentoAprovado — cobrança da renovação automática", () => {
+  it("valor com desconto: usa a foto do resgate em uso e marca cartao_automatico", async () => {
+    const client = clienteDaRenovacao([resgate()]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = await processarPagamentoAprovado({ adminClient: client as any, userId: "u1", payment: cobrancaAutomatica, origem: "webhook" });
+
+    expect(client.chamadas).toHaveLength(1);
+    expect(client.chamadas[0].nome).toBe("processar_pagamento_aprovado");
+    expect(client.chamadas[0].args).toMatchObject({
+      p_payment_id: "777",
+      p_user_id: "u1",
+      p_origem: "webhook",
+      p_meio: "cartao_automatico",
+      p_valor: 27.92,
+      p_cupom_id: CUPOM_EM_USO,
+      p_cupom_tipo: "percent",
+      p_cupom_valor: 20,
+      p_cupom_duracao: 3,
+      p_cupom_para_sempre: false,
+    });
+    expect(r.dias).toBe(30);
+  });
+
+  it("recorrente: true (veio da fatura) basta, mesmo sem operation_type no pagamento", async () => {
+    const client = clienteDaRenovacao([resgate({ para_sempre: true, duracao_meses: null, mensalidades_usadas: 40 })]);
+    await processarPagamentoAprovado({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: client as any,
+      userId: "u1",
+      payment: { id: 778, status: "approved", transaction_amount: 27.92, payment_type_id: "credit_card", payment_method_id: "visa" },
+      origem: "cron",
+      recorrente: true,
+    });
+
+    expect(client.chamadas[0].args).toMatchObject({
+      p_origem: "cron",
+      p_meio: "cartao_automatico",
+      p_cupom_id: CUPOM_EM_USO,
+      p_cupom_duracao: null,
+      p_cupom_para_sempre: true,
+    });
+  });
+
+  it("valor cheio: vai SEM foto, mesmo com cupom em uso", async () => {
+    const client = clienteDaRenovacao([resgate()]);
+    await processarPagamentoAprovado({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: client as any,
+      userId: "u1",
+      payment: { ...cobrancaAutomatica, transaction_amount: 34.9 },
+      origem: "webhook",
+    });
+
+    expect(client.chamadas[0].args).toMatchObject({
+      p_meio: "cartao_automatico",
+      p_valor: 34.9,
+      p_cupom_id: null,
+      p_cupom_tipo: null,
+      p_cupom_valor: null,
+      p_cupom_duracao: null,
+      p_cupom_para_sempre: false,
+    });
+  });
+
+  it("mensalidades do cupom esgotadas: vai SEM foto, mesmo cobrando o valor com desconto", async () => {
+    // A subida para R$ 34,90 atrasou: o erro é nosso, a pessoa recebe 30 dias
+    // e o cupom não conta uma 4ª mensalidade.
+    const client = clienteDaRenovacao([resgate({ mensalidades_usadas: 3 })]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await processarPagamentoAprovado({ adminClient: client as any, userId: "u1", payment: cobrancaAutomatica, origem: "webhook" });
+
+    expect(client.chamadas[0].args).toMatchObject({ p_meio: "cartao_automatico", p_cupom_id: null, p_cupom_para_sempre: false });
+  });
+
+  it("resgate encerrado pelo admin também não dá foto", async () => {
+    const client = clienteDaRenovacao([resgate({ encerrado_em: "2026-09-01T00:00:00Z" })]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await processarPagamentoAprovado({ adminClient: client as any, userId: "u1", payment: cobrancaAutomatica, origem: "webhook" });
+    expect(client.chamadas[0].args.p_cupom_id).toBeNull();
+  });
+
+  it("a metadata do pagamento não vale na cobrança automática (a foto vem do resgate)", async () => {
+    const client = clienteDaRenovacao([]);
+    await processarPagamentoAprovado({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: client as any,
+      userId: "u1",
+      payment: { ...cobrancaAutomatica, metadata: { ...metadataDoDesconto(desconto()), preapproval_id: "2c93" } },
+      origem: "webhook",
+    });
+    expect(client.chamadas[0].args).toMatchObject({ p_meio: "cartao_automatico", p_cupom_id: null });
+  });
+
+  it("aprovada: apaga a recusa anterior da assinatura ativa", async () => {
+    const client = clienteDaRenovacao([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await processarPagamentoAprovado({ adminClient: client as any, userId: "u1", payment: cobrancaAutomatica, origem: "webhook" });
+
+    expect(client.recusaLimpa).toHaveLength(1);
+    expect(client.recusaLimpa[0].patch).toMatchObject({ ultima_recusa_em: null });
+    expect(client.recusaLimpa[0].filtros).toEqual([
+      ["eq", "user_id", "u1"],
+      ["eq", "situacao", "ativa"],
+      ["not", "ultima_recusa_em", "is", null],
+    ]);
+  });
+
+  it("validação do cartão (card_validation) é ignorada sem chamar a função do banco", async () => {
+    const client = clienteDaRenovacao([resgate()]);
+    const r = await processarPagamentoAprovado({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: client as any,
+      userId: "u1",
+      payment: { ...cobrancaAutomatica, transaction_amount: 1, operation_type: "card_validation" },
+      origem: "webhook",
+      recorrente: true,
+    });
+
+    expect(r).toEqual({ ignorado: true, jaProcessado: false });
+    expect(client.chamadas).toHaveLength(0);
+    expect(client.tabelas).toHaveLength(0);
+  });
+
+  it("pagamento avulso continua lendo a metadata (sem consultar resgates nem mexer na assinatura)", async () => {
+    const client = clienteDaRenovacao([resgate({ coupon_id: "00000000-0000-4000-8000-000000000000" })]);
+    await processarPagamentoAprovado({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: client as any,
+      userId: "u1",
+      payment: { ...pagamentoBase, transaction_amount: 27.92, operation_type: "regular_payment", metadata: metadataDoDesconto(desconto()) },
+      origem: "process-payment",
+    });
+
+    expect(client.chamadas[0].args).toMatchObject({ p_meio: "cartao", p_cupom_id: UUID, p_cupom_duracao: 3 });
+    expect(client.tabelas).toEqual([]);
+  });
+});

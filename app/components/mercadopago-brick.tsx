@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { CheckCircle2, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import { formatarReais } from "@/utils/preco-desconto";
 import { useSubscription } from "@/utils/subscription-context";
+import { quatroUltimos } from "@/utils/assinatura-cartao";
+import { sucessoAutomatico, type ModoCartao } from "@/utils/renovacao-tela";
 import {
   ehErroDeCupom,
   lerPreco,
@@ -23,6 +25,13 @@ export interface DiasLiberados {
   observacao?: string | null;
 }
 
+/** Resposta 200 de /api/subscription/automatica. */
+export interface RenovacaoLigada {
+  valor: number;
+  /** null = a 1ª cobrança sai em seguida; com data = nada foi cobrado agora. */
+  primeiraCobranca: string | null;
+}
+
 interface MercadoPagoBrickProps {
   /**
    * O valor que a tela mostrou. É o `amount` do Brick e vai como
@@ -34,6 +43,15 @@ interface MercadoPagoBrickProps {
   /** Só o cupom DIGITADO agora. O cupom que a pessoa já usa o servidor aplica sozinho. */
   couponCode?: string | null;
   /**
+   * "avulso": paga 30 dias agora (process-payment). "automatico": liga a
+   * renovação automática (/api/subscription/automatica), e o Mercado Pago
+   * passa a cobrar todo mês. Nada muda de um para o outro depois de criado:
+   * trocar o modo pede um Brick novo (key).
+   */
+  modo: ModoCartao;
+  /** Texto do botão do formulário (textoBotaoCartao, em utils/renovacao-tela.ts). */
+  textoBotao: string;
+  /**
    * Aprovado: na hora (com os dias concedidos) ou depois de uma análise, pela
    * espera do contexto (sem os dias — liberacao vazia).
    */
@@ -44,6 +62,23 @@ interface MercadoPagoBrickProps {
   onCupomRecusado?: (mensagem: string) => void;
   /** O Mercado Pago recebeu o pagamento e está analisando. O Brick espera a aprovação sozinho. */
   onEmAnalise?: () => void;
+  /**
+   * Renovação automática ligada. Sem primeiraCobranca, o Brick espera a 1ª
+   * cobrança ser aprovada (pelo contexto) e chama onSuccess quando ela chegar.
+   */
+  onAutomaticoLigado?: (ligada: RenovacaoLigada) => void;
+  /**
+   * 409 porque já existe renovação ligada (ou, no avulso, o servidor recusou
+   * pagar com ela ligada). Quem usa o Brick atualiza o status e mostra a situação.
+   */
+  onRenovacaoJaLigada?: () => void;
+  /**
+   * Automático sem resposta clara: a assinatura pode ter sido criada. O Brick
+   * não oferece nova tentativa — ela esbarraria na primeira.
+   */
+  onIncerto?: () => void;
+  /** Envio em andamento: trocar de modo ou de aba agora desmontaria o Brick no meio da resposta. */
+  onProcessando?: (processando: boolean) => void;
 }
 
 // O SDK do Mercado Pago não tem tipos publicados; isto cobre só o que usamos.
@@ -94,7 +129,19 @@ const LIMITE_CARREGAMENTO_MS = 20_000;
 
 const HOSTS_MERCADO_PAGO = /mercadopago|mlstatic|mercadoli[bv]re/;
 
-type Resultado = "aprovado" | "em_analise" | null;
+type Resultado =
+  | "aprovado"
+  | "em_analise"
+  /** Renovação ligada com a 1ª cobrança numa data futura. */
+  | "automatico_agendado"
+  /** Renovação ligada e a 1ª cobrança saindo agora: espera a aprovação. */
+  | "automatico_aguardando"
+  /** Sem resposta clara do Mercado Pago: pode ter sido criada. */
+  | "automatico_incerto"
+  | null;
+
+const MENSAGEM_INCERTA_CONEXAO =
+  "Não conseguimos confirmar a renovação automática por falha de conexão. Não tente de novo: em alguns minutos ela aparece em Configurações, se tiver sido criada.";
 
 function lerDiasLiberados(data: Record<string, unknown>): DiasLiberados {
   return {
@@ -103,21 +150,42 @@ function lerDiasLiberados(data: Record<string, unknown>): DiasLiberados {
   };
 }
 
+/**
+ * Os 4 últimos dígitos do cartão. O Payment Brick chama o onSubmit com
+ * (dadosDoEnvio, additionalData) — conferido no payment.js 3.17.1 dos Bricks e
+ * nos tipos de @mercadopago/sdk-react (TPaymentType.onSubmit) —, e os tipos
+ * também preveem additionalData dentro do 1º argumento.
+ */
+function finalDoCartao(adicionais: unknown): string | null {
+  if (!adicionais || typeof adicionais !== "object") return null;
+  return quatroUltimos((adicionais as { lastFourDigits?: unknown }).lastFourDigits);
+}
+
 export function MercadoPagoBrick({
   valorEsperado,
   couponCode,
+  modo,
+  textoBotao,
   onSuccess,
   onPrecoMudou,
   onCupomRecusado,
   onEmAnalise,
+  onAutomaticoLigado,
+  onRenovacaoJaLigada,
+  onIncerto,
+  onProcessando,
 }: MercadoPagoBrickProps) {
   const [loading, setLoading] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [erroPagamento, setErroPagamento] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado>(null);
   const [liberacao, setLiberacao] = useState<DiasLiberados>({});
+  const [renovacaoLigada, setRenovacaoLigada] = useState<RenovacaoLigada | null>(null);
+  const [mensagemIncerta, setMensagemIncerta] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { aguardarConfirmacaoPagamento } = useSubscription();
+  const { aguardarConfirmacaoPagamento, renovacao } = useSubscription();
+  /** A espera da confirmação acabou sem resposta (15 min): para de girar. */
+  const [esperaSemResposta, setEsperaSemResposta] = useState(false);
 
   // Os callbacks chegam como funções novas a cada render do modal. Se fossem
   // dependência do efeito, o formulário do cartão era destruído e recriado a
@@ -127,10 +195,24 @@ export function MercadoPagoBrick({
     onPrecoMudou,
     onCupomRecusado,
     onEmAnalise,
+    onAutomaticoLigado,
+    onRenovacaoJaLigada,
+    onIncerto,
+    onProcessando,
     aguardarConfirmacaoPagamento,
   });
   useEffect(() => {
-    callbacksRef.current = { onSuccess, onPrecoMudou, onCupomRecusado, onEmAnalise, aguardarConfirmacaoPagamento };
+    callbacksRef.current = {
+      onSuccess,
+      onPrecoMudou,
+      onCupomRecusado,
+      onEmAnalise,
+      onAutomaticoLigado,
+      onRenovacaoJaLigada,
+      onIncerto,
+      onProcessando,
+      aguardarConfirmacaoPagamento,
+    };
   });
 
   useEffect(() => {
@@ -205,9 +287,11 @@ export function MercadoPagoBrick({
               },
               hideFormTitle: true,
               texts: {
-                // Pagamento único de 30 dias: "/mês" ou "assinatura" aqui
-                // prometeria uma cobrança automática que não existe.
-                customButtonText: `Pagar R$ ${formatarReais(valorEsperado)} · 30 dias de acesso`,
+                // A chave do botão no Payment Brick é formSubmit (documentação
+                // de textos do Payment Brick e a lista de chaves do payment.js
+                // 3.17.1). Chave fora da lista é ignorada com um aviso no
+                // console: o customButtonText de antes nunca apareceu.
+                formSubmit: textoBotao,
               },
             },
           },
@@ -220,7 +304,8 @@ export function MercadoPagoBrick({
               setErroCarregar(null);
               setLoading(false);
             },
-            onSubmit: ({ formData }: { formData: unknown }) => enviarPagamento(formData),
+            onSubmit: (dados: { formData: unknown; additionalData?: unknown }, adicionais?: unknown) =>
+              enviar(dados.formData, finalDoCartao(adicionais ?? dados.additionalData)),
             onError: (err: unknown) => {
               window.clearTimeout(limite);
               console.error("Erro interno do Brick:", err);
@@ -255,7 +340,11 @@ export function MercadoPagoBrick({
     // "aprovado" sozinho; se o modal já fechou, a faixa do topo se atualiza.
     function esperarAprovacao() {
       void callbacksRef.current.aguardarConfirmacaoPagamento().then((confirmado) => {
-        if (!confirmado || !isMounted || aprovado) return;
+        if (!confirmado) {
+          if (isMounted) setEsperaSemResposta(true);
+          return;
+        }
+        if (!isMounted || aprovado) return;
         aprovado = true;
         setLiberacao({});
         setResultado("aprovado");
@@ -265,8 +354,108 @@ export function MercadoPagoBrick({
 
     // Promessa resolvida = o Brick encerra o "processando" como concluído;
     // rejeitada = libera o formulário para nova tentativa.
-    async function enviarPagamento(formData: unknown): Promise<void> {
+    async function enviar(formData: unknown, final: string | null): Promise<void> {
       setErroPagamento(null);
+      callbacksRef.current.onProcessando?.(true);
+      try {
+        if (modo === "automatico") await ligarRenovacao(formData, final);
+        else await enviarPagamento(formData);
+      } finally {
+        callbacksRef.current.onProcessando?.(false);
+      }
+    }
+
+    /** Sem resposta clara: a assinatura pode existir. O formulário sai da tela. */
+    function marcarIncerta(mensagem: string) {
+      if (isMounted) {
+        setMensagemIncerta(mensagem);
+        setResultado("automatico_incerto");
+      }
+      callbacksRef.current.onIncerto?.();
+    }
+
+    // Liga a renovação automática. Nada é cobrado nesta chamada: a 1ª
+    // cobrança sai em seguida (quem não tem dias) ou no fim dos dias atuais,
+    // e os dias de acesso vêm de cada cobrança aprovada, pelo webhook.
+    async function ligarRenovacao(formData: unknown, final: string | null): Promise<void> {
+      const cb = callbacksRef.current;
+
+      let res: Response;
+      let data: Record<string, unknown>;
+      try {
+        res = await fetch("/api/subscription/automatica", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            formData,
+            coupon_code: couponCode || null,
+            valor_esperado: valorEsperado,
+            cartao: { final },
+          }),
+        });
+        data = await res.json().catch(() => ({}));
+      } catch (err) {
+        console.error("Erro ao ligar a renovação automática:", err);
+        // A requisição pode ter chegado: tentar de novo esbarraria na
+        // assinatura criada (ou, se a trava falhasse, criaria outra).
+        marcarIncerta(MENSAGEM_INCERTA_CONEXAO);
+        return;
+      }
+
+      const erro = typeof data.error === "string" ? data.error : null;
+
+      if (res.status === 202 && data.incerto) {
+        marcarIncerta(
+          erro ??
+            "Não conseguimos confirmar a renovação automática agora. Não tente de novo: em alguns minutos ela aparece em Configurações, se tiver sido criada."
+        );
+        return;
+      }
+
+      if (res.ok && data.ok) {
+        const ligada: RenovacaoLigada = {
+          // O valor que o Mercado Pago gravou, não o que a tela calculava.
+          valor: typeof data.valor === "number" && Number.isFinite(data.valor) ? data.valor : valorEsperado,
+          primeiraCobranca:
+            typeof data.primeira_cobranca === "string" && data.primeira_cobranca ? data.primeira_cobranca : null,
+        };
+        if (isMounted) {
+          setRenovacaoLigada(ligada);
+          setResultado(ligada.primeiraCobranca ? "automatico_agendado" : "automatico_aguardando");
+        }
+        cb.onAutomaticoLigado?.(ligada);
+        // Cobrança agendada: o acesso não muda agora, e esperar só deixaria a
+        // faixa "Aguardando a confirmação do pagamento" no topo por 15 min.
+        if (!ligada.primeiraCobranca) esperarAprovacao();
+        return;
+      }
+
+      if (res.status === 409) {
+        const preco = lerPreco(data.preco);
+        if (preco) {
+          cb.onPrecoMudou(preco, erro ?? "O valor mudou. Confira o novo valor antes de continuar.");
+          throw new Error("valor mudou");
+        }
+        if (data.ja_tem) {
+          if (isMounted) setErroPagamento(erro ?? "Você já tem a renovação automática ligada.");
+          cb.onRenovacaoJaLigada?.();
+          throw new Error("renovação já ligada");
+        }
+      }
+
+      if (ehErroDeCupom(res.status, erro, Boolean(couponCode)) && cb.onCupomRecusado) {
+        cb.onCupomRecusado(erro as string);
+        throw new Error("cupom recusado");
+      }
+
+      // 400 do cartão ou do e-mail (mensagem pronta do servidor), 401, 429, 500.
+      if (isMounted) {
+        setErroPagamento(erro ?? "Não foi possível ligar a renovação automática agora. Tente de novo em instantes.");
+      }
+      throw new Error(erro ?? `HTTP ${res.status}`);
+    }
+
+    async function enviarPagamento(formData: unknown): Promise<void> {
       const cb = callbacksRef.current;
 
       let res: Response;
@@ -338,6 +527,13 @@ export function MercadoPagoBrick({
           cb.onPrecoMudou(preco, erro ?? "O valor mudou. Confira o novo valor antes de pagar.");
           throw new Error("valor mudou");
         }
+        // Renovação automática ligada (em outra aba, por exemplo): o servidor
+        // não cobra o avulso por cima dela.
+        if (data.renovacao) {
+          if (isMounted) setErroPagamento(erro ?? "Você já tem a renovação automática ligada.");
+          cb.onRenovacaoJaLigada?.();
+          throw new Error("renovação ligada");
+        }
       }
 
       if (ehErroDeCupom(res.status, erro, Boolean(couponCode)) && cb.onCupomRecusado) {
@@ -359,19 +555,82 @@ export function MercadoPagoBrick({
       document.removeEventListener("securitypolicyviolation", aoBloquear);
       desmontar(controller);
     };
-  }, [valorEsperado, couponCode]);
+  }, [valorEsperado, couponCode, modo, textoBotao]);
 
   if (resultado === "aprovado") {
     const { texto } = resumoLiberacao(liberacao.dias, liberacao.observacao);
+    // Automático: só chega aqui pela espera da 1ª cobrança (sem os dias).
+    const automatico = modo === "automatico";
+    const valor = renovacaoLigada?.valor ?? valorEsperado;
     return (
-      <div className="p-6 rounded-2xl bg-success/10 border border-success/30 text-center space-y-3 animate-in zoom-in-95">
+      <div
+        role="status"
+        className="p-6 rounded-2xl bg-success/10 border border-success/30 text-center space-y-3 animate-in zoom-in-95"
+      >
         <div className="w-12 h-12 rounded-full bg-success text-white flex items-center justify-center mx-auto shadow-sm">
           <CheckCircle2 size={28} />
         </div>
-        <h3 className="text-base font-bold text-text">Pagamento aprovado!</h3>
+        <h3 className="text-base font-bold text-text">
+          {automatico ? "Renovação automática ligada!" : "Pagamento aprovado!"}
+        </h3>
         <p className="text-xs text-text-muted leading-relaxed">
-          Pagamento de R$ {formatarReais(valorEsperado)} confirmado. {texto}
+          {automatico
+            ? `Primeira cobrança, de R$ ${formatarReais(valor)}, aprovada. ${texto}`
+            : `Pagamento de R$ ${formatarReais(valor)} confirmado. ${texto}`}
         </p>
+      </div>
+    );
+  }
+
+  if ((resultado === "automatico_agendado" || resultado === "automatico_aguardando") && renovacaoLigada) {
+    const { titulo, texto } = sucessoAutomatico(renovacaoLigada);
+    return (
+      <div
+        role="status"
+        className="p-6 rounded-2xl bg-success/10 border border-success/30 text-center space-y-3 animate-in zoom-in-95"
+      >
+        <div className="w-12 h-12 rounded-full bg-success text-white flex items-center justify-center mx-auto shadow-sm">
+          <CheckCircle2 size={28} />
+        </div>
+        <h3 className="text-base font-bold text-text">{titulo}</h3>
+        <p className="text-xs text-text-muted leading-relaxed">{texto}</p>
+        {resultado === "automatico_aguardando" ? (
+          renovacao?.cobrancaRecusada ? (
+            // O status traz a recusa enquanto a espera consulta: girar para
+            // sempre esconderia o problema.
+            <p role="alert" className="text-[11px] text-text leading-relaxed">
+              O Mercado Pago não conseguiu cobrar este cartão. Ele tenta de novo nos próximos dias; se
+              preferir, cancele a renovação em Configurações e pague por PIX.
+            </p>
+          ) : esperaSemResposta ? (
+            <p className="text-[11px] text-text-muted leading-relaxed">
+              A primeira cobrança pode levar até 1 hora. Você pode fechar esta janela: o acesso é liberado
+              assim que ela for aprovada.
+            </p>
+          ) : (
+            <p className="flex items-center justify-center gap-1.5 text-[11px] text-text-muted">
+              <Loader2 size={12} className="animate-spin text-primary" />
+              <span>Aguardando a aprovação da primeira cobrança. Você pode fechar esta janela.</span>
+            </p>
+          )
+        ) : (
+          <p className="text-[11px] text-text-muted">Para cancelar, é só ir em Configurações.</p>
+        )}
+      </div>
+    );
+  }
+
+  if (resultado === "automatico_incerto") {
+    return (
+      <div
+        role="alert"
+        className="p-5 rounded-2xl bg-secondary/15 border border-secondary/40 text-center space-y-2.5 animate-in zoom-in-95"
+      >
+        <div className="w-11 h-11 rounded-full bg-secondary/30 text-text flex items-center justify-center mx-auto">
+          <Clock size={22} />
+        </div>
+        <h3 className="text-sm font-bold text-text">Ainda não temos a confirmação</h3>
+        <p className="text-xs text-text-muted leading-relaxed">{mensagemIncerta ?? MENSAGEM_INCERTA_CONEXAO}</p>
       </div>
     );
   }

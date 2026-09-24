@@ -1,6 +1,33 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, isEmailAdmin } from "@/utils/admin-auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { cancelarSeHouver } from "@/utils/assinatura-cartao-servidor";
+
+/** Colunas de `profiles` que as ações do painel podem alterar. */
+interface AlteracaoPerfil {
+  is_vip?: boolean;
+  is_admin?: boolean;
+  subscription_status?: string;
+  trial_ends_at?: string;
+}
+
+/**
+ * Cancela a renovação automática antes de uma ação que acaba com a cobrança
+ * (conta excluída, VIP). Se o Mercado Pago não confirmar, a ação não acontece:
+ * pior que não excluir é excluir e deixar o cartão sendo cobrado todo mês.
+ */
+async function pararRenovacao(adminClient: ReturnType<typeof createAdminClient>, userId: string) {
+  try {
+    await cancelarSeHouver(adminClient, userId, "admin");
+    return null;
+  } catch (err) {
+    console.error(`[admin] renovação automática de ${userId} não cancelada:`, err);
+    return NextResponse.json(
+      { error: "Não foi possível cancelar a renovação automática no Mercado Pago. Nada foi alterado; tente de novo." },
+      { status: 502 }
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -30,15 +57,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     }
 
-    let updates: Record<string, any> = {};
+    let updates: AlteracaoPerfil = {};
 
     switch (action) {
-      case "grant_vip":
+      case "grant_vip": {
+        const falha = await pararRenovacao(adminClient, userId);
+        if (falha) return falha;
         updates = {
           is_vip: true,
           subscription_status: "vip",
         };
         break;
+      }
 
       case "revoke_vip":
         updates = {
@@ -84,9 +114,13 @@ export async function POST(request: Request) {
         };
         break;
 
-      case "make_admin":
+      case "make_admin": {
+        // Conta de admin não paga (é tratada como VIP): a cobrança para antes.
+        const falha = await pararRenovacao(adminClient, userId);
+        if (falha) return falha;
         updates = { is_admin: true };
         break;
+      }
 
       case "remove_admin":
         updates = { is_admin: false };
@@ -110,7 +144,11 @@ export async function POST(request: Request) {
           );
         }
 
-        // 2. Excluir dados clínicos e relacionamentos do usuário
+        // 2. Parar a cobrança automática ANTES de apagar qualquer coisa.
+        const falha = await pararRenovacao(adminClient, userId);
+        if (falha) return falha;
+
+        // 3. Excluir dados clínicos e relacionamentos do usuário
         await adminClient.from("prontuarios").delete().eq("psicologo_id", userId);
         await adminClient.from("agendamentos").delete().eq("psicologo_id", userId);
         await adminClient.from("pagamentos").delete().eq("psicologo_id", userId);
@@ -124,10 +162,10 @@ export async function POST(request: Request) {
         await adminClient.from("user_feedbacks").delete().eq("user_id", userId);
         await adminClient.from("coupon_redemptions").delete().eq("profile_id", userId);
 
-        // 3. Excluir o perfil da tabela profiles
+        // 4. Excluir o perfil da tabela profiles
         await adminClient.from("profiles").delete().eq("id", userId);
 
-        // 4. Excluir de auth.users no Supabase Auth para liberar o e-mail
+        // 5. Excluir de auth.users no Supabase Auth para liberar o e-mail
         try {
           const { error: authDelErr } = await adminClient.auth.admin.deleteUser(userId);
           if (authDelErr) {
@@ -164,7 +202,7 @@ export async function POST(request: Request) {
       message: "Ação executada com sucesso.",
       updates,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro na rota de ação de usuário admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
