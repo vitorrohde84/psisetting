@@ -29,7 +29,7 @@ export async function GET() {
     }
 
     return NextResponse.json({ announcements: announcements || [] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro ao buscar comunicados públicos:", err);
     return NextResponse.json({ announcements: [] });
   }

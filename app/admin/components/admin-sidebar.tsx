@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { PsiSettingBrand } from "@/app/components/psi-setting-brand";
 import {
   TrendingUp,
@@ -11,10 +10,10 @@ import {
   Radio,
   Lightbulb,
   ArrowLeft,
-  Crown,
   ChevronRight,
   Menu,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -47,7 +46,7 @@ export function AdminSidebar({ activeTab, onSelectTab, counts }: AdminSidebarPro
     };
   }, [mobileOpen]);
 
-  const navItems: { id: AdminTabType; label: string; icon: any; count?: number; badgeColor?: string }[] = [
+  const navItems: { id: AdminTabType; label: string; icon: LucideIcon; count?: number; badgeColor?: string }[] = [
     { id: "overview", label: "Visão Geral & Métricas", icon: TrendingUp },
     { id: "users", label: "Psicólogos & Contas", icon: Users, count: counts.users },
     { id: "coupons", label: "Cupons & Campanhas", icon: Tag, count: counts.coupons },

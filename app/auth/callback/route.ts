@@ -55,11 +55,17 @@ export async function GET(request: NextRequest) {
           origin
         )
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Exceção no auth callback:", err);
+      // Lê `message` de qualquer objeto lançado (não só de Error), como o
+      // `err?.message` de antes: o texto enviado ao /login continua o mesmo.
+      const mensagem =
+        typeof err === "object" && err !== null && "message" in err
+          ? (err as { message?: unknown }).message
+          : undefined;
       return NextResponse.redirect(
         new URL(
-          `/login?error=auth_callback_failed&details=${encodeURIComponent(err?.message || "Erro inesperado")}`,
+          `/login?error=auth_callback_failed&details=${encodeURIComponent(String(mensagem || "Erro inesperado"))}`,
           origin
         )
       );

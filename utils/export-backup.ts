@@ -18,13 +18,15 @@ import {
   normalizarLinha,
 } from "./supervisao-agenda";
 
-function escapeCSV(val: any): string {
+// unknown: as células vêm de texto decifrado, números (totais) e campos crus
+// do banco; tudo passa por String(), então nenhum tipo específico é exigido.
+function escapeCSV(val: unknown): string {
   if (val === null || val === undefined) return '""';
   const str = String(val).replace(/"/g, '""');
   return `"${str}"`;
 }
 
-function createCSVRow(cells: any[]): string {
+function createCSVRow(cells: unknown[]): string {
   return cells.map(escapeCSV).join(";") + "\r\n";
 }
 
@@ -380,8 +382,17 @@ export async function generateFullSystemBackupCSV(
     URL.revokeObjectURL(url);
 
     return { success: true, filename };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro ao gerar backup completo:", err);
-    return { success: false, error: err.message || "Falha ao gerar backup" };
+    // O erro pode ser o PostgrestError lançado acima ou um erro do navegador;
+    // lê message de qualquer objeto, como antes (err.message).
+    const mensagem =
+      typeof err === "object" && err !== null && "message" in err
+        ? (err as { message?: unknown }).message
+        : undefined;
+    return {
+      success: false,
+      error: typeof mensagem === "string" && mensagem ? mensagem : "Falha ao gerar backup",
+    };
   }
 }

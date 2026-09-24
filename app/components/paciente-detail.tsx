@@ -12,9 +12,6 @@ import {
   Mail,
   MapPin,
   Calendar,
-  UserCheck,
-  UserX,
-  Clock,
   Video,
   FileText,
   BookOpen,
@@ -39,6 +36,47 @@ type TabKey =
   | "diario"
   | "laudos"
   | "financeiro";
+
+// Linhas de cada aba, exatamente com as colunas que fetchTabData pede. Texto
+// clínico (observações, conteúdo) já chega decifrado aqui.
+interface AgendamentoDaFicha {
+  id: string;
+  data: string;
+  horario: string;
+  modalidade: string | null;
+  status: string;
+  observacoes: string | null;
+}
+
+interface ProntuarioDaFicha {
+  id: string;
+  data: string;
+  conteudo: string | null;
+  created_at: string;
+}
+
+// Diário de Bordo: só metadados, nunca o conteúdo (SPEC.md).
+interface DiarioDaFicha {
+  id: string;
+  data: string;
+  created_at: string;
+}
+
+interface LaudoDaFicha {
+  id: string;
+  titulo: string | null;
+  tipo_documento: string | null;
+  created_at: string;
+}
+
+interface PagamentoDaFicha {
+  id: string;
+  valor: number | null;
+  data_vencimento: string;
+  status: string;
+  forma_pagamento: string | null;
+  created_at: string;
+}
 
 const tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "agendamentos", label: "Agendamentos", icon: Calendar },
@@ -107,11 +145,11 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Tab data
-  const [agendamentos, setAgendamentos] = useState<any[]>([]);
-  const [prontuarios, setProntuarios] = useState<any[]>([]);
-  const [diario, setDiario] = useState<any[]>([]);
-  const [laudos, setLaudos] = useState<any[]>([]);
-  const [pagamentos, setPagamentos] = useState<any[]>([]);
+  const [agendamentos, setAgendamentos] = useState<AgendamentoDaFicha[]>([]);
+  const [prontuarios, setProntuarios] = useState<ProntuarioDaFicha[]>([]);
+  const [diario, setDiario] = useState<DiarioDaFicha[]>([]);
+  const [laudos, setLaudos] = useState<LaudoDaFicha[]>([]);
+  const [pagamentos, setPagamentos] = useState<PagamentoDaFicha[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   // Falha ao carregar uma aba NÃO pode virar "Nenhum ... registrado": foi assim
   // que a aba Laudos passou meses vazia (a consulta pedia uma coluna que não
@@ -147,9 +185,11 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
       setPaciente(data);
     }
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador) e o router do App Router é estável; a ficha só é refeita quando muda o paciente.
   }, [pacienteId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- todo setState de fetchPaciente acontece depois de um await (nada síncrono no efeito); a regra não distingue isso. A função fica fora do efeito porque o "Salvar" da edição também a chama.
     fetchPaciente();
   }, [fetchPaciente]);
 
@@ -270,11 +310,13 @@ export function PacienteDetailClient({ pacienteId }: PacienteDetailClientProps) 
 
       setTabLoading(false);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador); o que muda a busca é o paciente.
     [pacienteId]
   );
 
   useEffect(() => {
     if (!loading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a cada troca de aba o "carregando" liga e o erro da aba anterior some na hora (setTabLoading/setTabErro no início de fetchTabData); o botão "Tentar de novo" usa a mesma função.
       fetchTabData(activeTab);
     }
   }, [activeTab, loading, fetchTabData]);
@@ -538,7 +580,7 @@ function EmptyTab({ icon: Icon, message }: { icon: React.ElementType; message: s
   );
 }
 
-function TabAgendamentos({ items }: { items: any[] }) {
+function TabAgendamentos({ items }: { items: AgendamentoDaFicha[] }) {
   if (items.length === 0)
     return <EmptyTab icon={Calendar} message="Nenhum agendamento encontrado" />;
 
@@ -592,7 +634,7 @@ function TabAgendamentos({ items }: { items: any[] }) {
   );
 }
 
-function TabProntuarios({ items }: { items: any[] }) {
+function TabProntuarios({ items }: { items: ProntuarioDaFicha[] }) {
   if (items.length === 0)
     return <EmptyTab icon={FileText} message="Nenhum prontuário registrado" />;
 
@@ -617,7 +659,7 @@ function TabProntuarios({ items }: { items: any[] }) {
   );
 }
 
-function TabDiario({ items }: { items: any[] }) {
+function TabDiario({ items }: { items: DiarioDaFicha[] }) {
   if (items.length === 0)
     return <EmptyTab icon={BookOpen} message="Nenhuma entrada no diário" />;
 
@@ -647,7 +689,7 @@ function TabDiario({ items }: { items: any[] }) {
   );
 }
 
-function TabLaudos({ items }: { items: any[] }) {
+function TabLaudos({ items }: { items: LaudoDaFicha[] }) {
   if (items.length === 0)
     return <EmptyTab icon={FileCheck} message="Nenhum laudo registrado" />;
 
@@ -678,7 +720,7 @@ function TabLaudos({ items }: { items: any[] }) {
   );
 }
 
-function TabFinanceiro({ items }: { items: any[] }) {
+function TabFinanceiro({ items }: { items: PagamentoDaFicha[] }) {
   if (items.length === 0)
     return <EmptyTab icon={DollarSign} message="Nenhum pagamento registrado" />;
 

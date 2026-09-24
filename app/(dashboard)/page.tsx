@@ -36,6 +36,11 @@ function formatCurrency(value: number) {
   });
 }
 
+// O join `pacientes(nome)` (agendamento/pagamento → um paciente) chega como
+// objeto, mas o cliente do Supabase não tem os tipos do banco e não sabe disso.
+// O nome pode estar cifrado.
+type PacienteDoJoin = { nome?: string | null } | null;
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -70,7 +75,7 @@ export default async function DashboardPage() {
 
   const proximasSessoes = await Promise.all(
     (rawSessoes || []).map(async (sessao) => {
-      let nome = (sessao.pacientes as any)?.nome || "Paciente";
+      let nome = (sessao.pacientes as PacienteDoJoin)?.nome || "Paciente";
       if (user && nome && ehCifrado(nome)) {
         nome = await decryptClinicalData(nome, user.id);
       }
@@ -93,7 +98,6 @@ export default async function DashboardPage() {
 
   const totalRecebido =
     pagamentosRecebidos?.reduce((sum, p) => sum + (p.valor || 0), 0) || 0;
-  const qtdRecebidos = pagamentosRecebidos?.length || 0;
 
   // Query 3: Pagamentos pendentes do mês
   const { data: rawPendentes } = await supabase
@@ -106,7 +110,7 @@ export default async function DashboardPage() {
 
   const pagamentosPendentes = await Promise.all(
     (rawPendentes || []).map(async (p) => {
-      let nome = (p.pacientes as any)?.nome || "Paciente";
+      let nome = (p.pacientes as PacienteDoJoin)?.nome || "Paciente";
       if (user && nome && ehCifrado(nome)) {
         nome = await decryptClinicalData(nome, user.id);
       }

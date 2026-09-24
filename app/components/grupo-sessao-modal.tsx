@@ -10,7 +10,6 @@ import {
   Loader2,
   ShieldCheck,
   CheckCircle2,
-  UsersRound,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -179,7 +178,7 @@ export function GrupoSessaoModal({
         onSaved();
         onClose();
       }, 1500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro inesperado ao salvar evolução de grupo:", err);
       setError("Erro inesperado ao processar os dados da sessão.");
       setSaving(false);

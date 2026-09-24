@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { X, Radio, Plus, Loader2 } from "lucide-react";
+import { X, Radio, Loader2 } from "lucide-react";
+
+// Estilos aceitos para o banner; são os mesmos valores das <option> do select.
+type TipoComunicado = "info" | "success" | "warning" | "tip";
 
 interface AnnouncementModalProps {
   isOpen: boolean;
@@ -12,7 +15,7 @@ interface AnnouncementModalProps {
 export function AnnouncementModal({ isOpen, onClose, onSuccess }: AnnouncementModalProps) {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [type, setType] = useState<"info" | "success" | "warning" | "tip">("info");
+  const [type, setType] = useState<TipoComunicado>("info");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkLabel, setLinkLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -55,7 +58,7 @@ export function AnnouncementModal({ isOpen, onClose, onSuccess }: AnnouncementMo
       } else {
         setError(data.error || "Erro ao publicar comunicado.");
       }
-    } catch (err) {
+    } catch {
       setError("Falha ao salvar comunicado.");
     } finally {
       setSubmitting(false);
@@ -118,7 +121,7 @@ export function AnnouncementModal({ isOpen, onClose, onSuccess }: AnnouncementMo
               </label>
               <select
                 value={type}
-                onChange={(e: any) => setType(e.target.value)}
+                onChange={(e) => setType(e.target.value as TipoComunicado)}
                 className="w-full px-3 py-2.5 rounded-xl bg-background border border-border text-xs font-semibold text-text focus:border-primary outline-hidden"
               >
                 <option value="info">🔵 Informativo</option>

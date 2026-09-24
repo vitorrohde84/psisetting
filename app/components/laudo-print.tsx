@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -10,7 +10,6 @@ import {
   Share2,
   FileText,
   PenTool,
-  ShieldCheck,
   Settings,
   AlertCircle,
   Loader2
@@ -33,6 +32,18 @@ interface LaudoPrintProps {
   psicologoLogoUrl?: string | null;
   onPrinted: () => void; // Closes the modal
 }
+
+// "Estar no navegador" e "o navegador sabe compartilhar" não mudam depois da
+// carga: não há o que assinar. Com useSyncExternalStore o servidor (e a
+// hidratação) enxergam false e o navegador enxerga o valor real, sem precisar
+// de um setState dentro de efeito só para descobrir isso.
+function naoHaOQueAssinar() {
+  return () => {};
+}
+const noNavegador = () => true;
+const foraDoNavegador = () => false;
+const navegadorCompartilha = () =>
+  typeof navigator !== "undefined" && typeof navigator.share === "function";
 
 interface ProfileData {
   nome: string | null;
@@ -58,8 +69,9 @@ export function LaudoPrint({
   onPrinted,
 }: LaudoPrintProps) {
   const documentRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  const [canShare, setCanShare] = useState(false);
+  // O documento vai para o <body> por portal, que só existe no navegador.
+  const mounted = useSyncExternalStore(naoHaOQueAssinar, noNavegador, foraDoNavegador);
+  const canShare = useSyncExternalStore(naoHaOQueAssinar, navegadorCompartilha, foraDoNavegador);
   const [incluirAssinatura, setIncluirAssinatura] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   // Leitura do perfil que falhou. Sem ela, "perfil null" ficava igual a
@@ -68,7 +80,10 @@ export function LaudoPrint({
   const [showConfigModal, setShowConfigModal] = useState(false);
 
   const [decryptedNome, setDecryptedNome] = useState(pacienteNome);
-  const [decryptedCpf, setDecryptedCpf] = useState(pacienteCpf);
+  // O CPF é decifrado junto com o resto, mas hoje não aparece no documento.
+  // A decifragem continua para não mudar a ordem nem o efeito de uma falha
+  // (um erro aqui interrompe a decifragem do conteúdo, como sempre fez).
+  const [, setDecryptedCpf] = useState(pacienteCpf);
   const [decryptedConteudo, setDecryptedConteudo] = useState(conteudo);
 
   const supabase = createClient();
@@ -95,14 +110,11 @@ export function LaudoPrint({
       setProfile(null);
       setErroPerfil(true);
     }
-  }, []);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não faz o perfil ser relido.
+  }, [supabase]);
 
   useEffect(() => {
-    setMounted(true);
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      setCanShare(true);
-    }
-
     // Decodificar dados do paciente e conteúdo se estiverem criptografados
     async function decryptInfo() {
       try {
@@ -132,8 +144,11 @@ export function LaudoPrint({
     }
     decryptInfo();
 
+    // loadProfile só grava estado depois do await (a regra não enxerga isso);
+    // fica fora do efeito porque também serve ao "Tentar de novo" e ao onSaved.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadProfile só faz setState depois do await; é reaproveitada fora do efeito
     loadProfile();
-  }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo, loadProfile]);
+  }, [propNome, propCrp, pacienteNome, pacienteCpf, conteudo, loadProfile, supabase]);
 
   // Sem valor padrão: o que não estiver no perfil fica em branco. Um "exemplo"
   // aqui sai impresso como se fosse o nome, o CRP e o contato de quem assina.
@@ -182,12 +197,6 @@ export function LaudoPrint({
     .toUpperCase();
 
   const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-
-  function formatCPF(cpf: string) {
-    const d = cpf.replace(/\D/g, "");
-    if (d.length !== 11) return cpf;
-    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-  }
 
   function tentarCarregarPerfilDeNovo() {
     setErroPerfil(false);
@@ -404,6 +413,7 @@ export function LaudoPrint({
           <div>
             <div className="relative flex flex-col items-center justify-center text-center pb-4 mb-6 border-b border-stone-200">
               {logoSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element -- logo enviado pela pessoa (URL do Storage ou data:), fora do otimizador de imagens; precisa sair igual na impressão/PDF
                 <img
                   src={logoSrc}
                   alt={nomeTopo ? `Logo ${nomeTopo}` : "Logo"}

@@ -96,7 +96,9 @@ export function DiarioFormModal({
       }
     }
     initModalData();
-  }, [diario, prefillData]);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não refaz a carga.
+  }, [diario, prefillData, supabase]);
 
   useEffect(() => {
     async function fetchAgendamentos() {
@@ -116,7 +118,7 @@ export function DiarioFormModal({
       setLoadingAgendamentos(false);
     }
     fetchAgendamentos();
-  }, [form.paciente_id]);
+  }, [form.paciente_id, supabase]);
 
   const filteredPacientes = pacienteSearch
     ? pacientes.filter((p) =>

@@ -38,14 +38,10 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        # NÃO BLOQUEIA, e isto é uma dívida declarada, não uma escolha de
-        # conforto: há 115 erros pré-existentes (87 `no-explicit-any`, 74
-        # `no-unused-vars`), todos anteriores a esta auditoria. Bloquear agora
-        # deixaria o CI vermelho desde o primeiro dia, e CI que nasce vermelho
-        # é CI que ninguém olha. Zerar o backlog e trocar para bloqueante está
-        # no relatório de handoff.
-        continue-on-error: true
-        run: npm run lint
+        # Bloqueia erros E avisos. O backlog de 17/09 (115 erros) foi zerado em
+        # 23/09/2026; a partir daqui, lint vermelho é regressão. Exceção
+        # legítima vai em eslint-disable-next-line com o motivo escrito.
+        run: npm run lint -- --max-warnings 0
 
       - name: Testes
         run: npm test

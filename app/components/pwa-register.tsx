@@ -8,11 +8,30 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+// Já está rodando como PWA (standalone)? O Safari do iOS expõe isso em
+// navigator.standalone, que não faz parte do tipo padrão do Navigator.
+function detectarStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function detectarIos(): boolean {
+  if (typeof window === "undefined") return false;
+  return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+}
+
 export function PwaRegister() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [isIos, setIsIos] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  // Calculados já no estado inicial (antes eram gravados pelo efeito). No
+  // servidor ficam false, mas isso não aparece na tela: o componente devolve
+  // null enquanto showInstallBanner for false, e o banner só abre segundos
+  // depois da montagem — então servidor e navegador geram o mesmo HTML.
+  const [isIos] = useState(detectarIos);
+  const [isStandalone] = useState(detectarStandalone);
 
   useEffect(() => {
     // 1. Registrar Service Worker
@@ -20,7 +39,7 @@ export function PwaRegister() {
       window.addEventListener("load", () => {
         navigator.serviceWorker
           .register("/sw.js")
-          .then((registration) => {
+          .then(() => {
             // Service worker registrado com sucesso
           })
           .catch((error) => {
@@ -30,17 +49,10 @@ export function PwaRegister() {
     }
 
     // 2. Detectar se já está rodando como PWA (standalone)
-    const isRunningStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window.navigator as any).standalone === true;
-
-    setIsStandalone(isRunningStandalone);
+    const isRunningStandalone = detectarStandalone();
 
     // 3. Detectar se é iOS (Safari)
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIos(isIosDevice);
+    const isIosDevice = detectarIos();
 
     // Se já estiver instalado como app, não precisa de banner
     if (isRunningStandalone) return;

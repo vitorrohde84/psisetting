@@ -169,7 +169,7 @@ export default function LoginPage() {
         setError(`Erro ao autenticar com Google: ${oAuthError.message || "Tente novamente."}`);
         setGoogleLoading(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro inesperado no login Google:", err);
       setError("Erro de conexão ao tentar login com Google.");
       setGoogleLoading(false);
@@ -177,12 +177,17 @@ export default function LoginPage() {
   }
 
   // Check for invite code in URL, errors, and expired session
+  // Fica num efeito de montagem de propósito: a URL só existe no navegador, e
+  // ler no useState faria a primeira tela diferir do HTML do servidor (erro de
+  // hidratação); useSearchParams exigiria um Suspense em volta da página. O
+  // efeito também limpa a URL (replaceState) logo depois de ler.
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
 
       // Check expired session
       if (params.get("expired") === "true") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- parâmetros da URL só podem ser lidos depois da hidratação (ver comentário acima)
         setError("Sua sessão expirou por inatividade. Faça login novamente.");
         window.history.replaceState({}, document.title, window.location.pathname);
       }
@@ -335,9 +340,19 @@ export default function LoginPage() {
         setRegisterSuccess(true);
       }
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro inesperado no cadastro:", err);
-      setError(err?.message || "Erro ao criar conta. Tente novamente.");
+      // Mesma leitura de antes (err?.message), sem exigir que o erro seja um
+      // Error: qualquer objeto com message mostra a mensagem dele.
+      const mensagem =
+        typeof err === "object" && err !== null && "message" in err
+          ? (err as { message?: unknown }).message
+          : undefined;
+      setError(
+        typeof mensagem === "string" && mensagem
+          ? mensagem
+          : "Erro ao criar conta. Tente novamente."
+      );
       setLoading(false);
     }
   }

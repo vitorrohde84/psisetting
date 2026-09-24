@@ -3,7 +3,7 @@ import * as fs from "fs";
 
 // Load env
 const env = fs.readFileSync(".env.local", "utf-8");
-const vars: any = {};
+const vars: Record<string, string> = {};
 env.split("\n").forEach(line => {
   const [k, v] = line.split("=");
   if (k && v) vars[k.trim()] = v.trim();

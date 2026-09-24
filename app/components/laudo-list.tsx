@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useSubscription } from "@/utils/subscription-context";
 import { camposFaltando, juntarRotulos, type CampoFaltando } from "@/utils/dados-profissionais";
-import { Search, Plus, Filter, FileText, Download, Printer, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
+import { Search, Plus, Filter, FileText, Download, Loader2, FolderOpen, Trash2, Settings } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import dynamic from "next/dynamic";
 
@@ -92,7 +92,7 @@ export function LaudoList() {
       const decrypted = await Promise.all(
         data.map(async (l) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let pac: any = l.pacientes;
+          const pac: any = l.pacientes;
           let pacNome = Array.isArray(pac) ? pac[0]?.nome : pac?.nome;
           if (pacNome && ehCifrado(pacNome)) {
             pacNome = await decryptClinicalData(pacNome, user.id);
@@ -113,7 +113,9 @@ export function LaudoList() {
       setLaudos(data || []);
     }
     setLoading(false);
-  }, [pacienteFilter, search]);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não refaz a busca.
+  }, [pacienteFilter, search, supabase]);
 
   useEffect(() => {
     async function fetchOptions() {
@@ -140,7 +142,7 @@ export function LaudoList() {
       }
     }
     fetchOptions();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

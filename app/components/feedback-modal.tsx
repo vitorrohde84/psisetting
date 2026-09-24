@@ -11,6 +11,7 @@ import {
   Loader2,
   CheckCircle2,
   Star,
+  type LucideIcon,
 } from "lucide-react";
 
 interface FeedbackModalProps {
@@ -24,7 +25,7 @@ const CATEGORIES: {
   id: CategoryType;
   label: string;
   desc: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
 }[] = [
   {
@@ -103,7 +104,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       } else {
         setError(data.error || "Erro ao enviar feedback.");
       }
-    } catch (err) {
+    } catch {
       setError("Falha de conexão ao enviar feedback.");
     } finally {
       setLoading(false);

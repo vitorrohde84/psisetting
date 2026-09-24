@@ -16,12 +16,10 @@ import {
   MoreVertical,
   Loader2,
   Users,
-  CheckCircle2,
   History,
   FileText,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
-import dynamic from "next/dynamic";
 import { GrupoFormModal, GrupoData } from "./grupo-form-modal";
 import { GrupoSessaoModal, GrupoMembroInfo } from "./grupo-sessao-modal";
 
@@ -123,7 +121,12 @@ export function GrupoList() {
     }
   }, [supabase]);
 
+  // Carga inicial. fetchGrupos também serve para recarregar depois de salvar,
+  // por isso liga o `loading` logo no começo; na abertura isso repete o valor
+  // inicial (true) e não gera renderização extra — o resto do estado só muda
+  // depois do await.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; o único setState síncrono repete o valor inicial (loading = true), o resto vem depois do await
     fetchGrupos();
   }, [fetchGrupos]);
 

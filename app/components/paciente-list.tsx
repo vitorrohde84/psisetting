@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
@@ -51,7 +51,6 @@ function formatPhone(phone: string | null) {
 
 export function PacienteList() {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [filteredPacientes, setFilteredPacientes] = useState<Paciente[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -83,38 +82,37 @@ export function PacienteList() {
         );
         decrypted.sort((a, b) => a.nome.localeCompare(b.nome));
         setPacientes(decrypted);
-        setFilteredPacientes(decrypted);
       } else {
         setPacientes(data);
-        setFilteredPacientes(data);
       }
     }
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador); a lista é carregada na montagem e recarregada pelos handlers.
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial da lista. O setLoading(true) do início não muda nada aqui (loading já começa true) e os demais setState vêm depois do await; a regra não distingue isso. A mesma função serve às recargas depois de salvar/excluir.
     fetchPacientes();
   }, [fetchPacientes]);
 
-  // Real-time search
-  useEffect(() => {
+  // Busca em tempo real. Derivada da lista e do texto durante a renderização
+  // (antes era um segundo estado sincronizado por efeito, que chegava a mostrar
+  // por um instante a lista inteira depois de recarregar com a busca preenchida).
+  const filteredPacientes = useMemo(() => {
     if (!search.trim()) {
-      setFilteredPacientes(pacientes);
-      return;
+      return pacientes;
     }
 
     const query = search.toLowerCase().replace(/\D/g, "") || search.toLowerCase();
     const queryText = search.toLowerCase();
 
-    setFilteredPacientes(
-      pacientes.filter((p) => {
-        const nameMatch = p.nome.toLowerCase().includes(queryText);
-        const cpfMatch = p.cpf
-          ? p.cpf.replace(/\D/g, "").includes(query) || p.cpf.toLowerCase().includes(queryText)
-          : false;
-        return nameMatch || cpfMatch;
-      })
-    );
+    return pacientes.filter((p) => {
+      const nameMatch = p.nome.toLowerCase().includes(queryText);
+      const cpfMatch = p.cpf
+        ? p.cpf.replace(/\D/g, "").includes(query) || p.cpf.toLowerCase().includes(queryText)
+        : false;
+      return nameMatch || cpfMatch;
+    });
   }, [search, pacientes]);
 
   function handleEdit(paciente: Paciente) {

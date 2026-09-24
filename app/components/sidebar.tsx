@@ -47,11 +47,16 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [pathnameAnterior, setPathnameAnterior] = useState(pathname);
 
   // Close mobile drawer on route change
-  useEffect(() => {
+  // Feito durante a renderização, comparando com a rota anterior (padrão do
+  // React para "ajustar estado quando uma prop muda"), em vez de um efeito:
+  // a gaveta fecha no mesmo render da troca de rota, sem render extra.
+  if (pathname !== pathnameAnterior) {
+    setPathnameAnterior(pathname);
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   // Prevent background scroll when mobile drawer is open
   useEffect(() => {
@@ -226,6 +231,7 @@ export function Sidebar({ userName, userEmail, logoUrl, isAdmin = false }: Sideb
           >
             {logoUrl ? (
               <div className="flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-border/70 overflow-hidden shrink-0 shadow-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element -- logo enviada pelo usuário, servida pelo Storage do Supabase (domínio externo sem remotePatterns no next.config) */}
                 <img src={logoUrl} alt={`${userName} Logo`} className="w-full h-full object-cover" />
               </div>
             ) : (

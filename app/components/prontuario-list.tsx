@@ -124,7 +124,9 @@ export function ProntuarioList() {
     }
     
     setLoadingPacientes(false);
-  }, []);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não refaz a busca.
+  }, [supabase]);
 
   const fetchProntuariosDoPaciente = useCallback(async (pacId: string, pageNum = 0, isLoadMore = false) => {
     if (isLoadMore) {
@@ -169,7 +171,7 @@ export function ProntuarioList() {
 
     setLoadingProntuarios(false);
     setLoadingMoreProntuarios(false);
-  }, []);
+  }, [supabase]);
 
   function handleLoadMore() {
     if (!selectedPacienteId || loadingMoreProntuarios) return;
@@ -178,8 +180,12 @@ export function ProntuarioList() {
     fetchProntuariosDoPaciente(selectedPacienteId, nextPage, true);
   }
 
+  // Troca de visão (lista de pacientes <-> prontuário de um paciente): a busca
+  // precisa rodar a cada mudança da seleção, e o indicador de carregamento
+  // liga junto, antes da resposta chegar.
   useEffect(() => {
     if (!selectedPacienteId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- busca a cada troca de paciente selecionado; o "carregando" precisa ligar na hora
       fetchResumoPacientes();
     } else {
       fetchProntuariosDoPaciente(selectedPacienteId, 0, false);

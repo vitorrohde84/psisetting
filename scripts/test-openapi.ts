@@ -1,4 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+// Sem imports: o export vazio mantém o arquivo como módulo, para que url, key
+// e fetchSchema não virem globais e colidam com outros scripts no tsc.
+export {};
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

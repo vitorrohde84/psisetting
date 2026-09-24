@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
-import { X, Users, Save, Loader2, Search, Check, DollarSign } from "lucide-react";
+import { X, Users, Save, Loader2, Search, Check } from "lucide-react";
 
 export interface GrupoData {
   id?: string;
@@ -105,7 +105,9 @@ export function GrupoFormModal({ grupo, onClose, onSaved }: GrupoFormModalProps)
     }
 
     loadPacientes();
-  }, [grupo]);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não refaz a carga.
+  }, [grupo, supabase]);
 
   function togglePaciente(id: string) {
     setPacientes((prev) =>
@@ -222,7 +224,7 @@ export function GrupoFormModal({ grupo, onClose, onSaved }: GrupoFormModalProps)
 
       onSaved();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro inesperado:", err);
       setError("Erro ao processar criação do grupo.");
       setSaving(false);

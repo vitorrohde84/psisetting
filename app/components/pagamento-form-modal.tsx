@@ -5,8 +5,30 @@ import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData } from "@/utils/crypto";
 import { X, Save, Loader2, Search } from "lucide-react";
 
+// Campos do pagamento que o modal lê ao editar. Quem chama pode passar a linha
+// completa (com o join de pacientes, por exemplo): o que sobra é ignorado.
+export interface PagamentoEditavel {
+  id: string;
+  paciente_id: string;
+  valor: number;
+  data_vencimento: string;
+  status: string;
+  forma_pagamento: string;
+}
+
+type FrequenciaRecorrencia = "weekly" | "biweekly" | "monthly";
+
+interface PagamentoFormState {
+  paciente_id: string;
+  // Número quando vem do banco (edição); texto enquanto a pessoa digita.
+  valor: number | string;
+  data_vencimento: string;
+  status: string;
+  forma_pagamento: string;
+}
+
 interface PagamentoFormModalProps {
-  pagamento: any | null; // using any to bypass complex joins if needed
+  pagamento: PagamentoEditavel | null;
   prefillData?: {
     paciente_id: string;
     data_vencimento: string;
@@ -25,7 +47,7 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
   const isEditing = !!pagamento;
   const supabase = createClient();
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<PagamentoFormState>({
     paciente_id: pagamento?.paciente_id || prefillData?.paciente_id || "",
     valor: pagamento?.valor || "",
     data_vencimento: pagamento?.data_vencimento || prefillData?.data_vencimento || new Date().toISOString().split("T")[0],
@@ -38,7 +60,7 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
   const [error, setError] = useState<string | null>(null);
 
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<"weekly" | "biweekly" | "monthly">("weekly");
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<FrequenciaRecorrencia>("weekly");
   const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
 
   function addRecurrence(dateStr: string, frequency: string, count: number): string {
@@ -88,6 +110,10 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
       }
     }
     fetchPacientes();
+    // Carrega a lista de pacientes uma vez, ao abrir o modal. `prefillData` chega
+    // como objeto novo a cada render de quem chama, e rodar de novo refaria a
+    // busca e a decifragem e trocaria o paciente mostrado no meio da edição.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga única ao abrir o modal (ver comentário acima)
   }, []);
 
   const filteredPacientes = pacienteSearch
@@ -171,7 +197,7 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
         return;
       }
 
-      let payloads = [];
+      const payloads = [];
       if (isRecurring && recurrenceCount > 0) {
         for (let i = 0; i <= recurrenceCount; i++) {
           payloads.push({
@@ -372,7 +398,7 @@ export function PagamentoFormModal({ pagamento, prefillData, onClose, onSaved }:
                     <label className={labelClass}>Frequência</label>
                     <select
                       value={recurrenceFrequency}
-                      onChange={(e) => setRecurrenceFrequency(e.target.value as any)}
+                      onChange={(e) => setRecurrenceFrequency(e.target.value as FrequenciaRecorrencia)}
                       className={inputClass}
                     >
                       <option value="weekly">Semanal</option>

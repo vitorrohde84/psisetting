@@ -1,3 +1,7 @@
+// Import só de tipo: some na compilação, então o jspdf continua sendo
+// carregado sob demanda pelo import() dentro de generatePdfBlob.
+import type { jsPDF as JsPDF } from "jspdf";
+
 export interface GeneratePdfOptions {
   filename?: string;
   title?: string;
@@ -7,7 +11,7 @@ export interface GeneratePdfOptions {
 export async function generatePdfBlob(
   element: HTMLElement,
   options: GeneratePdfOptions = {}
-): Promise<{ blob: Blob; pdf: any }> {
+): Promise<{ blob: Blob; pdf: JsPDF }> {
   // Carregamento dinâmico sob demanda (Lazy dynamic import) para manter o bundle ultra leve
   const [{ jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
@@ -119,8 +123,14 @@ export async function sharePdf(
       });
       return true;
     }
-  } catch (err: any) {
-    if (err.name !== "AbortError") {
+  } catch (err: unknown) {
+    // AbortError = a pessoa fechou a folha de compartilhar; não é falha.
+    // Lê name de qualquer objeto (o navegador rejeita com DOMException).
+    const nome =
+      typeof err === "object" && err !== null && "name" in err
+        ? (err as { name?: unknown }).name
+        : undefined;
+    if (nome !== "AbortError") {
       console.error("Erro ao compartilhar PDF:", err);
     }
   }

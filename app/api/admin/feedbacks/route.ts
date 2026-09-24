@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ feedbacks: feedbacks || [] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no GET de feedbacks admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
     }
 
     const adminClient = createAdminClient();
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -77,7 +77,7 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ success: true, feedback: updatedFeedback });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no PATCH de feedbacks admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
@@ -106,7 +106,7 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no DELETE de feedback admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }

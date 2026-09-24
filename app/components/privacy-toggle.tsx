@@ -15,6 +15,10 @@ export function PrivacyToggle({ className, size = 18 }: PrivacyToggleProps) {
     // Verificar localStorage no carregamento
     const saved = localStorage.getItem("privacyMode");
     if (saved === "true") {
+      // O localStorage só existe no navegador. Ler no useState faria o botão
+      // nascer diferente do HTML que veio do servidor (erro de hidratação), por
+      // isso a preferência é aplicada aqui, logo depois da montagem.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- preferência do localStorage só pode ser lida depois da hidratação
       setIsPrivacyMode(true);
       document.body.classList.add("privacy-mode");
     }

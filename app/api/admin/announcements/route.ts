@@ -22,7 +22,7 @@ export async function GET() {
     }
 
     return NextResponse.json({ announcements: announcements || [] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no GET de comunicados admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, announcement: newAnnouncement });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no POST de comunicados admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
@@ -102,7 +102,7 @@ export async function PATCH(request: Request) {
     }
 
     const adminClient = createAdminClient();
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -135,7 +135,7 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ success: true, announcement: updatedAnnouncement });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no PATCH de comunicados admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
@@ -164,7 +164,7 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no DELETE de comunicados admin:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }

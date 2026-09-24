@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Loader2,
   ShieldAlert,
-  Send,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
 import { hashDiarioPin, verifyDiarioPin } from "@/utils/crypto";
@@ -57,62 +56,65 @@ export function DiarioBordoView() {
     return () => clearInterval(interval);
   }, [cooldown]);
 
-  const loadUserState = useCallback(async () => {
-    setLoadingAuth(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  // Roda só na abertura da tela. A leitura fica dentro do efeito e grava o
+  // estado só depois do await; `loadingAuth` já começa true, então não há o
+  // que ligar antes (um setState síncrono aqui só causaria uma renderização a
+  // mais). `supabase` é a instância única do navegador (createBrowserClient):
+  // estar na lista não faz a leitura rodar de novo.
+  useEffect(() => {
+    async function loadUserState() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoadingAuth(false);
-      return;
-    }
-
-    setUserId(user.id);
-    setUserEmail(user.email || null);
-
-    // 1. Verificar se já desbloqueou nesta sessão do navegador
-    if (typeof window !== "undefined") {
-      const sessionUnlocked = sessionStorage.getItem(`diario_unlocked_${user.id}`);
-      if (sessionUnlocked === "true") {
-        setUnlocked(true);
+      if (!user) {
         setLoadingAuth(false);
         return;
       }
-    }
 
-    // 2. Verificar se possui PIN cadastrado (user_metadata ou profiles)
-    let pinHash = user.user_metadata?.diario_pin_hash || null;
+      setUserId(user.id);
+      setUserEmail(user.email || null);
 
-    if (!pinHash) {
-      try {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("diario_pin_hash")
-          .eq("id", user.id)
-          .single();
-        if (prof?.diario_pin_hash) {
-          pinHash = prof.diario_pin_hash;
+      // 1. Verificar se já desbloqueou nesta sessão do navegador
+      if (typeof window !== "undefined") {
+        const sessionUnlocked = sessionStorage.getItem(`diario_unlocked_${user.id}`);
+        if (sessionUnlocked === "true") {
+          setUnlocked(true);
+          setLoadingAuth(false);
+          return;
         }
-      } catch {
-        // Ignora caso coluna não exista
       }
+
+      // 2. Verificar se possui PIN cadastrado (user_metadata ou profiles)
+      let pinHash = user.user_metadata?.diario_pin_hash || null;
+
+      if (!pinHash) {
+        try {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("diario_pin_hash")
+            .eq("id", user.id)
+            .single();
+          if (prof?.diario_pin_hash) {
+            pinHash = prof.diario_pin_hash;
+          }
+        } catch {
+          // Ignora caso coluna não exista
+        }
+      }
+
+      setStoredPinHash(pinHash);
+
+      if (!pinHash) {
+        setMode("create_step1");
+      } else {
+        setMode("unlock");
+      }
+
+      setLoadingAuth(false);
     }
-
-    setStoredPinHash(pinHash);
-
-    if (!pinHash) {
-      setMode("create_step1");
-    } else {
-      setMode("unlock");
-    }
-
-    setLoadingAuth(false);
-  }, [supabase]);
-
-  useEffect(() => {
     loadUserState();
-  }, [loadUserState]);
+  }, [supabase]);
 
   // Foco automático nos inputs
   useEffect(() => {

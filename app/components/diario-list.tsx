@@ -18,7 +18,6 @@ import {
   X,
   Tag,
   ArrowLeft,
-  Users,
   MessagesSquare,
 } from "lucide-react";
 import { Carregando } from "@/app/components/carregando";
@@ -154,7 +153,9 @@ export function DiarioList() {
     }
 
     setLoadingPacientes(false);
-  }, []);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não refaz a busca.
+  }, [supabase]);
 
   // 2. Busca anotações do diário de bordo DO PACIENTE SELECIONADO
   const fetchDiariosDoPaciente = useCallback(async (pacId: string, pageNum = 0, isLoadMore = false) => {
@@ -221,7 +222,7 @@ export function DiarioList() {
 
     setLoadingDiarios(false);
     setLoadingMoreDiarios(false);
-  }, []);
+  }, [supabase]);
 
   function handleLoadMore() {
     if (!selectedPacienteId || loadingMoreDiarios) return;
@@ -230,8 +231,12 @@ export function DiarioList() {
     fetchDiariosDoPaciente(selectedPacienteId, nextPage, true);
   }
 
+  // Troca de visão (lista de pacientes <-> caderno de um paciente): a busca
+  // precisa rodar a cada mudança da seleção, e o indicador de carregamento
+  // liga junto, antes da resposta chegar.
   useEffect(() => {
     if (!selectedPacienteId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- busca a cada troca de paciente selecionado; o "carregando" precisa ligar na hora
       fetchResumoPacientes();
     } else {
       fetchDiariosDoPaciente(selectedPacienteId, 0, false);
@@ -620,7 +625,7 @@ export function DiarioList() {
               </div>
             )}
 
-            {displayedDiarios.map((d, index) => {
+            {displayedDiarios.map((d) => {
               const dataFormatada = d.data
                 ? new Date(d.data + "T12:00:00").toLocaleDateString("pt-BR", {
                     weekday: "long",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { useSubscription } from "@/utils/subscription-context";
@@ -13,6 +13,14 @@ const PagamentoFormModal = dynamic(
   { ssr: false }
 );
 
+// Paciente embutido pelo join `pacientes(nome, cpf)`. O PostgREST devolve um
+// objeto (pagamento → paciente é muitos-para-um); getPacienteInfo aceita também
+// uma lista, por garantia.
+interface PacienteDoPagamento {
+  nome?: string | null;
+  cpf?: string | null;
+}
+
 interface Pagamento {
   id: string;
   paciente_id: string;
@@ -23,8 +31,7 @@ interface Pagamento {
   forma_pagamento: string;
   receita_saude: boolean;
   created_at: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pacientes?: any;
+  pacientes?: PacienteDoPagamento | PacienteDoPagamento[] | null;
 }
 
 const MESES = [
@@ -47,60 +54,71 @@ export function FinanceiroView() {
   const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const fetchPagamentos = useCallback(async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+  // Muda depois de salvar no modal, para buscar de novo os pagamentos do ano.
+  const [recarga, setRecarga] = useState(0);
 
-    // Busca os pagamentos do ano selecionado para compor métricas e gráficos anuais
-    const startOfYear = `${anoSelecionado}-01-01`;
-    const endOfYear = `${anoSelecionado}-12-31`;
-
-    const { data } = await supabase
-      .from("pagamentos")
-      .select("id, valor, data_vencimento, status, forma_pagamento, receita_saude, created_at, paciente_id, agendamento_id, pacientes(nome, cpf)")
-      .gte("data_vencimento", startOfYear)
-      .lte("data_vencimento", endOfYear)
-      .order("data_vencimento", { ascending: false });
-
-    if (data && user) {
-      const decryptedPagamentos = await Promise.all(
-        data.map(async (p) => {
-          let pacNome = (p.pacientes as any)?.nome || "Paciente";
-          let pacCpf = (p.pacientes as any)?.cpf || "";
-
-          if (pacNome && ehCifrado(pacNome)) {
-            pacNome = await decryptClinicalData(pacNome, user.id);
-          }
-          if (pacCpf && ehCifrado(pacCpf)) {
-            pacCpf = await decryptClinicalData(pacCpf, user.id);
-          }
-
-          return {
-            ...p,
-            pacientes: {
-              ...(p.pacientes as any),
-              nome: pacNome,
-              cpf: pacCpf,
-            },
-          };
-        })
-      );
-      setTodosPagamentos(decryptedPagamentos);
-    } else if (data) {
-      setTodosPagamentos(data);
-    }
-    setLoading(false);
-  }, [anoSelecionado]);
-
+  // Busca os pagamentos do ano ao abrir, ao trocar o ano e depois de salvar.
+  // A busca mora dentro do efeito e só chama setState depois dos await; o
+  // carregando é ligado por quem dispara a busca (estado inicial, troca de ano,
+  // salvar no modal). Assim o efeito não chama setState de forma síncrona
+  // (react-hooks/set-state-in-effect) e a tela mostra o carregando nos mesmos
+  // momentos de antes.
   useEffect(() => {
+    async function fetchPagamentos() {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Busca os pagamentos do ano selecionado para compor métricas e gráficos anuais
+      const startOfYear = `${anoSelecionado}-01-01`;
+      const endOfYear = `${anoSelecionado}-12-31`;
+
+      const { data } = await supabase
+        .from("pagamentos")
+        .select("id, valor, data_vencimento, status, forma_pagamento, receita_saude, created_at, paciente_id, agendamento_id, pacientes(nome, cpf)")
+        .gte("data_vencimento", startOfYear)
+        .lte("data_vencimento", endOfYear)
+        .order("data_vencimento", { ascending: false });
+
+      if (data && user) {
+        const decryptedPagamentos = await Promise.all(
+          data.map(async (p) => {
+            // O cast só dá tipo ao join; a leitura em tempo de execução é a mesma.
+            const pac = p.pacientes as PacienteDoPagamento | null | undefined;
+            let pacNome = pac?.nome || "Paciente";
+            let pacCpf = pac?.cpf || "";
+
+            if (pacNome && ehCifrado(pacNome)) {
+              pacNome = await decryptClinicalData(pacNome, user.id);
+            }
+            if (pacCpf && ehCifrado(pacCpf)) {
+              pacCpf = await decryptClinicalData(pacCpf, user.id);
+            }
+
+            return {
+              ...p,
+              pacientes: {
+                ...pac,
+                nome: pacNome,
+                cpf: pacCpf,
+              },
+            };
+          })
+        );
+        setTodosPagamentos(decryptedPagamentos);
+      } else if (data) {
+        setTodosPagamentos(data);
+      }
+      setLoading(false);
+    }
     fetchPagamentos();
-  }, [fetchPagamentos]);
+    // `supabase` vem de createBrowserClient, que no navegador devolve sempre a
+    // mesma instância: estar na lista não faz o efeito rodar de novo.
+  }, [anoSelecionado, supabase, recarga]);
 
   function formatMoney(value: number) {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
   }
 
-  function getPacienteInfo(p: Pagamento) {
+  function getPacienteInfo(p: Pagamento): PacienteDoPagamento {
     const pac = p.pacientes;
     if (!pac) return { nome: "Desconhecido", cpf: "" };
     if (Array.isArray(pac)) return pac[0] || {};
@@ -231,7 +249,11 @@ export function FinanceiroView() {
         
         <select 
           value={anoSelecionado}
-          onChange={(e) => setAnoSelecionado(Number(e.target.value))}
+          onChange={(e) => {
+            // Liga o carregando junto com a troca de ano (ver o efeito da busca).
+            setLoading(true);
+            setAnoSelecionado(Number(e.target.value));
+          }}
           className="px-4 py-2 rounded-lg bg-background border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
         >
           {anosDisponiveis.map(ano => (
@@ -412,7 +434,8 @@ export function FinanceiroView() {
           onClose={() => setShowModal(false)}
           onSaved={() => {
             setShowModal(false);
-            fetchPagamentos();
+            setLoading(true);
+            setRecarga((n) => n + 1);
           }}
         />
       )}

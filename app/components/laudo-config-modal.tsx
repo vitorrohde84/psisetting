@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { 
@@ -45,46 +45,49 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    setUserId(user.id);
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("nome, nome_completo, crp, telefone, genero, cidade, endereco, logo_url")
-      .eq("id", user.id)
-      .single();
-
-    if (data) {
-      setNome(data.nome || "");
-      setNomeCompleto(data.nome_completo || data.nome || "");
-      setCrp(data.crp || "");
-      setTelefone(data.telefone || "");
-      setGenero((data.genero as "F" | "M" | "outro") || "F");
-      setCidade(data.cidade || "");
-      setEndereco(data.endereco || "");
-      setLogoUrl(data.logo_url || null);
-
-      if (data.logo_url) {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
-        setLogoPreview(url);
-      }
-    }
-    setLoading(false);
-  }, []);
-
+  // Lido só na abertura do modal. A leitura fica dentro do efeito e grava o
+  // estado só depois do await; `loading` já começa true, então não há o que
+  // ligar antes (um setState síncrono aqui só causaria uma renderização a mais).
   useEffect(() => {
+    async function fetchProfile() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("nome, nome_completo, crp, telefone, genero, cidade, endereco, logo_url")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setNome(data.nome || "");
+        setNomeCompleto(data.nome_completo || data.nome || "");
+        setCrp(data.crp || "");
+        setTelefone(data.telefone || "");
+        setGenero((data.genero as "F" | "M" | "outro") || "F");
+        setCidade(data.cidade || "");
+        setEndereco(data.endereco || "");
+        setLogoUrl(data.logo_url || null);
+
+        if (data.logo_url) {
+          const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/logos/${data.logo_url}`;
+          setLogoPreview(url);
+        }
+      }
+      setLoading(false);
+    }
     fetchProfile();
-  }, [fetchProfile]);
+    // `supabase` vem de createBrowserClient, que no navegador é sempre a mesma
+    // instância: estar na lista não faz o perfil ser relido.
+  }, [supabase]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -370,6 +373,7 @@ export function LaudoConfigModal({ onClose, onSaved }: LaudoConfigModalProps) {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-xl border-2 border-dashed border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
                   {logoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- logo enviado pela pessoa, servido direto do Storage (com ?t= para furar o cache); não passa pelo otimizador de imagens
                     <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
                   ) : (
                     <Camera size={20} className="text-text-muted/40" />

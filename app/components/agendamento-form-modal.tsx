@@ -1,16 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { encryptClinicalData, decryptClinicalData } from "@/utils/crypto";
 import { deveCriarEvolucao, valorDaCobranca } from "@/utils/agenda-regras";
 import { X, Save, Loader2, Search } from "lucide-react";
 import type { Agendamento } from "./agenda-view";
 
+/**
+ * Pré-preenchimento vindo da agenda ("Replicar"). Sai direto da linha do
+ * agendamento, então duração, modalidade e observações podem vir nulas — o
+ * estado inicial do formulário já troca nulo pelo padrão.
+ */
+export type PrefillAgendamento = Partial<
+  Pick<
+    Agendamento,
+    "paciente_id" | "data" | "horario" | "duracao_minutos" | "modalidade" | "status" | "observacoes"
+  >
+>;
+
+type FrequenciaRecorrencia = "weekly" | "biweekly" | "monthly";
+
 interface AgendamentoFormModalProps {
   agendamento: Agendamento | null;
   prefillDate: string | null;
-  prefillData?: Partial<FormData>;
+  // A agenda passa o próprio estado, que é null quando não há o que replicar.
+  prefillData?: PrefillAgendamento | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -58,7 +73,7 @@ export function AgendamentoFormModal({
   const [error, setError] = useState<string | null>(null);
 
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<"weekly" | "biweekly" | "monthly">("weekly");
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<FrequenciaRecorrencia>("weekly");
   const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
 
   function addRecurrence(dateStr: string, frequency: string, count: number): string {
@@ -115,6 +130,7 @@ export function AgendamentoFormModal({
       }
     }
     fetchPacientes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador); a lista só precisa ser refeita quando muda o agendamento ou o pré-preenchimento.
   }, [agendamento, prefillData]);
 
   // Sugere o valor da sessão a partir do ÚLTIMO valor realmente cobrado deste
@@ -242,7 +258,7 @@ export function AgendamentoFormModal({
         .eq("id", agendamento.id)
         .select();
     } else {
-      let payloads = [];
+      const payloads = [];
       if (isRecurring && recurrenceCount > 0) {
         for (let i = 0; i <= recurrenceCount; i++) {
           payloads.push({
@@ -603,7 +619,7 @@ export function AgendamentoFormModal({
                     <label className={labelClass}>Frequência</label>
                     <select
                       value={recurrenceFrequency}
-                      onChange={(e) => setRecurrenceFrequency(e.target.value as any)}
+                      onChange={(e) => setRecurrenceFrequency(e.target.value as FrequenciaRecorrencia)}
                       className={inputClass}
                     >
                       <option value="weekly">Semanal</option>

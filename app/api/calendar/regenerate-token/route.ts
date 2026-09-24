@@ -60,7 +60,7 @@ export async function POST() {
       calendar_token: newToken,
       message: "Novo link do calendário gerado com sucesso. O link anterior foi revogado.",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro geral ao regenerar token:", err);
     return NextResponse.json(
       { error: "Erro interno no servidor." },

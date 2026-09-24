@@ -46,7 +46,7 @@ export function AnnouncementBanner() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Silently ignore if not available
       }
     }

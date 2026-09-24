@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       message: "Seu feedback foi enviado com sucesso! Muito obrigado por nos ajudar a melhorar o PsiSetting.",
       feedback,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erro no envio de feedback:", err);
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }

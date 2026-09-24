@@ -35,6 +35,8 @@ import {
   carregarSupervisoes,
 } from "./supervisoes-agenda";
 import { visiveisNoCalendario, type SupervisaoAgenda } from "@/utils/supervisao-agenda";
+// Só o tipo: o modal continua carregado sob demanda pelo dynamic() abaixo.
+import type { PrefillAgendamento } from "./agendamento-form-modal";
 
 const AgendamentoFormModal = dynamic(
   () => import("./agendamento-form-modal").then((m) => m.AgendamentoFormModal),
@@ -53,6 +55,13 @@ const SupervisaoAgendaFormModal = dynamic(
   { ssr: false }
 );
 
+/**
+ * O join `pacientes(nome)`. É muitos-para-um, então chega como objeto; o
+ * cliente do Supabase não tem os tipos do banco, e getPacienteName aceita
+ * também a forma de lista por precaução.
+ */
+type PacienteDoJoin = { nome?: string | null } | null;
+
 export interface Agendamento {
   id: string;
   paciente_id: string;
@@ -63,7 +72,7 @@ export interface Agendamento {
   status: string;
   observacoes: string | null;
   psicologo_id: string;
-  pacientes?: any;
+  pacientes?: PacienteDoJoin | PacienteDoJoin[];
   has_prontuario?: boolean;
   has_pagamento?: boolean;
   pagamento_status?: string;
@@ -120,11 +129,14 @@ export function AgendaView() {
   const [showModal, setShowModal] = useState(false);
   const [editingAg, setEditingAg] = useState<Agendamento | null>(null);
   const [prefillDate, setPrefillDate] = useState<string | null>(null);
-  const [prefillAgData, setPrefillAgData] = useState<any>(null);
+  const [prefillAgData, setPrefillAgData] = useState<PrefillAgendamento | null>(null);
   const [showIcsInfo, setShowIcsInfo] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
-  const [loadingToken, setLoadingToken] = useState(false);
+  // Começa ligado: o link é buscado uma única vez, na montagem (efeito abaixo).
+  // Antes começava desligado e o efeito o ligava logo em seguida; como o painel
+  // de sincronização começa fechado, a diferença não aparece na tela.
+  const [loadingToken, setLoadingToken] = useState(true);
   const [syncTab, setSyncTab] = useState<"iphone" | "google">("iphone");
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -139,53 +151,56 @@ export function AgendaView() {
   // Sobe a cada gravação feita pelo formulário: a aba Supervisões recarrega.
   const [versaoSupervisoes, setVersaoSupervisoes] = useState(0);
 
-  const loadCalendarToken = useCallback(async () => {
-    setLoadingToken(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("calendar_token")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.calendar_token) {
-        setCalendarToken(profile.calendar_token);
-      } else {
-        // `calendar_token` deixou de ser gravável pelo próprio usuário (A01):
-        // a escrita direta daqui tomaria erro 42501 e morreria num
-        // console.error, deixando a tela exibir um link que nunca foi salvo.
-        // A geração passa pela rota de servidor, que é a mesma usada pelo
-        // botão de regenerar em Configurações.
-        const resposta = await fetch("/api/calendar/regenerate-token", {
-          method: "POST",
-          credentials: "same-origin",
-        });
-
-        if (!resposta.ok) {
-          console.error(
-            "Não foi possível gerar o link do calendário:",
-            resposta.status
-          );
-          setCalendarToken(null);
-          return;
-        }
-
-        const { calendar_token } = await resposta.json();
-        setCalendarToken(calendar_token ?? null);
-      }
-    } catch (err) {
-      console.error("Erro ao carregar token do calendário:", err);
-    } finally {
-      setLoadingToken(false);
-    }
-  }, []);
-
+  // Busca (ou gera) o link pessoal do calendário uma vez, na montagem. A função
+  // mora dentro do efeito porque só ele a usa, e todo setState dela acontece
+  // depois de um await — nada é gravado de forma síncrona no corpo do efeito.
   useEffect(() => {
+    async function loadCalendarToken() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("calendar_token")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.calendar_token) {
+          setCalendarToken(profile.calendar_token);
+        } else {
+          // `calendar_token` deixou de ser gravável pelo próprio usuário (A01):
+          // a escrita direta daqui tomaria erro 42501 e morreria num
+          // console.error, deixando a tela exibir um link que nunca foi salvo.
+          // A geração passa pela rota de servidor, que é a mesma usada pelo
+          // botão de regenerar em Configurações.
+          const resposta = await fetch("/api/calendar/regenerate-token", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+
+          if (!resposta.ok) {
+            console.error(
+              "Não foi possível gerar o link do calendário:",
+              resposta.status
+            );
+            setCalendarToken(null);
+            return;
+          }
+
+          const { calendar_token } = await resposta.json();
+          setCalendarToken(calendar_token ?? null);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar token do calendário:", err);
+      } finally {
+        setLoadingToken(false);
+      }
+    }
+
     loadCalendarToken();
-  }, [loadCalendarToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador); o link é buscado só na montagem.
+  }, []);
 
   function copyCalUrl() {
     if (!calendarToken || typeof window === "undefined") return;
@@ -255,12 +270,10 @@ export function AgendaView() {
         const pStatus =
           pagMap.get(ag.id) || pagMap.get(`${ag.paciente_id}_${ag.data}`);
         
-        let pacienteNome = (ag.pacientes as any)?.nome || "Paciente";
-        if (user && (ag.pacientes as any)?.nome) {
-          pacienteNome = await decryptClinicalData(
-            (ag.pacientes as any).nome,
-            user.id
-          );
+        const nomeGravado = (ag.pacientes as PacienteDoJoin)?.nome;
+        let pacienteNome = nomeGravado || "Paciente";
+        if (user && nomeGravado) {
+          pacienteNome = await decryptClinicalData(nomeGravado, user.id);
         }
 
         let observacoesDecrypted = ag.observacoes;
@@ -281,11 +294,13 @@ export function AgendaView() {
       })
     );
 
-    setAgendamentos(enhancedAgs as any);
+    setAgendamentos(enhancedAgs);
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase é o mesmo cliente a cada render (createBrowserClient guarda uma instância única no navegador); o que muda a busca é só o mês exibido.
   }, [firstDay, lastDayStr]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- recarrega a cada troca de mês e precisa ligar o "carregando" na hora (setLoading(true) no início de fetchAgendamentos); a mesma função serve às recargas depois de salvar/cancelar.
     fetchAgendamentos();
   }, [fetchAgendamentos]);
 

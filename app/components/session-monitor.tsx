@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { decryptClinicalData , ehCifrado } from "@/utils/crypto";
 import { Bell, FileText, DollarSign, X, ChevronUp, ChevronDown } from "lucide-react";
 import { ProntuarioFormModal } from "./prontuario-form-modal";
 import { PagamentoFormModal } from "./pagamento-form-modal";
+
+// Relação pacientes(nome) do select. Em agendamentos -> pacientes (muitos para
+// um) o Supabase devolve um objeto; getPacienteName aceita lista por segurança.
+interface PacienteRelacionado {
+  nome?: string | null;
+}
 
 interface Agendamento {
   id: string;
@@ -14,13 +20,62 @@ interface Agendamento {
   horario: string;
   duracao_minutos: number | null;
   status: string;
-  pacientes?: any;
+  pacientes?: PacienteRelacionado | PacienteRelacionado[] | null;
   has_prontuario?: boolean;
   has_pagamento?: boolean;
 }
 
-export function SessionMonitor() {
+// Busca os agendamentos de hoje já marcados com prontuário e pagamento.
+// Fica fora do componente e devolve a lista em vez de gravar no estado: assim
+// o efeito de montagem só grava depois do await (não no corpo do efeito) e a
+// função não depende do cliente do Supabase criado a cada render.
+async function buscarAgendamentosDeHoje(): Promise<Agendamento[]> {
   const supabase = createClient();
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const [agsRes, prontRes, pagRes] = await Promise.all([
+    supabase
+      .from("agendamentos")
+      .select("id, paciente_id, data, horario, duracao_minutos, status, pacientes(nome)")
+      .eq("data", todayStr)
+      .in("status", ["agendado", "confirmado", "realizado"]), // only valid statuses
+    supabase
+      .from("prontuarios")
+      .select("paciente_id")
+      .eq("data", todayStr),
+    supabase
+      .from("pagamentos")
+      .select("paciente_id")
+      .eq("data_vencimento", todayStr),
+  ]);
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // O status é baseado no paciente_id E data, já que filtramos por "hoje"
+  const prontSet = new Set(prontRes.data?.map(p => p.paciente_id));
+  const pagSet = new Set(pagRes.data?.map(p => p.paciente_id));
+
+  return Promise.all(
+    (agsRes.data || []).map(async (ag) => {
+      let pacNome = (ag.pacientes as PacienteRelacionado | null | undefined)?.nome || "Paciente";
+      if (user && pacNome && ehCifrado(pacNome)) {
+        pacNome = await decryptClinicalData(pacNome, user.id);
+      }
+
+      return {
+        ...ag,
+        pacientes: {
+          nome: pacNome,
+        },
+        has_prontuario: prontSet.has(ag.paciente_id),
+        has_pagamento: pagSet.has(ag.paciente_id),
+      };
+    })
+  );
+}
+
+export function SessionMonitor() {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pendingSessions, setPendingSessions] = useState<Agendamento[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -31,57 +86,15 @@ export function SessionMonitor() {
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
   const [actionPrefillData, setActionPrefillData] = useState<{ paciente_id: string; data?: string; data_vencimento?: string } | null>(null);
 
-  const fetchTodayData = useCallback(async () => {
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-    const [agsRes, prontRes, pagRes] = await Promise.all([
-      supabase
-        .from("agendamentos")
-        .select("id, paciente_id, data, horario, duracao_minutos, status, pacientes(nome)")
-        .eq("data", todayStr)
-        .in("status", ["agendado", "confirmado", "realizado"]), // only valid statuses
-      supabase
-        .from("prontuarios")
-        .select("paciente_id")
-        .eq("data", todayStr),
-      supabase
-        .from("pagamentos")
-        .select("paciente_id")
-        .eq("data_vencimento", todayStr),
-    ]);
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // O status é baseado no paciente_id E data, já que filtramos por "hoje"
-    const prontSet = new Set(prontRes.data?.map(p => p.paciente_id));
-    const pagSet = new Set(pagRes.data?.map(p => p.paciente_id));
-
-    const enhancedAgs = await Promise.all(
-      (agsRes.data || []).map(async (ag) => {
-        let pacNome = (ag.pacientes as any)?.nome || "Paciente";
-        if (user && pacNome && ehCifrado(pacNome)) {
-          pacNome = await decryptClinicalData(pacNome, user.id);
-        }
-
-        return {
-          ...ag,
-          pacientes: {
-            nome: pacNome,
-          },
-          has_prontuario: prontSet.has(ag.paciente_id),
-          has_pagamento: pagSet.has(ag.paciente_id),
-        };
-      })
-    );
-
-    setAgendamentos(enhancedAgs);
-  }, []);
+  // Recarrega depois de salvar prontuário ou pagamento pelos modais abaixo.
+  function fetchTodayData() {
+    buscarAgendamentosDeHoje().then(setAgendamentos);
+  }
 
   // Initial fetch
   useEffect(() => {
-    fetchTodayData();
-  }, [fetchTodayData]);
+    buscarAgendamentosDeHoje().then(setAgendamentos);
+  }, []);
 
   // Check intervals
   useEffect(() => {

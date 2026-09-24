@@ -121,6 +121,10 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
       setPacientes(list);
     }
     fetchData();
+    // Carga única, na abertura do modal. `carregarPerfil` é recriada a cada
+    // renderização e o fetchData grava estado: com ela na lista, o efeito
+    // rodaria de novo a cada renderização, sem fim.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga só na abertura; carregarPerfil nova a cada render faria o efeito rodar em loop (supabase é a instância única do navegador)
   }, []);
 
   const filteredPacientes = pacienteSearch
@@ -311,9 +315,16 @@ export function LaudoFormModal({ onClose, onSaved }: LaudoFormModalProps) {
       if (dbError) throw dbError;
 
       onSaved();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Erro inesperado ao salvar o laudo.");
+      // Chega aqui um Error (upload, cifra) ou o erro do Supabase (dbError),
+      // que também traz `message` sem ser necessariamente um Error: lê o campo
+      // dos dois do mesmo jeito que antes.
+      const mensagem =
+        typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "";
+      setError(mensagem || "Erro inesperado ao salvar o laudo.");
       setSaving(false);
     }
   }
