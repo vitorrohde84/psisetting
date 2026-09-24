@@ -52,6 +52,8 @@ e guardas próprias). Exceção de lint só com `eslint-disable-next-line` e o m
   o que muda o trabalho. Depois do OK, executar e só perguntar decisões de negócio
   ou de UX.
 - Português do Brasil. Comentários explicam o **porquê**.
+- Falar de cada frente pelo que ela faz ("cartão automático", "PIX de 15
+  minutos"), nunca por rótulos internos de plano ("Entrega 2"), que confundem.
 - Textos do site passam pela Hellen. O site deve ser leve: explicações do produto
   ("o que é o prontuário", "o que é o Diário de Bordo") ficam dentro do sistema
   (`app/components/explicacao-registro.tsx`).
@@ -106,36 +108,81 @@ e guardas próprias). Exceção de lint só com `eslint-disable-next-line` e o m
 - **Toda consulta ao Supabase confere `error`.** Um erro descartado deixou a aba
   Laudos da ficha vazia por semanas (a consulta pedia uma coluna que não existe).
 
-## Estado em 23/09/2026
+## Estado em 23/09/2026 (noite)
 
-- Migrações aplicadas: as de 17/09 (auditoria de segurança) e
+- Migrações aplicadas: as de 17/09 (auditoria de segurança),
   `20260923120000_cupons_duracao_e_acesso`, `20260923130000_diario_supervisao`,
-  `20260923140000_agenda_supervisoes`.
-- Publicado: cupom com duração e acesso pelas datas; laudo sem dados da Hellen e
-  Termo de Responsabilidade; comentários de supervisão no Diário; aba de
-  supervisões na Agenda; botão de WhatsApp e textos revisados no site; correção
-  da aba Laudos da ficha do paciente; correção do CSP que impedia o formulário do
-  cartão de carregar.
-- **Pronto no código, ainda não publicado:** renovação automática no cartão
-  (rotas, telas, webhook, conferência diária em `/api/cron/assinaturas`), PIX com
-  validade de 15 minutos na tela (32 min no Mercado Pago, cancelado depois dos 15)
-  e os textos de pagamento do site, dos Termos e da Privacidade. Depende da
-  migração `20260923150000_cartao_automatico.sql`, **ainda não aplicada**.
-- O SQL novo foi validado num Postgres local (PGlite) com cenários de cobrança,
+  `20260923140000_agenda_supervisoes` e `20260923150000_cartao_automatico`.
+- Publicado:
+  - cupom com duração e acesso pelas datas;
+  - laudo sem dados da Hellen e Termo de Responsabilidade;
+  - comentários de supervisão no Diário e aba de supervisões na Agenda;
+  - botão de WhatsApp e textos revisados no site;
+  - correções da aba Laudos da ficha e do CSP do formulário de cartão (o cartão
+    avulso foi pago em produção depois disso);
+  - **renovação automática no cartão** (rotas, telas, webhook, conferência
+    diária em `/api/cron/assinaturas`, cancelamento em Configurações, admin);
+  - PIX com validade de 15 minutos na tela;
+  - lint zerado e bloqueante na CI;
+  - credenciais tiradas dos scripts de teste.
+- O SQL foi validado num Postgres local (PGlite) com cenários de cobrança,
   estorno, permissões e RLS; esse ambiente de teste não está no repositório.
 - Revisões: `docs/auditoria/` (auditoria antagônica e handoff de 17/09).
 
+### Renovação automática: a criação é recusada pelo antifraude (em aberto)
+
+- **Sintoma:** ligar o automático volta HTTP 400 `CC_VAL_433 Credit card
+  validation has failed`. O pagamento avulso passa com o mesmo cartão.
+- **Motivo real** (lido em `/api/admin/diagnostico-assinaturas`): a **primeira
+  mensalidade**, cobrada na hora da criação (quem já está vencido), foi recusada
+  com `status_detail = cc_rejected_high_risk`, isto é, pelo antifraude. Foram 5
+  tentativas em 23/09, entre 21h48 e 22h11 de Brasília, todas com o mesmo cartão
+  (Master final 2485) e valores de R$ 1,00 e R$ 3,49 (cupons de 100% e 90%).
+  Pagamentos 179600554327, 180594401684, 179600873037, 180596532588 e
+  180595923810.
+- **O que já foi feito**, tudo no ar:
+  - device ID do `security.js` no cabeçalho `X-Meli-Session-Id`;
+  - Card Payment Brick no automático, com o e-mail da conta preenchido e o campo
+    escondido;
+  - criação por `fetch` direto, que guarda `code` e `x-request-id`;
+  - busca do motivo da verificação;
+  - página de diagnóstico para o admin.
+
+  O Card Payment Brick ainda **não foi testado**.
+- **Leitura mais provável:** padrão de "teste de cartão", com cobranças
+  recorrentes de R$ 1, repetidas, com o mesmo cartão, do próprio dono. Não
+  concluir que o fluxo não funciona antes do próximo teste.
+- **Aprendido:**
+  - a cobrança da assinatura vem com `point_of_interaction.type =
+    "SUBSCRIPTIONS"`, `operation_type = "regular_payment"` e `external_reference`
+    igual ao id da conta;
+  - o motivo da recusa só aparece nesse pagamento (a busca não traz o e-mail do
+    pagador);
+  - o SDK 3.4 descarta `code` e `x-request-id` do erro.
+- **Próximo teste:** valor normal (R$ 34,90, sem cupom grande), cartão de outra
+  pessoa (não o dono da conta Mercado Pago que recebe), uma tentativa só, sem
+  usar o cartão final 2485 por um tempo.
+- **Plano B, se voltar `cc_rejected_high_risk`:** a pessoa confirma a assinatura
+  numa tela do Mercado Pago, logada na conta dela (preapproval `pending` com
+  `init_point`), o que dá ao antifraude muito mais sinal. Riscos: pode exigir
+  login com o mesmo e-mail do `payer_email`, e houve relato de `init_point` com
+  "página não existe" em 09/2026 (`mercadopago/sdk-nodejs#480`). Em paralelo,
+  abrir chamado no suporte do Mercado Pago com os pagamentos acima.
+
 ## Pendências
 
-1. **Cartão automático — o que falta para ir ao ar**, nesta ordem: aplicar
-   `20260923150000_cartao_automatico.sql` (o SELECT final todo "OK"; se listar
-   "assinatura antiga", conferir no painel do Mercado Pago se ainda cobra); criar
-   `CRON_SECRET` na Vercel antes do deploy (sem ele o cron responde 401 e a
-   conferência diária não roda); no painel do Mercado Pago (Suas integrações →
-   Webhooks), ligar os eventos "Pagamentos" e "Planos e assinaturas" para a mesma
-   URL do webhook; push com OK do Vitor; teste com cartão real (ligar, ver a
-   cobrança virar dias, cancelar em Configurações). A Hellen revisa os textos
-   novos de pagamento (FAQ do site, Termos, Privacidade) antes de publicar.
+1. **Cartão automático:**
+   - resolver a recusa acima;
+   - confirmar que `CRON_SECRET` existe na Vercel (sem ele o cron responde 401 e a
+     conferência diária não roda) e que o evento "Planos e assinaturas" está
+     ligado no webhook do Mercado Pago;
+   - teste de ponta a ponta com cartão real: ligar, ver a cobrança virar dias,
+     cancelar em Configurações;
+   - a Hellen revisar os textos novos de pagamento (FAQ do site, Termos,
+     Privacidade);
+   - decidir o automático com cupom de 100% (hoje vira assinatura de R$ 1,00,
+     que o antifraude tende a barrar; sugestão: não oferecer o automático
+     quando o valor for R$ 1,00).
 2. **Testes com login a confirmar com o Vitor**: cupom de 100% com PIX de R$ 1,00;
    impressão bloqueada sem CRP; comentário de supervisão; supervisão na Agenda.
 3. **Segurança — ação do Vitor:** a senha da conta `hellen@psicologa.com` esteve
